@@ -1,0 +1,303 @@
+{
+  "$schema": "foresight/archetype/v1.1",
+  "_readme": {
+    "what_this_is": "A Foresight archetype: the durable, transferable standard for a class of website. The Verifier scores a real repo against these checkpoints. Any capable model can grade against it because the judgment lives in the rubric, not the model.",
+    "the_walls": {
+      "pattern_instance": "Everything here is PATTERN (transferable). Instance details are generated at runtime into the project and never written back here. This is both the design principle and the legal line: facts about good software are free to encode; specific code is not.",
+      "strength_blindspot": "Checkpoints tag domain:backbone or domain:design. Backbone ENFORCES the builder's own judgment; design SUPPLIES judgment the builder lacks."
+    },
+    "confidence_tags": {
+      "_why": "HONESTY MECHANIC. Each checkpoint carries a confidence field stating how well-grounded its standard is. This is the rubric refusing to dress a guess as a fact - the same discipline the tool enforces on the builder, applied to itself.",
+      "established": "Backed by widely-accepted engineering or documented design/accessibility specs. Thresholds defensible, not invented.",
+      "reasoned": "Follows sound principle but specific thresholds are judgment calls; treat numbers as tunable defaults.",
+      "taste_limited": "Captures the measurable FLOOR of a quality that is ultimately partly aesthetic. The rubric verifies the floor, NOT the ceiling. A model grading this catches 'clearly bad' reliably and 'genuinely great' only weakly. Bring a human eye here."
+    },
+    "how_scoring_works": "Levels 3/6/9. 3 = present but crude/risky. 6 = solid, shippable. 9 = great. Verifier reports level + concrete gap to next level. TRUST THE GAP, NOT THE NUMBER. Goal: 9 on critical, 6+ elsewhere - never infinite polish.",
+    "how_verification_works": "Each verify block has reasoning (a question a model answers from the repo - the v1 spine) and assertions (mechanical checks). Assertions tagged static (AST/file inspection), test (a test must exist), or runtime (needs running build / headless browser). A checkpoint may be reasoning-only until assertions are implementable."
+  },
+
+  "archetype": "ecommerce",
+  "version": "1.1.0",
+  "applies_when": "The site takes money for goods/services: a catalog, a cart or equivalent, and a payment flow.",
+  "goal_definition": {
+    "shippable": "all severity:critical at level >= 6",
+    "great": "all severity:critical at 9, all others >= 6",
+    "honest_ceiling": "design checkpoints tagged taste_limited verify to ~level 7 mechanically; reaching 9 requires human design review the rubric cannot replace."
+  },
+
+  "checkpoints": [
+    {
+      "id": "ec.checkout.atomic_stock_hold",
+      "domain": "backbone", "severity": "critical", "confidence": "established",
+      "title": "Atomic stock hold before payment",
+      "why": "Two buyers race for the last unit; without an atomic hold placed BEFORE the payment intent, you oversell. Cheap to design in first; brutal to retrofit after payment is live.",
+      "levels": {
+        "3": "Stock checked then payment created as separate non-atomic steps (race window exists).",
+        "6": "Stock reserved atomically before payment-intent creation, with a reservation that expires on abandonment.",
+        "9": "Atomic reserve-then-confirm with expiry, idempotent against retries, reconciliation releasing orphaned holds; correct for both quantity stock and unique items."
+      },
+      "verify": {
+        "reasoning": "Trace cart to payment. Is stock reserved atomically BEFORE the payment intent? What releases the reservation on failure/abandonment? Is there a race window between availability check and decrement?",
+        "assertions": [
+          {"check": "A stock-reservation operation is invoked before payment-intent creation in the same transaction/flow.", "type": "static"},
+          {"check": "Reservation has an expiry/release path.", "type": "static"},
+          {"check": "A concurrency test fires two checkouts for the last unit; exactly one succeeds.", "type": "test"}
+        ]
+      }
+    },
+    {
+      "id": "ec.checkout.payment_idempotency",
+      "domain": "backbone", "severity": "critical", "confidence": "established",
+      "title": "Idempotent payment handling",
+      "why": "Retries, double-clicks, and webhook re-delivery cause double charges or duplicate orders without idempotency.",
+      "levels": {
+        "3": "No idempotency key; duplicate submissions can double-charge.",
+        "6": "Idempotency key on payment creation; client duplicates de-duplicated.",
+        "9": "Idempotency across the full path including provider webhooks (each event processed exactly once), with safe replay."
+      },
+      "verify": {
+        "reasoning": "Can the same payment be created twice from a retry? Are provider webhooks processed exactly once? Is there an idempotency key on creation and webhook handling?",
+        "assertions": [
+          {"check": "Idempotency key passed to payment provider on intent creation.", "type": "static"},
+          {"check": "Webhook handler de-duplicates by provider event id before mutating state.", "type": "static"}
+        ]
+      }
+    },
+    {
+      "id": "ec.order.state_integrity",
+      "domain": "backbone", "severity": "critical", "confidence": "established",
+      "title": "Order/payment state cannot diverge",
+      "why": "Order status and actual payment status drifting apart (paid-no-order, order-unpaid) is a top source of silent revenue loss.",
+      "levels": {
+        "3": "Order marked paid optimistically on client return, before provider confirmation.",
+        "6": "Order transitions driven by verified provider webhooks, not client redirects.",
+        "9": "Explicit state machine, reconciliation job catching divergence, per-order audit trail."
+      },
+      "verify": {
+        "reasoning": "Is paid set from a verified server-side signal or the client redirect? Can an order be paid without confirmation, or charged without an order? Is there reconciliation?",
+        "assertions": [
+          {"check": "Order-paid transition triggered by a verified webhook, not a client success route.", "type": "static"},
+          {"check": "A reconciliation path compares provider state to order state.", "type": "static"}
+        ]
+      }
+    },
+    {
+      "id": "ec.auth.access_control",
+      "domain": "backbone", "severity": "critical", "confidence": "established",
+      "title": "Ownership checks on user-scoped resources",
+      "why": "IDOR - accessing another user's order/address by changing an id - is invisible externally and a top AI-code hole.",
+      "levels": {
+        "3": "Resources fetched by id with no ownership check.",
+        "6": "Every user-scoped read/write verifies the resource belongs to the requester.",
+        "9": "Centralized authorization enforced by default, with tests proving cross-account access is denied."
+      },
+      "verify": {
+        "reasoning": "For endpoints fetching a resource by id (order, address, payment): does each verify ownership? Can user A reach user B's record by changing the id?",
+        "assertions": [
+          {"check": "User-scoped fetches filter by owner id, not resource id alone.", "type": "static"},
+          {"check": "A test attempts cross-account access and gets 403/404.", "type": "test"}
+        ]
+      }
+    },
+    {
+      "id": "ec.data.money_precision",
+      "domain": "backbone", "severity": "high", "confidence": "established",
+      "title": "Money stored and computed safely",
+      "why": "Floating-point money causes rounding errors that compound across totals, tax, and refunds.",
+      "levels": {
+        "3": "Prices as floats; arithmetic in floating point.",
+        "6": "Integer minor units (cents) or decimal type throughout; consistent rounding.",
+        "9": "Minor-unit integers, explicit currency per amount, centralized money type, rounding rules tested."
+      },
+      "verify": {
+        "reasoning": "How is money represented in schema and calculations? Are floats used in price/tax/total math? Is currency explicit on each amount?",
+        "assertions": [
+          {"check": "No float type backs price/total/tax fields.", "type": "static"},
+          {"check": "Currency stored alongside every monetary amount.", "type": "static"}
+        ]
+      }
+    },
+    {
+      "id": "ec.catalog.variant_model",
+      "domain": "backbone", "severity": "high", "confidence": "established",
+      "title": "Product/variant model fits the real goods",
+      "why": "Conflating product with sellable unit is a foundational data-model mistake, expensive to unwind once orders reference it.",
+      "levels": {
+        "3": "Single product table; variants faked via duplicate products or loose fields.",
+        "6": "Distinct product and variant entities; stock and price on the variant.",
+        "9": "Variant model expresses the domain's real dimensions; order lines reference variant ids with price captured at purchase."
+      },
+      "verify": {
+        "reasoning": "Does the schema separate product from sellable variant? Do stock/price live on the variant? Do order lines capture an immutable variant + price, or a mutable product?",
+        "assertions": [
+          {"check": "A variant/sellable-unit entity is distinct from product.", "type": "static"},
+          {"check": "Order line items capture price at purchase, not by live lookup.", "type": "static"}
+        ]
+      }
+    },
+    {
+      "id": "ec.data.inventory_reconciliation",
+      "domain": "backbone", "severity": "high", "confidence": "established",
+      "title": "Inventory truth survives failures",
+      "why": "Added in rebuild for coverage. Reservations, cancellations, refunds, and crashes leak stock counts unless inventory is reconcilable to a source of truth.",
+      "levels": {
+        "3": "Stock is a single mutable number adjusted ad hoc; no record of why it changed.",
+        "6": "Stock changes logged as movements (sale, refund, restock, expired hold) summing to current level.",
+        "9": "Append-only movement ledger; current stock derivable and a job detects/repairs drift."
+      },
+      "verify": {
+        "reasoning": "Is stock a bare mutable number or derived from logged movements? After a refund or expired hold, is stock corrected reliably? Can you explain why a count is what it is?",
+        "assertions": [
+          {"check": "Stock changes recorded as discrete movements with a reason.", "type": "static"}
+        ]
+      }
+    },
+    {
+      "id": "ec.checkout.cost_correctness",
+      "domain": "backbone", "severity": "high", "confidence": "reasoned",
+      "title": "Tax/shipping/totals computed server-side and correctly",
+      "why": "Added for coverage. Client-computed or mismatched totals cause charge disputes and trust loss; tax/shipping must be authoritative server-side.",
+      "levels": {
+        "3": "Totals/tax/shipping computed client-side or trusted from the client.",
+        "6": "All cost math is server-authoritative; client display is informational only.",
+        "9": "Server-authoritative with explicit rounding order, tax/shipping rules tested against known cases, charged amount provably equal to shown amount."
+      },
+      "verify": {
+        "reasoning": "Where are tax, shipping, and totals computed? Can a tampered client change the charged total? Is the amount charged guaranteed equal to the amount displayed?",
+        "assertions": [
+          {"check": "Final charged amount computed server-side, not read from the client request.", "type": "static"},
+          {"check": "Tax/shipping calculations have tests with known expected outputs.", "type": "test"}
+        ]
+      }
+    },
+
+    {
+      "id": "ec.design.type_scale",
+      "domain": "design", "severity": "high", "confidence": "established",
+      "title": "Typographic scale and readability meet documented standards",
+      "why": "BLIND-SPOT CHECKPOINT but the FLOOR is established, not taste. Readability has real specs: body legibility, line-length, line-height, consistent modular scale. The measurable part of looks-designed.",
+      "levels": {
+        "3": "Ad-hoc font sizes scattered in components; body text small or cramped; no consistent scale.",
+        "6": "Body text >= 16px; line-height ~1.4-1.6 for body; line length ~45-75 chars; defined modular scale (1.2-1.333 ratio) for headings.",
+        "9": "Coherent type system applied everywhere - scale, weight, spacing reinforce hierarchy; measure and rhythm hold across breakpoints."
+      },
+      "verify": {
+        "reasoning": "Is there a defined type scale or ad-hoc sizes? Is body text at least 16px with comfortable line-height? Are line lengths in the readable range on content-heavy views?",
+        "assertions": [
+          {"check": "A central type scale is defined (tokens/theme), not per-component magic sizes.", "type": "static"},
+          {"check": "Computed body font-size >= 16px and line-height between 1.4 and 1.7.", "type": "runtime"}
+        ]
+      }
+    },
+    {
+      "id": "ec.design.contrast_a11y",
+      "domain": "design", "severity": "high", "confidence": "established",
+      "title": "Color contrast and accessibility floor",
+      "why": "BLIND-SPOT CHECKPOINT, fully ESTABLISHED - WCAG defines hard numbers, no taste required. Backbone devs routinely ship unreadable low-contrast text and untouchable controls. Verifiable to a 9.",
+      "levels": {
+        "3": "Text/background contrast below WCAG AA in places; interactive elements unlabeled; keyboard nav broken.",
+        "6": "Body text meets AA (>=4.5:1), large text >=3:1; images have alt text; forms have labels; visible focus states.",
+        "9": "AA throughout including UI components and states; full keyboard operability; automated a11y pass with zero critical violations."
+      },
+      "verify": {
+        "reasoning": "Does text meet WCAG AA contrast (4.5:1 body, 3:1 large)? Do interactive elements have labels and visible focus? Is the checkout keyboard-operable?",
+        "assertions": [
+          {"check": "Text/background pairs meet AA contrast ratios.", "type": "runtime"},
+          {"check": "Form inputs have associated labels; images have alt attributes.", "type": "static"},
+          {"check": "An automated accessibility scan reports zero critical violations on key views.", "type": "runtime"}
+        ]
+      }
+    },
+    {
+      "id": "ec.design.spacing_system",
+      "domain": "design", "severity": "medium", "confidence": "reasoned",
+      "title": "Consistent spacing system",
+      "why": "BLIND-SPOT CHECKPOINT. Inconsistent spacing is the clearest tell of assembled-not-designed UI. Principle established (a spacing scale); the specific scale is a reasoned default.",
+      "levels": {
+        "3": "Arbitrary margins/paddings; no shared scale; uneven rhythm.",
+        "6": "A spacing scale (e.g. 4/8px base) defined as tokens and used consistently.",
+        "9": "Spacing scale applied with intent so grouping and rhythm read clearly; related grouped, unrelated separated, consistent across views."
+      },
+      "verify": {
+        "reasoning": "Is spacing drawn from a defined scale or arbitrary per component? Count distinct spacing values - small intentional set or sprawl? Does spacing group related content?",
+        "assertions": [
+          {"check": "Spacing tokens are centrally defined.", "type": "static"},
+          {"check": "Distinct raw spacing values within a small set (default <= 10; tune per project).", "type": "static"}
+        ]
+      }
+    },
+    {
+      "id": "ec.design.visual_hierarchy",
+      "domain": "design", "severity": "high", "confidence": "taste_limited",
+      "title": "Clear visual hierarchy guides the eye",
+      "why": "BLIND-SPOT CHECKPOINT and honestly TASTE_LIMITED. The floor is checkable (one dominant CTA, type scale present). Whether hierarchy is genuinely great is partly aesthetic; a model grades it only weakly - bring a human eye to confirm the ceiling.",
+      "levels": {
+        "3": "Uniform weight; no clear primary action; user hunts for what matters.",
+        "6": "One clear primary action per view; type scale and spacing establish order; secondary actions visibly subordinate.",
+        "9": "[CEILING NOT MACHINE-VERIFIABLE] Deliberate hierarchy on every view so the eye lands correctly without effort - confirm with human review."
+      },
+      "verify": {
+        "reasoning": "On product, cart, checkout: is there ONE obviously dominant primary action? Does the type scale create order or is everything similar weight? Would a first-time visitor know where to look without reading everything? Report the measurable floor confidently; flag the is-it-great judgment as needing human confirmation.",
+        "assertions": [
+          {"check": "Each key view has a single visually dominant primary CTA.", "type": "runtime"},
+          {"check": "A defined type scale exists (precondition for hierarchy).", "type": "static"}
+        ]
+      }
+    },
+    {
+      "id": "ec.design.system_consistency",
+      "domain": "design", "severity": "high", "confidence": "reasoned",
+      "title": "Consistent design system, not ad-hoc styling",
+      "why": "BLIND-SPOT CHECKPOINT. Scattered one-off colors/styles are the clearest tell of AI-assembled UI. Principle established; palette-size threshold is reasoned.",
+      "levels": {
+        "3": "Hard-coded colors/spacing/sizes repeated and inconsistent.",
+        "6": "Shared tokens for color, spacing, type, radius; components reuse them.",
+        "9": "Coherent system - small intentional palette, consistent scale, reused primitives; a new page composes from existing parts with zero new magic numbers."
+      },
+      "verify": {
+        "reasoning": "Are color/spacing/type defined as tokens and reused, or hard-coded per component? Is the palette intentional and small or sprawling? Could a new page be built from existing primitives?",
+        "assertions": [
+          {"check": "Design tokens (color/spacing/type) are centrally defined.", "type": "static"},
+          {"check": "Distinct raw color values within a small intentional set (default <= 12; tune per project).", "type": "static"}
+        ]
+      }
+    },
+    {
+      "id": "ec.design.trust_signals",
+      "domain": "design", "severity": "high", "confidence": "taste_limited",
+      "title": "Checkout earns trust visually",
+      "why": "BLIND-SPOT CHECKPOINT. The floor is checkable (costs shown before payment, designed error states). Whether it genuinely feels as safe as a major retailer is partly perception - taste_limited at the ceiling.",
+      "levels": {
+        "3": "Totals/fees unclear or late; no reassurance; raw error messages; feels unsafe.",
+        "6": "Itemized totals with shipping/tax before payment; clear error states; recognizable payment UI; obvious back/edit.",
+        "9": "[CEILING PARTLY PERCEPTUAL] Transparent costs at every step, reassuring microcopy, polished error/empty/loading states, flow that feels as safe as a major retailer - confirm with human review."
+      },
+      "verify": {
+        "reasoning": "At payment entry: are all costs visible already with no surprises? Are error/loading/empty states designed or raw? Can the user go back and edit without losing progress? Report the floor confidently; flag the feels-trustworthy judgment for human confirmation.",
+        "assertions": [
+          {"check": "Shipping/tax/fees displayed before the payment step.", "type": "runtime"},
+          {"check": "Error, loading, and empty states are explicitly designed for checkout.", "type": "static"}
+        ]
+      }
+    },
+    {
+      "id": "ec.design.responsive_real_devices",
+      "domain": "design", "severity": "medium", "confidence": "established",
+      "title": "Works and looks right on real screen sizes",
+      "why": "BLIND-SPOT CHECKPOINT, mostly ESTABLISHED. Most ecommerce traffic is mobile; broken mobile checkout silently loses the majority of sales. Overflow, tap-target size, and legibility are measurable.",
+      "levels": {
+        "3": "Desktop-first; mobile overflow, tiny tap targets, or broken layout.",
+        "6": "Responsive across phone/tablet/desktop; tap targets >= 44px; no horizontal overflow.",
+        "9": "Designed per breakpoint (not just shrunk); mobile checkout comfortable one-handed."
+      },
+      "verify": {
+        "reasoning": "Do key flows hold at narrow widths - no overflow, readable text, tappable controls? Is the layout designed for small screens or scaled down?",
+        "assertions": [
+          {"check": "No horizontal overflow at 360px width on key views.", "type": "runtime"},
+          {"check": "Interactive targets >= 44x44px on mobile.", "type": "runtime"},
+          {"check": "Layouts use responsive techniques, not fixed-pixel container widths.", "type": "static"}
+        ]
+      }
+    }
+  ]
+}

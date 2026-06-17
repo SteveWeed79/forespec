@@ -1,0 +1,158 @@
+{
+  "$schema": "foresight/archetype-design/v2",
+  "_readme": {
+    "what_this_is": "Instrumented design checkpoints for the ecommerce archetype. Each checkpoint decomposes an allegedly-aesthetic quality into weighted, measurable sub-signals with an explicit scoring formula. The score is COMPUTED from signals, not asserted. Two graders measuring the same signals get the same number - that reproducibility is what makes it an instrument, not an opinion.",
+    "why_this_matters": "A UI skin over an LLM says 'this looks good (trust me)'. An instrument says 'this scores 7.4: hierarchy 8, contrast 9, spacing 6, here are the measurements'. Showing the work is the difference.",
+    "scoring_model": {
+      "method": "Each checkpoint = weighted sum of sub-signals, each sub-signal scored 0-10 by a stated measurement. checkpoint_score = round(sum(signal_score * weight), 1). Weights sum to 1.0 per checkpoint.",
+      "measurement_types": {
+        "computed": "Deterministic from DOM/CSS/render. Same answer every run. (e.g. contrast ratio, element count, size ratio).",
+        "model_scored": "A vision/saliency model produces a number from a defined procedure. Reproducible within model variance; report the procedure so it's auditable.",
+        "boolean": "Presence/absence, scored 0 or 10.",
+        "residual": "The NAMED part that no current proxy captures. Reported separately, never silently folded into the number."
+      },
+      "honesty_rule": "Every checkpoint reports: composite score, the per-signal breakdown, and an explicit residual_risk note describing what the proxies could miss. The number never hides its basis."
+    }
+  },
+
+  "archetype": "ecommerce",
+  "dimension": "design",
+  "version": "2.0.0",
+
+  "checkpoints": [
+    {
+      "id": "ec.design.visual_hierarchy",
+      "domain": "design", "severity": "high",
+      "title": "Visual hierarchy guides the eye (instrumented)",
+      "claim_being_quantified": "The eye lands on the right thing first, effortlessly.",
+      "signals": [
+        {
+          "id": "cta_dominance",
+          "weight": 0.30,
+          "measurement_type": "computed",
+          "what": "Visual weight of the intended primary CTA vs all other interactive/heading elements in the same viewport. Visual weight = normalized(area) * contrast_against_bg * color_saliency.",
+          "scoring": "Rank all candidate elements by visual weight. 10 if primary CTA is rank 1 by a margin >= 1.5x the rank-2 element; 6 if rank 1 by any margin; 3 if rank 2-3; 0 if not in top 3.",
+          "residual_risk": "A CTA can dominate by weight yet sit in a dead zone; pair with saliency_peak below to cover placement."
+        },
+        {
+          "id": "saliency_peak",
+          "weight": 0.30,
+          "measurement_type": "model_scored",
+          "what": "Run the rendered view through a visual-saliency model (predicts where human attention goes). Procedure: capture viewport at 1280px and 360px, generate saliency heatmap, locate the peak attention region.",
+          "scoring": "10 if the saliency peak overlaps the intended primary action's bounding box; 6 if within one element-width; 3 if same half of the viewport; 0 otherwise.",
+          "residual_risk": "Saliency models are trained on general imagery; domain-specific scanning (e.g. price-first shoppers) may diverge. Report model + version used."
+        },
+        {
+          "id": "type_tier_ratio",
+          "weight": 0.20,
+          "measurement_type": "computed",
+          "what": "Computed font-size ratios between heading tiers (h1->h2->body).",
+          "scoring": "10 if a consistent modular ratio in 1.2-1.5 holds across tiers; 6 if tiers are distinct but inconsistent; 3 if two tiers collide in size; 0 if effectively one size.",
+          "residual_risk": "Ratio can be correct while weight/color flatten the perceived hierarchy; cta_dominance partly covers this."
+        },
+        {
+          "id": "competing_elements",
+          "weight": 0.20,
+          "measurement_type": "computed",
+          "what": "Count of elements above the fold whose visual weight is within 20% of the primary CTA's (i.e. competing for first attention).",
+          "scoring": "10 if 0 competitors; 6 if 1; 3 if 2; 0 if 3+.",
+          "residual_risk": "Intentional dual-CTA designs (e.g. 'buy' vs 'add to cart') may legitimately compete; flag for human confirm if count is 1 by design."
+        }
+      ],
+      "residual_risk_overall": "Composite estimates first-glance hierarchy well; it does NOT capture multi-step scan flow or emotional emphasis. If composite >= 8 but the page still feels off, the miss is likely in reading-order across sections - a measurable v2.1 signal (DOM-order vs visual-order correlation) not yet implemented."
+    },
+    {
+      "id": "ec.design.trust_signals",
+      "domain": "design", "severity": "high",
+      "title": "Checkout earns trust (instrumented)",
+      "claim_being_quantified": "The flow feels as safe to enter a card into as a major retailer.",
+      "signals": [
+        {
+          "id": "cost_transparency_timing",
+          "weight": 0.35,
+          "measurement_type": "computed",
+          "what": "Step (or scroll-depth) index at which the full cost breakdown (item + shipping + tax + fees) first becomes visible, relative to the payment-entry step.",
+          "scoring": "10 if full costs visible >= 1 step before payment entry; 6 if visible on the payment step itself; 3 if partial (some fee hidden until later); 0 if any fee appears only at/after final confirm.",
+          "residual_risk": "Timing can be correct while the breakdown is visually buried; combine with the saliency approach if disputes arise."
+        },
+        {
+          "id": "surprise_cost",
+          "weight": 0.25,
+          "measurement_type": "boolean",
+          "what": "Does ANY mandatory cost (fee, shipping, tax) first appear only at the final confirmation step?",
+          "scoring": "0 if yes (a single surprise cost is a known trust-killer and conversion-killer); 10 if no.",
+          "residual_risk": "None significant; this is close to a pure signal."
+        },
+        {
+          "id": "designed_states",
+          "weight": 0.20,
+          "measurement_type": "computed",
+          "what": "Of the checkout's required UI states (error, loading, empty-cart, payment-failure, success), how many have explicit designed handling vs raw/default rendering.",
+          "scoring": "score = 10 * (designed states / 5).",
+          "residual_risk": "Presence != quality; a designed error state can still be confusing. Quality of copy is partly covered by next signal."
+        },
+        {
+          "id": "reassurance_elements",
+          "weight": 0.20,
+          "measurement_type": "computed",
+          "what": "Count of recognized trust elements present at payment: secure-payment indication, recognizable payment-method branding, visible return/refund or support reference, editable order summary without data loss.",
+          "scoring": "score = 10 * min(present / 4, 1).",
+          "residual_risk": "Counting presence rewards box-ticking; a cluttered pile of badges can REDUCE trust. Flag for human review if count is high but cta_dominance/hierarchy on the same view is low (signals clutter)."
+        }
+      ],
+      "residual_risk_overall": "Strong estimator of trust mechanics. Cannot measure brand-level credibility (logo quality, copy tone maturity) - that residual is real but small relative to cost-transparency, which dominates checkout trust empirically."
+    },
+    {
+      "id": "ec.design.aesthetic_coherence",
+      "domain": "design", "severity": "medium",
+      "title": "Aesthetic coherence (instrumented - the hardest one, quantified anyway)",
+      "claim_being_quantified": "It looks intentionally designed, not assembled.",
+      "_note": "This is the checkpoint I previously called unquantifiable. Decomposed here to prove the point that abstract -> measurable is possible.",
+      "signals": [
+        {
+          "id": "palette_discipline",
+          "weight": 0.25,
+          "measurement_type": "computed",
+          "what": "Count of distinct color values actually rendered (not defined) across key views.",
+          "scoring": "10 if <= 8 distinct; 6 if 9-16; 3 if 17-30; 0 if 30+.",
+          "residual_risk": "A disciplined palette can still be ugly; coordinate with contrast and harmony signals."
+        },
+        {
+          "id": "color_harmony",
+          "weight": 0.20,
+          "measurement_type": "computed",
+          "what": "Map rendered palette to HSL; measure whether hues follow a recognized relationship (mono/analogous/complementary within tolerance).",
+          "scoring": "10 if palette fits a coherent scheme within tolerance; 6 if mostly with 1-2 outliers; 3 if scattered; 0 if no discernible relationship.",
+          "residual_risk": "Harmony math rewards safe palettes; bold intentional clashes that work aesthetically may underscore. Flag high-confidence-low-score cases for human review."
+        },
+        {
+          "id": "spacing_quantization",
+          "weight": 0.25,
+          "measurement_type": "computed",
+          "what": "Fraction of margin/padding values that are multiples of a detected base unit (e.g. 4px).",
+          "scoring": "score = 10 * (quantized values / total spacing values).",
+          "residual_risk": "Near-pure signal for 'system vs ad-hoc'; low residual."
+        },
+        {
+          "id": "alignment_grid",
+          "weight": 0.15,
+          "measurement_type": "computed",
+          "what": "Fraction of primary layout elements whose edges align to a small set of detected grid lines / shared axes.",
+          "scoring": "score = 10 * (aligned elements / total primary elements).",
+          "residual_risk": "Rewards rigid grids; intentional asymmetric layouts may underscore."
+        },
+        {
+          "id": "visual_complexity",
+          "weight": 0.15,
+          "measurement_type": "model_scored",
+          "what": "Compute a complexity/clutter estimate (e.g. compressed-image-size proxy or edge-density of the rendered view) against a target band for the page type.",
+          "scoring": "10 if within the target complexity band for the view type; 6 if mildly over/under; 3 if notably; 0 if extreme.",
+          "residual_risk": "Complexity bands are reasoned defaults, not laws; content-heavy catalog pages legitimately run denser."
+        }
+      ],
+      "residual_risk_overall": "This composite genuinely estimates 'designed vs assembled' and would catch the typical backbone-dev UI. The IRREDUCIBLE residual - the part I will not claim to measure - is taste-as-novelty: a design that breaks these rules ON PURPOSE and succeeds. The instrument scores that as low; only a human eye overrides. That residual is real but rare, and naming it precisely is more honest than either ignoring it or using it to refuse a number."
+    }
+  ],
+
+  "_closing_honesty": "Every score here is computed from stated signals and reproducible. The instrument reliably catches bad and confirms competent. The one thing it cannot do is recognize rule-breaking brilliance - that is the named residual, and it is the ONLY place 'human review' is genuinely required, not a blanket excuse. That is the line between an instrument and a skin."
+}
