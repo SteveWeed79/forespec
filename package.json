@@ -1,0 +1,15 @@
+{
+  "name": "foresight",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Foresight — forces domain foresight before a feature, then verifies what got built against it.",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "check": "node schemas/validate.mjs",
+    "eval": "node verifier-eval/run-eval.mjs",
+    "eval:claude": "node verifier-eval/run-eval.mjs --adapter claude --out verifier-eval/report.json"
+  }
+}

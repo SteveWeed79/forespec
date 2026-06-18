@@ -9,9 +9,9 @@ It draws each interrogation from a compounding **pattern library** and keeps the
 **live** through a plan → build → verify → correct loop. AI coding tools (Claude Code first)
 are adapters that drive the engine — never the thing it lives inside.
 
-> **Status: design stage.** This repo currently holds the specs and the first archetype, not
-> code yet. Read the docs below in order; the JSON archetypes are already usable as the
-> standard a verifier scores against.
+> **Status: early build.** The specs and the first archetype are here, plus runnable tooling
+> (`schemas/`, `verifier-eval/`). New to this kind of project? Start with
+> [`SETUP.md`](./SETUP.md) — it gets you running on Windows step by step.
 
 ## The documents
 
