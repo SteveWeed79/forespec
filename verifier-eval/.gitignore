@@ -1,0 +1,4 @@
+# Generated eval reports (produced by run-eval.mjs --out)
+report.json
+report*.json
+last-report.json

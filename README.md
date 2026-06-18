@@ -50,6 +50,16 @@ are adapters that drive the engine — never the thing it lives inside.
   JSON Schemas that validate their structure live in [`schemas/`](./schemas) — see that
   directory's README for how to run validation.
 
+## Tooling
+
+- [`schemas/`](./schemas) — JSON Schema for both archetypes + a zero-dependency invariant
+  validator (`node schemas/validate.mjs`).
+- [`verifier-eval/`](./verifier-eval) — the verifier-accuracy harness. A labeled good/bad
+  fixture corpus for the critical backbone checkpoints, plus a runner that measures a
+  verifier's precision/recall and **false-green rate** (`node verifier-eval/run-eval.mjs`).
+  This is how "is the verifier trustworthy?" becomes a number instead of a hope — the
+  validation gate the whole tool rests on.
+
 ## License
 
 Not chosen yet. The values docs commit to a *local core that is free and fully useful
