@@ -1,0 +1,25 @@
+{
+  "$schema": "foresight/checkpoint-library/v1",
+  "concern": "data",
+  "_note": "Data-modeling checkpoints that are not domain-specific.",
+  "checkpoints": [
+    {
+      "id": "data.money_precision",
+      "domain": "backbone", "confidence": "established",
+      "title": "Money stored and computed safely",
+      "why": "Floating-point money causes rounding errors that compound across totals, tax, and refunds.",
+      "levels": {
+        "3": "Prices as floats; arithmetic in floating point.",
+        "6": "Integer minor units (cents) or decimal type throughout; consistent rounding.",
+        "9": "Minor-unit integers, explicit currency per amount, centralized money type, rounding rules tested."
+      },
+      "verify": {
+        "reasoning": "How is money represented in schema and calculations? Are floats used in price/tax/total math? Is currency explicit on each amount?",
+        "assertions": [
+          {"check": "No float type backs price/total/tax fields.", "type": "static"},
+          {"check": "Currency stored alongside every monetary amount.", "type": "static"}
+        ]
+      }
+    }
+  ]
+}

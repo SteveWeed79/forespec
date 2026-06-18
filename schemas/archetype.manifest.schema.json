@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "foresight/archetype/v2",
+  "title": "Foresight archetype manifest",
+  "description": "Validates an archetype manifest (e.g. archetype.ecommerce.json): a selection of library checkpoints by ref + the severity each carries in this domain. Resolve to the full archetype with library/resolve.mjs; the resolved output is validated by archetype.schema.json.",
+  "type": "object",
+  "required": ["archetype", "version", "applies_when", "goal_definition", "checkpoints"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+    "_readme": { "type": "object" },
+    "archetype": { "type": "string", "minLength": 1 },
+    "version": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$" },
+    "applies_when": { "type": "string", "minLength": 1 },
+    "goal_definition": {
+      "type": "object",
+      "required": ["shippable", "great"],
+      "additionalProperties": false,
+      "properties": {
+        "shippable": { "type": "string" },
+        "great": { "type": "string" },
+        "honest_ceiling": { "type": "string" }
+      }
+    },
+    "checkpoints": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["ref", "severity"],
+        "additionalProperties": false,
+        "properties": {
+          "ref": {
+            "type": "string",
+            "pattern": "^[a-z0-9]+(\\.[a-z0-9_]+)+$",
+            "description": "Id of a checkpoint in library/checkpoints/. Must resolve (checked by validate.mjs)."
+          },
+          "severity": { "enum": ["critical", "high", "medium", "low"] },
+          "note": { "type": "string", "description": "Optional human note about why/how this checkpoint applies in this archetype." }
+        }
+      }
+    }
+  }
+}

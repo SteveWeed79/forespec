@@ -49,9 +49,9 @@ keeps it legal and non-creepy. If these are tangled in one object now, you can n
 share later. Separating them costs nothing today and is the whole seam.
 
 ### 2. Stable checkpoint identity
-Calibration data is keyed to checkpoint ids (`ec.checkout.atomic_stock_hold`) and signal ids
+Calibration data is keyed to checkpoint ids (`ecommerce.checkout.atomic_stock_hold`) and signal ids
 (`cta_dominance`), not to free text. This is why ids must be stable and namespaced now —
-your hit/miss data on `ec.checkout.atomic_stock_hold` becomes directly poolable with a future
+your hit/miss data on `ecommerce.checkout.atomic_stock_hold` becomes directly poolable with a future
 user's data on the SAME id. Rename a checkpoint and you orphan its history. Treat ids as
 permanent contracts; version archetypes, never silently rename checkpoints.
 

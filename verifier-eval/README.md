@@ -46,7 +46,7 @@ Reported per-checkpoint and overall:
 ## How to read a result
 
 The mock baseline reports ~92% accuracy with a false-alarm on
-`ec.order.state_integrity` — by design: the baseline has no keywords for that
+`payment.state_integrity` — by design: the baseline has no keywords for that
 checkpoint, so it flags everything. That's the point — a verifier that doesn't
 *understand* a checkpoint shows up here as alarm noise (or, worse, as false
 greens). The real test is the `claude` adapter clearing the bar the baseline

@@ -5,8 +5,8 @@
     "why_this_matters": "A UI skin over an LLM says 'this looks good (trust me)'. An instrument says 'this scores 7.4: hierarchy 8, contrast 9, spacing 6, here are the measurements'. Showing the work is the difference.",
     "phase_and_status": "This is the INSTRUMENTED design layer. Its computed/boolean signals correspond to build-order Phase 3 (honest, measurable signals shippable now). Its measurement_type:model_scored signals (saliency_peak, visual_complexity) are build-order Phase 6 EXPERIMENTS - designed here so the formula has a slot for them, but NOT trusted until calibration proves they correlate with reality. Until then they are excluded from the composite per scoring_model.signal_availability_and_renormalization. Treat every number here as unvalidated until the calibration loop (foresight.calibration-1.md) has earned it.",
     "relationship_to_base_archetype": {
-      "shared_ids_supersede": "ec.design.visual_hierarchy and ec.design.trust_signals ALSO appear in archetype.ecommerce.json as reasoning-only / taste_limited checkpoints. When this instrumented layer is active, its definition is authoritative for those ids; the base definition is the fallback when the instrument cannot run. The id is UNCHANGED on purpose - per foresight.calibration-1.md a checkpoint id is a stable, permanent contract, so calibration history carries across to the richer definition. This is an archetype version bump, never a rename.",
-      "aesthetic_coherence_vs_base": "ec.design.aesthetic_coherence is NEW here and overlaps in spirit with the base archetype's ec.design.system_consistency and ec.design.spacing_system. They are NOT duplicates and must not be double-counted: the base checkpoints are STATIC/definitional (are tokens DEFINED and reused - measured from source), while aesthetic_coherence is COMPUTED FROM THE RENDER (what actually reached the screen - palette discipline, spacing quantization, alignment on real pixels). Definition vs realization: two altitudes of one concern. A roll-up that includes both should read the base checkpoints as 'is there a system' and aesthetic_coherence as 'did the system survive to the rendered page', not as two independent verdicts on the same property."
+      "shared_ids_supersede": "design.visual_hierarchy and ecommerce.design.trust_signals also exist in the shared library (and are selected by the ecommerce archetype) as reasoning-only / taste_limited checkpoints. When this instrumented layer is active, its definition is authoritative for those ids; the library definition is the fallback when the instrument cannot run. Same stable id on purpose - per foresight.calibration-1.md a checkpoint id is a permanent contract, so calibration history carries across to the richer definition. Use a version bump, never a rename.",
+      "aesthetic_coherence_vs_base": "design.aesthetic_coherence is NEW here and overlaps in spirit with the library's design.system_consistency and design.spacing_system. They are NOT duplicates and must not be double-counted: the library checkpoints are STATIC/definitional (are tokens DEFINED and reused - measured from source), while aesthetic_coherence is COMPUTED FROM THE RENDER (what actually reached the screen - palette discipline, spacing quantization, alignment on real pixels). Definition vs realization: two altitudes of one concern. A roll-up that includes both should read the library checkpoints as 'is there a system' and aesthetic_coherence as 'did the system survive to the rendered page', not as two independent verdicts on the same property."
     },
     "scoring_model": {
       "method": "Each checkpoint = weighted sum of sub-signals, each sub-signal scored 0-10 by a stated measurement. checkpoint_score = round(sum(signal_score * weight), 1). Weights sum to 1.0 per checkpoint.",
@@ -24,11 +24,11 @@
 
   "archetype": "ecommerce",
   "dimension": "design",
-  "version": "2.1.0",
+  "version": "2.2.0",
 
   "checkpoints": [
     {
-      "id": "ec.design.visual_hierarchy",
+      "id": "design.visual_hierarchy",
       "domain": "design", "severity": "high",
       "title": "Visual hierarchy guides the eye (instrumented)",
       "claim_being_quantified": "The eye lands on the right thing first, effortlessly.",
@@ -69,7 +69,7 @@
       "residual_risk_overall": "Composite estimates first-glance hierarchy well; it does NOT capture multi-step scan flow or emotional emphasis. If composite >= 8 but the page still feels off, the miss is likely in reading-order across sections - a measurable v2.1 signal (DOM-order vs visual-order correlation) not yet implemented."
     },
     {
-      "id": "ec.design.trust_signals",
+      "id": "ecommerce.design.trust_signals",
       "domain": "design", "severity": "high",
       "title": "Checkout earns trust (instrumented)",
       "claim_being_quantified": "The flow feels as safe to enter a card into as a major retailer.",
@@ -110,7 +110,7 @@
       "residual_risk_overall": "Strong estimator of trust mechanics. Cannot measure brand-level credibility (logo quality, copy tone maturity) - that residual is real but small relative to cost-transparency, which dominates checkout trust empirically."
     },
     {
-      "id": "ec.design.aesthetic_coherence",
+      "id": "design.aesthetic_coherence",
       "domain": "design", "severity": "medium",
       "title": "Aesthetic coherence (instrumented - the hardest one, quantified anyway)",
       "claim_being_quantified": "It looks intentionally designed, not assembled.",

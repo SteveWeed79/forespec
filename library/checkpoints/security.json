@@ -1,0 +1,25 @@
+{
+  "$schema": "foresight/checkpoint-library/v1",
+  "concern": "security",
+  "_note": "Abuse / hardening checkpoints. Cross-domain — any app with auth or payment endpoints reuses these.",
+  "checkpoints": [
+    {
+      "id": "security.abuse_controls",
+      "domain": "backbone", "confidence": "reasoned",
+      "title": "Sensitive endpoints resist automated abuse (card testing, brute force)",
+      "why": "A public payment endpoint is a magnet for card-testing: bots fire stolen card numbers through it to find live ones, racking up fees, fraud penalties, and processor risk. Login and other sensitive endpoints with no rate limiting also enable credential stuffing. The need is established; specific thresholds are reasoned defaults to tune.",
+      "levels": {
+        "3": "No rate limiting or bot mitigation on payment-attempt, login, or coupon endpoints.",
+        "6": "Rate limiting/throttling on payment attempts and auth endpoints, with provider fraud tooling (e.g. Radar-style rules) enabled.",
+        "9": "Layered defense: per-identity and per-IP limits, velocity checks on failed payments, CAPTCHA/bot mitigation where warranted, and monitoring that alerts on abuse spikes."
+      },
+      "verify": {
+        "reasoning": "Are payment-attempt and authentication endpoints rate-limited? Is there any defense against card-testing (failed-payment velocity limits, provider fraud rules, bot mitigation)? What stops a script from firing thousands of attempts?",
+        "assertions": [
+          {"check": "Rate limiting/throttling is applied to payment-attempt and authentication endpoints.", "type": "static"},
+          {"check": "Provider-side fraud/abuse controls or failed-attempt velocity limits are configured.", "type": "static"}
+        ]
+      }
+    }
+  ]
+}

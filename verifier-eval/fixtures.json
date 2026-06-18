@@ -1,29 +1,30 @@
 {
   "$schema": "foresight/verifier-eval/v1",
   "_readme": {
-    "what_this_is": "A labeled corpus for measuring the Foresight reasoning verifier. Each case is a minimal known-good or known-bad implementation of one backbone checkpoint, with a gold level a competent reviewer would assign. The harness (run-eval.mjs) runs a verifier against these and reports precision/recall — especially the false-green rate (calling a bad implementation shippable), the dangerous error.",
-    "labels": "gold_level uses the archetype's 3/6/9 scale. 3 = crude/risky (the vulnerability is present). 6 = solid/shippable (the property holds). A case labeled 3 is 'bad'; 6 is 'good'. shippable = level >= 6.",
-    "wall": "These fixtures are synthetic and contain no real project code — they are PATTERN-level and fully shareable. Do not add real KTXZ code here; point the verifier at a real repo separately.",
-    "coverage": "v1 covers the 6 severity:critical backbone checkpoints. Expand with more cases (and 9-level fixtures) over time — more labeled cases = tighter accuracy estimates."
+    "what_this_is": "A labeled corpus for measuring the Foresight reasoning verifier. Each case is a minimal known-good or known-bad implementation of one checkpoint, with a gold level a competent reviewer would assign. The harness (run-eval.mjs) runs a verifier against these and reports precision/recall — especially the false-green rate (calling a bad implementation shippable), the dangerous error.",
+    "labels": "gold_level uses the 3/6/9 scale. 3 = crude/risky (the vulnerability is present). 6 = solid/shippable (the property holds). A case labeled 3 is 'bad'; 6 is 'good'. shippable = level >= 6.",
+    "ids": "checkpoint ids are the library ids (resolved from archetype.ecommerce.json via library/resolve.mjs). The `checkpoint` field is the source of truth for the id; fixture directory names mirror it.",
+    "wall": "These fixtures are synthetic and contain no real project code — they are PATTERN-level and fully shareable. Do not add real project code here; point the verifier at a real repo separately.",
+    "coverage": "v1 covers the 6 severity:critical backbone checkpoints of the ecommerce archetype. Expand with more cases (and 9-level fixtures) over time — more labeled cases = tighter accuracy estimates."
   },
   "archetype": "../archetype.ecommerce.json",
   "cases": [
-    { "checkpoint": "ec.checkout.atomic_stock_hold", "fixture": "fixtures/ec.checkout.atomic_stock_hold/bad.ts",  "label": "bad",  "gold_level": 3, "note": "availability check and decrement are separate non-atomic steps; race window oversells" },
-    { "checkpoint": "ec.checkout.atomic_stock_hold", "fixture": "fixtures/ec.checkout.atomic_stock_hold/good.ts", "label": "good", "gold_level": 6, "note": "atomic conditional reservation committed before the payment intent, with an expiring hold" },
+    { "checkpoint": "ecommerce.checkout.atomic_stock_hold", "fixture": "fixtures/ecommerce.checkout.atomic_stock_hold/bad.ts",  "label": "bad",  "gold_level": 3, "note": "availability check and decrement are separate non-atomic steps; race window oversells" },
+    { "checkpoint": "ecommerce.checkout.atomic_stock_hold", "fixture": "fixtures/ecommerce.checkout.atomic_stock_hold/good.ts", "label": "good", "gold_level": 6, "note": "atomic conditional reservation committed before the payment intent, with an expiring hold" },
 
-    { "checkpoint": "ec.checkout.payment_idempotency", "fixture": "fixtures/ec.checkout.payment_idempotency/bad.ts",  "label": "bad",  "gold_level": 3, "note": "no idempotency key; webhook reprocesses on every redelivery" },
-    { "checkpoint": "ec.checkout.payment_idempotency", "fixture": "fixtures/ec.checkout.payment_idempotency/good.ts", "label": "good", "gold_level": 6, "note": "idempotency key on creation; webhook dedupes by provider event id" },
+    { "checkpoint": "payment.idempotency", "fixture": "fixtures/payment.idempotency/bad.ts",  "label": "bad",  "gold_level": 3, "note": "no idempotency key; webhook reprocesses on every redelivery" },
+    { "checkpoint": "payment.idempotency", "fixture": "fixtures/payment.idempotency/good.ts", "label": "good", "gold_level": 6, "note": "idempotency key on creation; webhook dedupes by provider event id" },
 
-    { "checkpoint": "ec.order.state_integrity", "fixture": "fixtures/ec.order.state_integrity/bad.ts",  "label": "bad",  "gold_level": 3, "note": "order marked paid from the client redirect, before provider confirmation" },
-    { "checkpoint": "ec.order.state_integrity", "fixture": "fixtures/ec.order.state_integrity/good.ts", "label": "good", "gold_level": 6, "note": "paid set only from a verified webhook via a state machine, plus reconciliation" },
+    { "checkpoint": "payment.state_integrity", "fixture": "fixtures/payment.state_integrity/bad.ts",  "label": "bad",  "gold_level": 3, "note": "record marked paid from the client redirect, before provider confirmation" },
+    { "checkpoint": "payment.state_integrity", "fixture": "fixtures/payment.state_integrity/good.ts", "label": "good", "gold_level": 6, "note": "paid set only from a verified webhook via a state machine, plus reconciliation" },
 
-    { "checkpoint": "ec.auth.access_control", "fixture": "fixtures/ec.auth.access_control/bad.ts",  "label": "bad",  "gold_level": 3, "note": "fetch by id alone — IDOR" },
-    { "checkpoint": "ec.auth.access_control", "fixture": "fixtures/ec.auth.access_control/good.ts", "label": "good", "gold_level": 6, "note": "fetch filtered by authenticated owner id" },
+    { "checkpoint": "auth.access_control", "fixture": "fixtures/auth.access_control/bad.ts",  "label": "bad",  "gold_level": 3, "note": "fetch by id alone — IDOR" },
+    { "checkpoint": "auth.access_control", "fixture": "fixtures/auth.access_control/good.ts", "label": "good", "gold_level": 6, "note": "fetch filtered by authenticated owner id" },
 
-    { "checkpoint": "ec.checkout.card_data_handling", "fixture": "fixtures/ec.checkout.card_data_handling/bad.ts",  "label": "bad",  "gold_level": 3, "note": "raw PAN posted to first-party backend; secret key in client config" },
-    { "checkpoint": "ec.checkout.card_data_handling", "fixture": "fixtures/ec.checkout.card_data_handling/good.ts", "label": "good", "gold_level": 6, "note": "provider token only; secret key server-side via env" },
+    { "checkpoint": "payment.card_data_handling", "fixture": "fixtures/payment.card_data_handling/bad.ts",  "label": "bad",  "gold_level": 3, "note": "raw PAN posted to first-party backend; secret key in client config" },
+    { "checkpoint": "payment.card_data_handling", "fixture": "fixtures/payment.card_data_handling/good.ts", "label": "good", "gold_level": 6, "note": "provider token only; secret key server-side via env" },
 
-    { "checkpoint": "ec.checkout.webhook_authenticity", "fixture": "fixtures/ec.checkout.webhook_authenticity/bad.ts",  "label": "bad",  "gold_level": 3, "note": "webhook trusts the body with no signature verification" },
-    { "checkpoint": "ec.checkout.webhook_authenticity", "fixture": "fixtures/ec.checkout.webhook_authenticity/good.ts", "label": "good", "gold_level": 6, "note": "verifies provider signature against the raw body before mutating state" }
+    { "checkpoint": "payment.webhook_authenticity", "fixture": "fixtures/payment.webhook_authenticity/bad.ts",  "label": "bad",  "gold_level": 3, "note": "webhook trusts the body with no signature verification" },
+    { "checkpoint": "payment.webhook_authenticity", "fixture": "fixtures/payment.webhook_authenticity/good.ts", "label": "good", "gold_level": 6, "note": "verifies provider signature against the raw body before mutating state" }
   ]
 }

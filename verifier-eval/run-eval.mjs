@@ -15,6 +15,7 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join, resolve } from "node:path";
+import { resolveArchetype } from "../library/resolve.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -27,7 +28,7 @@ const adapterName = arg("--adapter", "mock");
 const outPath = arg("--out", null);
 
 const manifest = JSON.parse(readFileSync(join(here, "fixtures.json"), "utf8"));
-const archetype = JSON.parse(readFileSync(resolve(here, manifest.archetype), "utf8"));
+const archetype = resolveArchetype(resolve(here, manifest.archetype)); // manifest -> resolved checkpoints
 const checkpointById = new Map(archetype.checkpoints.map((c) => [c.id, c]));
 
 const adapter = await import(`./adapters/${adapterName}.mjs`);

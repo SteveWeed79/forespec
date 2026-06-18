@@ -20,7 +20,8 @@ are adapters that drive the engine — never the thing it lives inside.
 | [`FORESIGHT-2.md`](./FORESIGHT-2.md) | The vision: the full architecture, the moat argument, and *why* the engine exists. **Superseded on build *sequence*** by the build order below (it has banners pointing there). |
 | [`foresight.buildorder-2.md`](./foresight.buildorder-2.md) | **The authoritative roadmap.** Phases 0–7, verifier-first, each phase shippable and standing on its own. When any doc disagrees on *what to build in what order*, this one governs. |
 | [`foresight.calibration-1.md`](./foresight.calibration-1.md) | Layer 3 — the calibration loop that turns invented weights into ones earned on real work, and the seam that lets solo data later join a shared pool without a rewrite. |
-| [`archetype.ecommerce.json`](./archetype.ecommerce.json) | The ecommerce **archetype**: 12 backbone + 7 design checkpoints, each with levels (3/6/9), a confidence tag, and reasoning + assertion verification. The durable, transferable standard a verifier grades a repo against. |
+| [`library/`](./library) | The **shared checkpoint library** — every checkpoint definition (auth, payment, data, design, …), authored once and reused across archetypes. `resolve.mjs` composes a manifest + the library into a full archetype. |
+| [`archetype.ecommerce.json`](./archetype.ecommerce.json) | The ecommerce **archetype manifest**: selects 12 backbone + 7 design checkpoints from the library and sets each one's severity for this domain. Resolves to the durable standard a verifier grades against. |
 | [`archetype.ecommerce.design.json`](./archetype.ecommerce.design.json) | The **instrumented** design layer: design checkpoints decomposed into weighted, measurable sub-signals → a computed 0–10 composite. Its `model_scored` signals are deferred experiments until calibration earns them. |
 
 ## Reading order
@@ -28,7 +29,7 @@ are adapters that drive the engine — never the thing it lives inside.
 1. `FORESIGHT-2.md` — the why and the destination.
 2. `foresight.buildorder-2.md` — the how and the order (this is the plan of record).
 3. `foresight.calibration-1.md` — the layer that keeps every score honest over time.
-4. The two `archetype.ecommerce.*.json` files — the standard itself.
+4. [`library/`](./library) + `archetype.ecommerce.json` — the standard itself (shared checkpoints + the ecommerce manifest that composes them); `archetype.ecommerce.design.json` is the instrumented design layer.
 
 ## Core principles (load-bearing, true from commit #1)
 
@@ -36,24 +37,31 @@ are adapters that drive the engine — never the thing it lives inside.
   data live in separate stores from the first write — the legal and ethical line.
 - **Honesty mechanic.** Every score reports its level, the gap to the next, and its basis. A
   score that can't state its basis doesn't ship.
-- **Stable, namespaced checkpoint ids** (e.g. `ec.checkout.atomic_stock_hold`) are permanent
-  contracts. Archetypes are *versioned*, checkpoints are *never silently renamed* — that's
-  how calibration history survives.
+- **Stable, namespaced checkpoint ids** (e.g. `payment.webhook_authenticity`,
+  `ecommerce.checkout.atomic_stock_hold`) are permanent contracts. Archetypes are *versioned*,
+  checkpoints are *never silently renamed* — that's how calibration history survives.
+- **Library + manifest composition.** Checkpoints are defined once in [`library/`](./library)
+  and *composed* per archetype (a manifest of `{ ref, severity }`), so a fix to a shared
+  checkpoint improves every archetype and archetype #2 reuses instead of copies.
 
 ## Conventions
 
 - **Doc naming.** Prose specs are `foresight.<topic>-<n>.md`; `FORESIGHT-2.md` is the
   top-level vision. The trailing `-1` / `-2` are iteration numbers (higher = later).
-- **Archetype versioning.** Each archetype JSON carries a semver `version`. The two ecommerce
-  files are versioned independently (`1.1.x` base, `2.x` instrumented design layer).
-- **`$schema`.** The archetype files declare a Foresight format tag (`foresight/archetype/...`).
-  JSON Schemas that validate their structure live in [`schemas/`](./schemas) — see that
-  directory's README for how to run validation.
+- **Archetype versioning.** Each manifest and library file carries a semver `version` / format
+  tag. Checkpoint *ids* are permanent contracts — bump the version when a definition changes,
+  never rename an id.
+- **`$schema`.** Files declare a Foresight format tag (`foresight/archetype/v2`,
+  `foresight/checkpoint-library/v1`, …). JSON Schemas that validate them live in
+  [`schemas/`](./schemas) — see that directory's README.
 
 ## Tooling
 
-- [`schemas/`](./schemas) — JSON Schema for both archetypes + a zero-dependency invariant
-  validator (`node schemas/validate.mjs`).
+- [`library/`](./library) — shared checkpoint library + `resolve.mjs` (compose a manifest +
+  library into a full archetype: `node library/resolve.mjs archetype.ecommerce.json`).
+- [`schemas/`](./schemas) — JSON Schema for the library, the manifest, the resolved archetype,
+  and the instrumented design layer + a zero-dependency invariant validator
+  (`node schemas/validate.mjs`).
 - [`verifier-eval/`](./verifier-eval) — the verifier-accuracy harness. A labeled good/bad
   fixture corpus for the critical backbone checkpoints, plus a runner that measures a
   verifier's precision/recall and **false-green rate** (`node verifier-eval/run-eval.mjs`).

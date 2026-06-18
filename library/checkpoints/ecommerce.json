@@ -1,0 +1,98 @@
+{
+  "$schema": "foresight/checkpoint-library/v1",
+  "concern": "ecommerce",
+  "_note": "Domain-specific checkpoints for ecommerce. Live in the library so the format is uniform and another archetype (e.g. booking) could reference them, but today only the ecommerce archetype does.",
+  "checkpoints": [
+    {
+      "id": "ecommerce.checkout.atomic_stock_hold",
+      "domain": "backbone", "confidence": "established",
+      "title": "Atomic stock hold before payment",
+      "why": "Two buyers race for the last unit; without an atomic hold placed BEFORE the payment intent, you oversell. Cheap to design in first; brutal to retrofit after payment is live.",
+      "levels": {
+        "3": "Stock checked then payment created as separate non-atomic steps (race window exists).",
+        "6": "Stock reserved atomically before payment-intent creation, with a reservation that expires on abandonment.",
+        "9": "Atomic reserve-then-confirm with expiry, idempotent against retries, reconciliation releasing orphaned holds; correct for both quantity stock and unique items."
+      },
+      "verify": {
+        "reasoning": "Trace cart to payment. Is stock reserved atomically BEFORE the payment intent? What releases the reservation on failure/abandonment? Is there a race window between availability check and decrement?",
+        "assertions": [
+          {"check": "A stock reservation is committed before the payment intent is created; the external payment call is not wrapped inside the reservation's DB transaction.", "type": "static"},
+          {"check": "Reservation has an expiry/release path.", "type": "static"},
+          {"check": "A concurrency test fires two checkouts for the last unit; exactly one succeeds.", "type": "test"}
+        ]
+      }
+    },
+    {
+      "id": "ecommerce.catalog.variant_model",
+      "domain": "backbone", "confidence": "established",
+      "title": "Product/variant model fits the real goods",
+      "why": "Conflating product with sellable unit is a foundational data-model mistake, expensive to unwind once orders reference it.",
+      "levels": {
+        "3": "Single product table; variants faked via duplicate products or loose fields.",
+        "6": "Distinct product and variant entities; stock and price on the variant.",
+        "9": "Variant model expresses the domain's real dimensions; order lines reference variant ids with price captured at purchase."
+      },
+      "verify": {
+        "reasoning": "Does the schema separate product from sellable variant? Do stock/price live on the variant? Do order lines capture an immutable variant + price, or a mutable product?",
+        "assertions": [
+          {"check": "A variant/sellable-unit entity is distinct from product.", "type": "static"},
+          {"check": "Order line items capture price at purchase, not by live lookup.", "type": "static"}
+        ]
+      }
+    },
+    {
+      "id": "ecommerce.inventory.reconciliation",
+      "domain": "backbone", "confidence": "established",
+      "title": "Inventory truth survives failures",
+      "why": "Reservations, cancellations, refunds, and crashes leak stock counts unless inventory is reconcilable to a source of truth.",
+      "levels": {
+        "3": "Stock is a single mutable number adjusted ad hoc; no record of why it changed.",
+        "6": "Stock changes logged as movements (sale, refund, restock, expired hold) summing to current level.",
+        "9": "Append-only movement ledger; current stock derivable and a job detects/repairs drift."
+      },
+      "verify": {
+        "reasoning": "Is stock a bare mutable number or derived from logged movements? After a refund or expired hold, is stock corrected reliably? Can you explain why a count is what it is?",
+        "assertions": [
+          {"check": "Stock changes recorded as discrete movements with a reason.", "type": "static"}
+        ]
+      }
+    },
+    {
+      "id": "ecommerce.checkout.cost_correctness",
+      "domain": "backbone", "confidence": "reasoned",
+      "title": "Tax/shipping/totals computed server-side and correctly",
+      "why": "Client-computed or mismatched totals cause charge disputes and trust loss; tax/shipping must be authoritative server-side.",
+      "levels": {
+        "3": "Totals/tax/shipping computed client-side or trusted from the client.",
+        "6": "All cost math is server-authoritative; client display is informational only.",
+        "9": "Server-authoritative with explicit rounding order, tax/shipping rules tested against known cases, charged amount provably equal to shown amount."
+      },
+      "verify": {
+        "reasoning": "Where are tax, shipping, and totals computed? Can a tampered client change the charged total? Is the amount charged guaranteed equal to the amount displayed?",
+        "assertions": [
+          {"check": "Final charged amount computed server-side, not read from the client request.", "type": "static"},
+          {"check": "Line-item unit prices are sourced from the server-side catalog, not accepted from the client.", "type": "static"},
+          {"check": "Tax/shipping calculations have tests with known expected outputs.", "type": "test"}
+        ]
+      }
+    },
+    {
+      "id": "ecommerce.design.trust_signals",
+      "domain": "design", "confidence": "taste_limited",
+      "title": "Checkout earns trust visually",
+      "why": "BLIND-SPOT CHECKPOINT. The floor is checkable (costs shown before payment, designed error states). Whether it genuinely feels as safe as a major retailer is partly perception - taste_limited at the ceiling.",
+      "levels": {
+        "3": "Totals/fees unclear or late; no reassurance; raw error messages; feels unsafe.",
+        "6": "Itemized totals with shipping/tax before payment; clear error states; recognizable payment UI; obvious back/edit.",
+        "9": "[CEILING PARTLY PERCEPTUAL] Transparent costs at every step, reassuring microcopy, polished error/empty/loading states, flow that feels as safe as a major retailer - confirm with human review."
+      },
+      "verify": {
+        "reasoning": "At payment entry: are all costs visible already with no surprises? Are error/loading/empty states designed or raw? Can the user go back and edit without losing progress? Report the floor confidently; flag the feels-trustworthy judgment for human confirmation.",
+        "assertions": [
+          {"check": "Shipping/tax/fees displayed before the payment step.", "type": "runtime"},
+          {"check": "Error, loading, and empty states are explicitly designed for checkout.", "type": "static"}
+        ]
+      }
+    }
+  ]
+}

@@ -32,7 +32,7 @@ Build:
 - Archetype loader: parses one archetype JSON, exposes its checkpoints.
 - Model adapter: one interface, one implementation (whatever's simplest to wire). The
   thing that makes it tool-agnostic - swap the impl, not the engine.
-- Verifier core: takes ONE backbone checkpoint (`ec.checkout.atomic_stock_hold`), runs its
+- Verifier core: takes ONE backbone checkpoint (`ecommerce.checkout.atomic_stock_hold`), runs its
   reasoning question against the repo via the model adapter, returns level + gap + confidence.
 - Output: prints the one score with its full basis.
 
