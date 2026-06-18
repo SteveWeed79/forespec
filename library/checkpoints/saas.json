@@ -1,0 +1,62 @@
+{
+  "$schema": "foresight/checkpoint-library/v1",
+  "concern": "saas",
+  "_note": "Domain-specific checkpoints for multi-tenant subscription apps. In the library for uniform format; today only the SaaS archetype references them.",
+  "checkpoints": [
+    {
+      "id": "saas.tenancy.isolation",
+      "domain": "backbone", "confidence": "established",
+      "title": "Tenant data is isolated; no query crosses the tenant boundary",
+      "why": "In a multi-tenant app the worst bug is one customer seeing another's data. A single query missing its tenant scope leaks across the org boundary - invisible in normal use, catastrophic when found. Distinct from per-user ownership (auth.access_control): this is the org/tenant boundary.",
+      "levels": {
+        "3": "Tenant scoping applied ad hoc per query; easy to forget; some queries fetch by id alone.",
+        "6": "Every tenant-scoped query filters by a tenant id derived from the authenticated session, never from client input.",
+        "9": "Isolation enforced by default (row-level security, a scoped query layer, or per-tenant schemas) so a query CANNOT omit the tenant filter, with tests proving cross-tenant access is denied."
+      },
+      "verify": {
+        "reasoning": "Is every tenant-scoped read/write filtered by a tenant id taken from the session (not the request body)? Could any query return another tenant's rows by id alone? Is isolation enforced by default or left to each query author to remember?",
+        "assertions": [
+          {"check": "Tenant-scoped queries filter by a tenant id derived from the authenticated session.", "type": "static"},
+          {"check": "Tenant id is never read from client-controlled input for authorization.", "type": "static"},
+          {"check": "A test attempts cross-tenant access and is denied.", "type": "test"}
+        ]
+      }
+    },
+    {
+      "id": "saas.subscription.entitlement_integrity",
+      "domain": "backbone", "confidence": "established",
+      "title": "Feature access is driven by verified subscription state",
+      "why": "What a user can DO must follow their real, provider-verified subscription. AI code commonly gates features on a local flag set at signup and never updated - so a failed payment, downgrade, or cancellation doesn't revoke access, and a client-sent plan can unlock paid features.",
+      "levels": {
+        "3": "Entitlements from a client claim or a local flag set once at signup; not updated when the subscription changes.",
+        "6": "Entitlements derived from subscription state updated by verified provider webhooks; downgrades/cancellations revoke access.",
+        "9": "Entitlement checks centralized and enforced server-side, reconciled against the provider as source of truth, with tests for past_due/canceled/downgraded losing access."
+      },
+      "verify": {
+        "reasoning": "Where does a feature gate get the user's plan/entitlement? Is it a verified server-side subscription record updated by webhooks, or a client value / stale flag? When a subscription goes past_due or canceled, does access actually drop?",
+        "assertions": [
+          {"check": "Entitlement checks read server-side subscription state, not a client-supplied plan.", "type": "static"},
+          {"check": "Subscription state is updated from verified provider webhooks (see payment.webhook_authenticity).", "type": "static"}
+        ]
+      }
+    },
+    {
+      "id": "saas.subscription.lifecycle",
+      "domain": "backbone", "confidence": "reasoned",
+      "title": "Subscription lifecycle states are handled, not just 'subscribe'",
+      "why": "AI code handles the happy path (create subscription) and ignores the states that actually generate support tickets and revenue loss: trials ending, payment failures (dunning/grace), plan changes with proration, and cancel-at-period-end vs immediate. The principle is established; exact grace windows are reasoned defaults.",
+      "levels": {
+        "3": "Only create/cancel handled; no trial expiry, dunning, proration, or grace-period logic.",
+        "6": "Trial->active->past_due->canceled transitions handled; failed payments enter a defined dunning/grace flow; plan changes prorate.",
+        "9": "Full lifecycle as an explicit state machine, idempotent against webhook order, with cancel-at-period-end, reactivation, and tests for each transition."
+      },
+      "verify": {
+        "reasoning": "Which subscription states does the code handle beyond create? What happens on a failed renewal - immediate cutoff, or a grace/dunning period? Are plan upgrades/downgrades prorated? Is cancellation immediate or at period end, and is that intentional?",
+        "assertions": [
+          {"check": "Past_due / dunning (failed-renewal) handling exists, not just active/canceled.", "type": "static"},
+          {"check": "Plan changes and cancellations have defined proration / period-end behavior.", "type": "static"}
+        ]
+      }
+    }
+  ]
+}

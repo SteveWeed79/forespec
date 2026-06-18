@@ -14,8 +14,15 @@ const GOOD_SIGNALS = {
   "ecommerce.checkout.atomic_stock_hold": ["stock >=", "rowCount === 0", "reservation", "expiresAt", "holds.create"],
   "payment.idempotency": ["idempotencyKey", "webhookEvents", "event.id"],
   "auth.access_control": ["req.user.id", "findOne"],
+  "auth.session_security": ["randomBytes", "expiresAt", "httpOnly"],
   "payment.card_data_handling": ["paymentMethodToken", "process.env.STRIPE_SECRET_KEY", "hosted fields"],
   "payment.webhook_authenticity": ["constructEvent", "stripe-signature", "rawBody"],
+  "saas.tenancy.isolation": ["tenant_id"],
+  "saas.subscription.entitlement_integrity": ["findActive"],
+  "saas.subscription.lifecycle": ["payment_failed", "cancel_at_period_end"],
+  "web.performance": ["loading=\"lazy\"", "defer"],
+  "web.seo_metadata": ["og:title", "<main>"],
+  "web.forms_integrity": ["safeParse", "rateLimit"],
   // payment.state_integrity intentionally omitted — the baseline doesn't model it.
 };
 

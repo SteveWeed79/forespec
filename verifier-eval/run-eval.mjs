@@ -15,7 +15,7 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join, resolve } from "node:path";
-import { resolveArchetype } from "../library/resolve.mjs";
+import { loadLibrary } from "../library/resolve.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -27,9 +27,8 @@ function arg(flag, fallback) {
 const adapterName = arg("--adapter", "mock");
 const outPath = arg("--out", null);
 
-const manifest = JSON.parse(readFileSync(join(here, "fixtures.json"), "utf8"));
-const archetype = resolveArchetype(resolve(here, manifest.archetype)); // manifest -> resolved checkpoints
-const checkpointById = new Map(archetype.checkpoints.map((c) => [c.id, c]));
+const corpus = JSON.parse(readFileSync(join(here, "fixtures.json"), "utf8"));
+const checkpointById = loadLibrary(); // checkpoint definitions by id, across all archetypes
 
 const adapter = await import(`./adapters/${adapterName}.mjs`);
 
@@ -37,7 +36,7 @@ const adapter = await import(`./adapters/${adapterName}.mjs`);
 const SHIPPABLE = 6;
 
 const cases = [];
-for (const c of manifest.cases) {
+for (const c of corpus.cases) {
   const checkpoint = checkpointById.get(c.checkpoint);
   if (!checkpoint) {
     cases.push({ ...c, error: `checkpoint ${c.checkpoint} not found in archetype` });
