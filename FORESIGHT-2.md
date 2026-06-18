@@ -5,6 +5,24 @@ domain foresight before each feature, then verifies what actually got built agai
 that foresight — so the expensive discoveries (atomic checkout, data-model shape,
 auth boundaries) surface BEFORE you build on top of them, not three months after.*
 
+> **📍 Status — vision doc, superseded on sequencing.** This file holds the
+> original architecture and a Claude-Code-centric v1 cut. The **authoritative,
+> current build order is [`foresight.buildorder-2.md`](./foresight.buildorder-2.md)**,
+> which supersedes **Part 2** and **Part 4** below. Two things changed and the
+> later doc wins:
+>
+> 1. **Sequencing reversed.** Part 4 here builds planning-first (Interrogator →
+>    Plan Engine → … → Verifier last). Build-order-2 builds the **Verifier first**
+>    (Phases 0–1) to validate the pearl as cheaply as possible, makes
+>    **calibration the spine** (Phase 2), and defers the Interrogator/Plan-Engine
+>    "foresight ritual" to **Phase 4**.
+> 2. **Tool-agnostic, not a plugin.** The engine talks to any model through an
+>    adapter; Claude Code is the first consumer, not the host.
+>
+> Read **this** file for the *why*, the destination architecture, and the moat
+> argument. Follow **build-order-2** for *what to build, in what order*. Where
+> they disagree on sequence, build-order-2 governs.
+
 ---
 
 ## The Problem (in one example)
@@ -120,6 +138,12 @@ pattern/instance separation from day one so that future is clean and not creepy.
 
 # PART 2 — THE v1 CUT LINE (what you build THIS week)
 
+> ⚠️ **Superseded by [`foresight.buildorder-2.md`](./foresight.buildorder-2.md)** for
+> what ships first. This section's v1 starts with the Interrogator; the current
+> plan ships the **Verifier** first (build-order-2 Phases 0–1). The "ship small,
+> don't stall in the messy 60%" principle below still holds — only the first
+> deliverable changed.
+
 > The architecture above is the destination. The first thing you ship is ruthlessly
 > small — because the failure mode for a no-sleep solo builder with a giant spec is
 > abandoning it in the messy 60% middle. Foresight exists to prevent exactly that, so
@@ -174,6 +198,12 @@ Matches what you already run, so nothing new to learn under time pressure.
 ---
 
 # PART 4 — BUILD ORDER (so it ships, doesn't stall)
+
+> ⚠️ **Superseded by [`foresight.buildorder-2.md`](./foresight.buildorder-2.md).**
+> The order below is planning-first (Verifier last). The current plan inverts
+> this: Verifier first, calibration as the spine, foresight ritual at Phase 4.
+> Keep this list for the rationale of each component; take the *sequence* from
+> build-order-2.
 
 1. **Checkpoint format first.** Define the structured shape of a checkpoint
    (description, verifiable criterion, pattern-ref, instance-detail, status). Everything

@@ -3,6 +3,11 @@
   "_readme": {
     "what_this_is": "Instrumented design checkpoints for the ecommerce archetype. Each checkpoint decomposes an allegedly-aesthetic quality into weighted, measurable sub-signals with an explicit scoring formula. The score is COMPUTED from signals, not asserted. Two graders measuring the same signals get the same number - that reproducibility is what makes it an instrument, not an opinion.",
     "why_this_matters": "A UI skin over an LLM says 'this looks good (trust me)'. An instrument says 'this scores 7.4: hierarchy 8, contrast 9, spacing 6, here are the measurements'. Showing the work is the difference.",
+    "phase_and_status": "This is the INSTRUMENTED design layer. Its computed/boolean signals correspond to build-order Phase 3 (honest, measurable signals shippable now). Its measurement_type:model_scored signals (saliency_peak, visual_complexity) are build-order Phase 6 EXPERIMENTS - designed here so the formula has a slot for them, but NOT trusted until calibration proves they correlate with reality. Until then they are excluded from the composite per scoring_model.signal_availability_and_renormalization. Treat every number here as unvalidated until the calibration loop (foresight.calibration-1.md) has earned it.",
+    "relationship_to_base_archetype": {
+      "shared_ids_supersede": "ec.design.visual_hierarchy and ec.design.trust_signals ALSO appear in archetype.ecommerce.json as reasoning-only / taste_limited checkpoints. When this instrumented layer is active, its definition is authoritative for those ids; the base definition is the fallback when the instrument cannot run. The id is UNCHANGED on purpose - per foresight.calibration-1.md a checkpoint id is a stable, permanent contract, so calibration history carries across to the richer definition. This is an archetype version bump, never a rename.",
+      "aesthetic_coherence_vs_base": "ec.design.aesthetic_coherence is NEW here and overlaps in spirit with the base archetype's ec.design.system_consistency and ec.design.spacing_system. They are NOT duplicates and must not be double-counted: the base checkpoints are STATIC/definitional (are tokens DEFINED and reused - measured from source), while aesthetic_coherence is COMPUTED FROM THE RENDER (what actually reached the screen - palette discipline, spacing quantization, alignment on real pixels). Definition vs realization: two altitudes of one concern. A roll-up that includes both should read the base checkpoints as 'is there a system' and aesthetic_coherence as 'did the system survive to the rendered page', not as two independent verdicts on the same property."
+    },
     "scoring_model": {
       "method": "Each checkpoint = weighted sum of sub-signals, each sub-signal scored 0-10 by a stated measurement. checkpoint_score = round(sum(signal_score * weight), 1). Weights sum to 1.0 per checkpoint.",
       "measurement_types": {
@@ -11,13 +16,15 @@
         "boolean": "Presence/absence, scored 0 or 10.",
         "residual": "The NAMED part that no current proxy captures. Reported separately, never silently folded into the number."
       },
-      "honesty_rule": "Every checkpoint reports: composite score, the per-signal breakdown, and an explicit residual_risk note describing what the proxies could miss. The number never hides its basis."
+      "honesty_rule": "Every checkpoint reports: composite score, the per-signal breakdown, and an explicit residual_risk note describing what the proxies could miss. The number never hides its basis.",
+      "signal_availability_and_renormalization": "The weights below sum to 1.0 ASSUMING every signal can be measured. When a signal cannot be evaluated on a run, the composite is computed over the signals that CAN be measured, with their weights re-normalized to sum to 1.0, and the dropped signals are named explicitly in the breakdown. Two cases trigger this: (1) measurement_type:model_scored signals are DEFERRED experiments (build-order Phase 6), EXCLUDED from the trusted composite until calibration validates them - until then they are reported separately as unweighted experimental readings, never silently folded in; (2) a runtime/computed signal whose view could not be rendered or measured. A composite computed over a reduced signal set MUST report which signals were dropped and the residual that creates - a re-normalized number is still honest only if it says what it left out.",
+      "score_scale_mapping": "The base archetype (archetype.ecommerce.json) scores on discrete levels 3/6/9 and states goal_definition (shippable/great) in those terms. To roll a 0-10 instrumented composite into that world, snap to the nearest anchor: composite < 4 -> level 3 (crude/risky); 4 to < 7 -> level 6 (solid/shippable); >= 7 -> level 9 (great). ALWAYS carry the raw 0-10 composite + breakdown alongside the snapped level - the level is only for goal roll-up; the composite and its gap are the truth (same 'trust the gap, not the number' rule as the base archetype). Ceiling caveat: per the base archetype's honest_ceiling, a composite >= 7 on a taste_limited checkpoint means 'level 7-ish mechanically' - claiming a genuine level 9 there still needs human design review the instrument cannot replace."
     }
   },
 
   "archetype": "ecommerce",
   "dimension": "design",
-  "version": "2.0.0",
+  "version": "2.1.0",
 
   "checkpoints": [
     {
@@ -154,5 +161,5 @@
     }
   ],
 
-  "_closing_honesty": "Every score here is computed from stated signals and reproducible. The instrument reliably catches bad and confirms competent. The one thing it cannot do is recognize rule-breaking brilliance - that is the named residual, and it is the ONLY place 'human review' is genuinely required, not a blanket excuse. That is the line between an instrument and a skin."
+  "_closing_honesty": "Every COMPUTED/BOOLEAN score here is reproducible from stated signals, and on those the instrument reliably catches bad and confirms competent. Two caveats keep that from overclaiming: (1) the model_scored signals (saliency, complexity) are deferred experiments, excluded from the trusted composite until calibration earns them - the confidence claim covers the computed signals, not yet these; (2) the irreducible residual is rule-breaking brilliance, a design that breaks these rules ON PURPOSE and succeeds, which the instrument scores low and only a human eye overrides. That residual is real but rare, and naming it precisely - alongside the deferred experiments - is the line between an instrument and a skin."
 }
