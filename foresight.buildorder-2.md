@@ -46,7 +46,7 @@ before building anything on top.** Do not proceed until this run tells the truth
 *Goal: the engine does its core job for real on the part I'm most confident in.*
 
 Build:
-- Run all 8 backbone checkpoints from the ecommerce archetype.
+- Run all 12 backbone checkpoints from the ecommerce archetype.
 - Static assertion layer: the `type:static` checks that are mechanically verifiable
   (AST/file inspection) - deterministic backstop under the reasoning layer.
 - Report: per-checkpoint level/gap/confidence + the goal_definition roll-up

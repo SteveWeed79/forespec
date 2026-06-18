@@ -13,11 +13,12 @@
       "taste_limited": "Captures the measurable FLOOR of a quality that is ultimately partly aesthetic. The rubric verifies the floor, NOT the ceiling. A model grading this catches 'clearly bad' reliably and 'genuinely great' only weakly. Bring a human eye here."
     },
     "how_scoring_works": "Levels 3/6/9. 3 = present but crude/risky. 6 = solid, shippable. 9 = great. Verifier reports level + concrete gap to next level. TRUST THE GAP, NOT THE NUMBER. Goal: 9 on critical, 6+ elsewhere - never infinite polish.",
-    "how_verification_works": "Each verify block has reasoning (a question a model answers from the repo - the v1 spine) and assertions (mechanical checks). Assertions tagged static (AST/file inspection), test (a test must exist), or runtime (needs running build / headless browser). A checkpoint may be reasoning-only until assertions are implementable."
+    "how_verification_works": "Each verify block has reasoning (a question a model answers from the repo - the v1 spine) and assertions (mechanical checks). Assertions tagged static (AST/file inspection), test (a test must exist), or runtime (needs running build / headless browser). A checkpoint may be reasoning-only until assertions are implementable.",
+    "instrumented_design_layer": "Three design checkpoints have a richer, instrumented definition in archetype.ecommerce.design.json (weighted sub-signals -> a computed 0-10 composite). ec.design.visual_hierarchy and ec.design.trust_signals appear in BOTH files: when the instrumented layer runs it is authoritative for those ids, and this reasoning-only definition is the fallback. ec.design.aesthetic_coherence lives only there and measures the RENDERED result, complementing (not duplicating) the static token checks in ec.design.system_consistency and ec.design.spacing_system here. See that file's _readme.relationship_to_base_archetype for the full mapping and the 0-10 -> 3/6/9 score conversion."
   },
 
   "archetype": "ecommerce",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "applies_when": "The site takes money for goods/services: a catalog, a cart or equivalent, and a payment flow.",
   "goal_definition": {
     "shippable": "all severity:critical at level >= 6",
@@ -39,7 +40,7 @@
       "verify": {
         "reasoning": "Trace cart to payment. Is stock reserved atomically BEFORE the payment intent? What releases the reservation on failure/abandonment? Is there a race window between availability check and decrement?",
         "assertions": [
-          {"check": "A stock-reservation operation is invoked before payment-intent creation in the same transaction/flow.", "type": "static"},
+          {"check": "A stock reservation is committed before the payment intent is created; the external payment call is not wrapped inside the reservation's DB transaction.", "type": "static"},
           {"check": "Reservation has an expiry/release path.", "type": "static"},
           {"check": "A concurrency test fires two checkouts for the last unit; exactly one succeeds.", "type": "test"}
         ]
@@ -139,7 +140,7 @@
       "id": "ec.data.inventory_reconciliation",
       "domain": "backbone", "severity": "high", "confidence": "established",
       "title": "Inventory truth survives failures",
-      "why": "Added in rebuild for coverage. Reservations, cancellations, refunds, and crashes leak stock counts unless inventory is reconcilable to a source of truth.",
+      "why": "Reservations, cancellations, refunds, and crashes leak stock counts unless inventory is reconcilable to a source of truth.",
       "levels": {
         "3": "Stock is a single mutable number adjusted ad hoc; no record of why it changed.",
         "6": "Stock changes logged as movements (sale, refund, restock, expired hold) summing to current level.",
@@ -156,7 +157,7 @@
       "id": "ec.checkout.cost_correctness",
       "domain": "backbone", "severity": "high", "confidence": "reasoned",
       "title": "Tax/shipping/totals computed server-side and correctly",
-      "why": "Added for coverage. Client-computed or mismatched totals cause charge disputes and trust loss; tax/shipping must be authoritative server-side.",
+      "why": "Client-computed or mismatched totals cause charge disputes and trust loss; tax/shipping must be authoritative server-side.",
       "levels": {
         "3": "Totals/tax/shipping computed client-side or trusted from the client.",
         "6": "All cost math is server-authoritative; client display is informational only.",
@@ -166,7 +167,80 @@
         "reasoning": "Where are tax, shipping, and totals computed? Can a tampered client change the charged total? Is the amount charged guaranteed equal to the amount displayed?",
         "assertions": [
           {"check": "Final charged amount computed server-side, not read from the client request.", "type": "static"},
+          {"check": "Line-item unit prices are sourced from the server-side catalog, not accepted from the client.", "type": "static"},
           {"check": "Tax/shipping calculations have tests with known expected outputs.", "type": "test"}
+        ]
+      }
+    },
+    {
+      "id": "ec.checkout.card_data_handling",
+      "domain": "backbone", "severity": "critical", "confidence": "established",
+      "title": "Card data never touches your server; payment secrets stay server-side",
+      "why": "Receiving or storing raw card numbers drags the whole app into PCI-DSS scope and is the most expensive class of mistake in ecommerce. The safe path - provider-hosted fields / tokenization - is well documented, yet AI-generated checkouts often POST the PAN to a first-party backend. Equally fatal: the provider SECRET key shipped in the client bundle or committed to the repo.",
+      "levels": {
+        "3": "Raw card fields submitted to your own backend, or secret API keys present in client-side code / committed config.",
+        "6": "Card data captured by the provider's hosted fields/SDK so the PAN never reaches your server; only a token is handled; secret keys are server-side only.",
+        "9": "Tokenization end to end, secrets injected from a managed store (never in repo or bundle), and the integration documents its PCI-DSS scope (e.g. SAQ A) and holds to it."
+      },
+      "verify": {
+        "reasoning": "Does any raw card number (PAN, CVV) reach first-party code, or is it captured directly by the provider (hosted fields / Elements / SDK) and exchanged for a token? Is the provider secret key referenced only server-side, never in client bundles or committed files?",
+        "assertions": [
+          {"check": "No endpoint or form submits raw PAN/CVV to first-party code; payment uses a provider token.", "type": "static"},
+          {"check": "Provider secret keys are read from a server-side env/secret store, not present in client bundles or committed config.", "type": "static"}
+        ]
+      }
+    },
+    {
+      "id": "ec.checkout.webhook_authenticity",
+      "domain": "backbone", "severity": "critical", "confidence": "established",
+      "title": "Payment webhooks are authenticated before they are trusted",
+      "why": "Order and payment state are driven by provider webhooks (see ec.order.state_integrity). If the webhook endpoint does not verify the provider's signature, anyone who discovers the URL can POST a forged 'payment succeeded' and mark orders paid for free. Signature verification is documented by every major provider and routinely omitted in AI-generated handlers.",
+      "levels": {
+        "3": "Webhook endpoint trusts the request body with no signature or authenticity check.",
+        "6": "Provider signature verified against the signing secret before any state change; invalid or unsigned requests rejected.",
+        "9": "Signature plus timestamp/replay-window verified against the raw body, secret from a managed store, and verification failures logged/alerted."
+      },
+      "verify": {
+        "reasoning": "Does the webhook handler verify the provider's signature against the raw request body before mutating any order/payment state? Are unsigned or invalid-signature requests rejected? Is the signing secret kept server-side?",
+        "assertions": [
+          {"check": "Webhook handler verifies the provider signature before processing the event.", "type": "static"},
+          {"check": "A test sends an unsigned/invalid-signature webhook and the handler rejects it without changing state.", "type": "test"}
+        ]
+      }
+    },
+    {
+      "id": "ec.order.refund_integrity",
+      "domain": "backbone", "severity": "high", "confidence": "established",
+      "title": "Refunds and cancellations are correct, bounded, and idempotent",
+      "why": "The reverse-money path is built late and tested least. Without guards you can refund more than was captured, double-refund on retry or webhook redelivery, or refund without restocking - each a direct cash or inventory loss.",
+      "levels": {
+        "3": "Refunds issued ad hoc with no cap against the captured amount and no dedup; retries can refund twice.",
+        "6": "Refund amount bounded by the remaining captured balance, idempotent against retries/webhook redelivery, and inventory adjusted.",
+        "9": "Full refund/cancel state machine: partial refunds tracked cumulatively, idempotent end to end, inventory and order state reconciled, audit trail per action."
+      },
+      "verify": {
+        "reasoning": "Can a refund exceed what was captured, or sum past it across partial refunds? Is a retried or re-delivered refund request de-duplicated? Does a refund or cancellation restore inventory and update order state?",
+        "assertions": [
+          {"check": "Refund amount is validated against the remaining captured/refundable balance.", "type": "static"},
+          {"check": "Refund operations are idempotent (keyed so a retry does not double-refund).", "type": "static"}
+        ]
+      }
+    },
+    {
+      "id": "ec.checkout.abuse_controls",
+      "domain": "backbone", "severity": "high", "confidence": "reasoned",
+      "title": "Checkout and auth resist automated abuse (card testing, brute force)",
+      "why": "A public checkout is a magnet for card-testing: bots fire stolen card numbers through the payment endpoint to find live ones, racking up fees, fraud penalties, and processor risk. Login and checkout endpoints with no rate limiting also enable credential stuffing. The need is established; specific thresholds are reasoned defaults to tune.",
+      "levels": {
+        "3": "No rate limiting or bot mitigation on payment-attempt, login, or coupon endpoints.",
+        "6": "Rate limiting/throttling on payment attempts and auth endpoints, with provider fraud tooling (e.g. Radar-style rules) enabled.",
+        "9": "Layered defense: per-identity and per-IP limits, velocity checks on failed payments, CAPTCHA/bot mitigation where warranted, and monitoring that alerts on abuse spikes."
+      },
+      "verify": {
+        "reasoning": "Are payment-attempt and authentication endpoints rate-limited? Is there any defense against card-testing (failed-payment velocity limits, provider fraud rules, bot mitigation)? What stops a script from firing thousands of attempts?",
+        "assertions": [
+          {"check": "Rate limiting/throttling is applied to payment-attempt and authentication endpoints.", "type": "static"},
+          {"check": "Provider-side fraud/abuse controls or failed-attempt velocity limits are configured.", "type": "static"}
         ]
       }
     },
