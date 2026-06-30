@@ -7,10 +7,23 @@
   "engines": {
     "node": ">=18"
   },
+  "bin": {
+    "foresight": "bin/foresight.mjs"
+  },
+  "files": [
+    "bin/",
+    "repo-verify/*.mjs",
+    "library/",
+    "schemas/",
+    "archetype.*.json",
+    "action.yml"
+  ],
   "scripts": {
     "check": "node schemas/validate.mjs",
     "eval": "node verifier-eval/run-eval.mjs",
     "eval:claude": "node verifier-eval/run-eval.mjs --adapter claude --out verifier-eval/report.json",
+    "init": "node bin/foresight.mjs init",
+    "detect": "node repo-verify/detect.mjs",
     "verify": "node repo-verify/verify.mjs",
     "verify:self": "node repo-verify/self-test.mjs",
     "feedback": "node repo-verify/feedback.mjs",

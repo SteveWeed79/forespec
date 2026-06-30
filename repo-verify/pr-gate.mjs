@@ -23,6 +23,7 @@ import { fileURLToPath } from "node:url";
 import { resolveArchetype } from "../library/resolve.mjs";
 import { loadRepo, selectForCheckpoint, keywordsFor, scoreFile } from "./select.mjs";
 import { fingerprint, newRunId, recordPredictions, recordOutcome, latestPrediction, readOverrides } from "./store.mjs";
+import { readConfig, resolveManifestPath } from "./config.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const arg = (f, fb) => { const i = process.argv.indexOf(f); return i !== -1 && process.argv[i + 1] ? process.argv[i + 1] : fb; };
@@ -122,9 +123,13 @@ async function postComment(body) {
 async function main() {
   if (has("-h") || has("--help")) { console.log(HELP); return 0; }
   const repo = pathResolve(process.cwd(), arg("--repo", "."));
+  // Archetype precedence: --archetype > foresight.config.json in the repo > default.
+  const cfg = readConfig(repo);
   const archetypePath = arg("--archetype", null)
-    ? pathResolve(process.cwd(), arg("--archetype"))
-    : pathResolve(here, "..", "archetype.ecommerce.json");
+    ? resolveManifestPath(arg("--archetype"), { cwd: process.cwd() })
+    : cfg?.archetype
+      ? resolveManifestPath(cfg.archetype, { cwd: repo })
+      : pathResolve(here, "..", "archetype.ecommerce.json");
   const base = arg("--base", process.env.FORESIGHT_BASE || "origin/main");
   const head = arg("--head", "HEAD");
   const storeDir = pathResolve(process.cwd(), arg("--store", ".foresight"));

@@ -12,6 +12,24 @@ Zero dependencies. It reuses the rest of the project rather than duplicating it:
 - `repo-verify/select.mjs` → the new piece: walks a target repo and packs the most
   relevant files per checkpoint into the `code` string the adapters expect.
 
+## Onboarding — `foresight init` (start here)
+
+You don't have to know which archetype fits, and you don't retype it every run. The
+unified CLI (`bin/foresight.mjs`, exposed as `foresight` via `npx`) detects the archetype
+from cheap signals — declared dependencies, file paths, schema model names — and writes
+the choice once to `foresight.config.json`, which `verify` and the PR gate then read.
+
+```bash
+foresight init            # detect the archetype, write foresight.config.json (commit it)
+foresight detect          # show the ranking + evidence without writing anything
+foresight verify          # grade the backbone against the configured archetype
+foresight gate --help     # the PR/CI gate
+```
+
+`foresight.config.json` (committed) is the per-project archetype decision — distinct from
+`.foresight/` (the gitignored calibration store). Detection reads only metadata, never your
+code's contents.
+
 ## Usage
 
 ```bash
@@ -30,6 +48,10 @@ node repo-verify/verify.mjs /path/to/repo --archetype archetype.saas.json
 node repo-verify/verify.mjs /path/to/repo --checkpoint payment.idempotency
 node repo-verify/verify.mjs /path/to/repo --json
 ```
+
+Archetype precedence: explicit `--archetype` > `foresight.config.json` in the repo > the
+ecommerce default. A bare name (`--archetype saas`) or a manifest filename both resolve
+against the bundled archetypes, so it works when run from inside another repo.
 
 Adapter selection: `claude` when `ANTHROPIC_API_KEY` and `ANTHROPIC_MODEL` are both
 set (or `--adapter claude`); otherwise the `mock` baseline, with a note. The process
@@ -101,10 +123,37 @@ node repo-verify/pr-gate.mjs --repo /path/to/repo --changed app/checkout/actions
 # In CI: wired in .github/workflows/foresight.yml (runs on pull_request).
 ```
 
-Advisory by default (comments, never blocks). Add `--fail` to the workflow's run step
-to make it a blocking required check (exits non-zero on a touched-critical regression or
-below-6). Set `ANTHROPIC_API_KEY` + `ANTHROPIC_MODEL` as repo secrets/vars to use the
-reasoning verifier; without them it runs the mock baseline at $0.
+### Drop it into another repo (one line)
+
+`action.yml` is a composite GitHub Action so any repo adds the gate without copying files:
+
+```yaml
+# .github/workflows/foresight.yml in YOUR repo
+name: Foresight
+on: pull_request
+permissions:
+  contents: read
+  pull-requests: write          # required so the gate can upsert its comment
+jobs:
+  foresight:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 } # full history so it can diff the base branch
+      - uses: SteveWeed79/glowing-barnacle@v1
+        with:
+          anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}  # optional ($0 mock without it)
+          anthropic-model: ${{ vars.ANTHROPIC_MODEL }}
+          # fail: "true"         # block the PR instead of just commenting
+```
+
+Run `foresight init` in that repo first and commit `foresight.config.json` so the gate
+grades against the right archetype (or pass `archetype: ecommerce` to the action).
+
+Advisory by default (comments, never blocks). Pass `fail: "true"` to the action (or
+`--fail` to the run step) to make it a blocking required check (exits non-zero on a
+touched-critical regression or below-6). Set `ANTHROPIC_API_KEY` + `ANTHROPIC_MODEL`
+to use the reasoning verifier; without them it runs the mock baseline at $0.
 
 ## The P0 validation gate
 

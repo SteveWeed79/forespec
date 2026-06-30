@@ -21,6 +21,8 @@ import * as mock from "../verifier-eval/adapters/mock.mjs";
 import { loadRepo, selectForCheckpoint } from "./select.mjs";
 import { fingerprint, recordPredictions, latestPrediction, recordOutcome, readOverrides, writeOverrides, FILES } from "./store.mjs";
 import { aggregate, propose } from "./calibrate.mjs";
+import { scoreArchetypes, collectSignals, discoverManifests } from "./detect.mjs";
+import { readConfig, writeConfig, resolveManifestPath, CONFIG_FILE } from "./config.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const archetypePath = join(here, "..", "archetype.ecommerce.json");
@@ -148,6 +150,43 @@ try {
 } finally {
   rmSync(store4, { recursive: true, force: true });
 }
+
+console.log("\n5. Archetype detection (onboarding — brick A):");
+// Pure scorer: synthetic signals must rank the obvious archetype on top.
+const ecom = scoreArchetypes({ deps: ["@stripe/stripe-js"], paths: ["app/checkout/page.tsx", "lib/cart.ts"], schemaModels: ["order", "product"] });
+check("ecommerce signals → ecommerce on top", ecom[0].archetype === "ecommerce", `got ${ecom[0].archetype}`);
+const saas = scoreArchetypes({ deps: ["@clerk/nextjs"], paths: ["app/billing/page.tsx", "lib/tenant.ts"], schemaModels: ["subscription", "tenant", "plan"] });
+check("saas signals → saas on top", saas[0].archetype === "saas", `got ${saas[0].archetype}`);
+const port = scoreArchetypes({ deps: ["astro", "gray-matter"], paths: ["src/content/blog/post.md", "src/pages/about.astro"], schemaModels: [] });
+check("portfolio signals (no backend) → portfolio on top", port[0].archetype === "portfolio", `got ${port[0].archetype}`);
+check("portfolio penalized when a backend/payment is present", port[0].archetype === "portfolio" && ecom.find((r) => r.archetype === "portfolio").score === 0);
+
+// Integration: real signals from the vulnerable fixture → ecommerce, with evidence.
+const fxSignals = collectSignals(fixture);
+const fxRanked = scoreArchetypes(fxSignals);
+check("fixture detects as ecommerce", fxRanked[0].archetype === "ecommerce", `got ${fxRanked[0].archetype}`);
+check("fixture detection shows its evidence (the 'why')", fxRanked[0].matched.length > 0);
+
+// Manifest discovery finds the base archetypes and excludes the instrumented design layer.
+const manifests = discoverManifests(join(here, ".."));
+const names = manifests.map((m) => m.archetype);
+check("discovers ecommerce/saas/portfolio manifests", ["ecommerce", "saas", "portfolio"].every((n) => names.includes(n)), names.join(","));
+check("excludes the *.design.json instrumented layer", !manifests.some((m) => m.file.endsWith(".design.json")));
+
+console.log("\n6. Project config + manifest resolution (CLI — brick B):");
+// Bundled manifests resolve by bare name / filename against the package, not cwd.
+const byName = resolveManifestPath("ecommerce", { cwd: "/nonexistent" });
+check("resolves a bare archetype name to the bundled manifest", typeof byName === "string" && byName.endsWith("archetype.ecommerce.json"));
+const byFile = resolveManifestPath("archetype.saas.json", { cwd: "/nonexistent" });
+check("resolves a manifest filename to the bundled manifest", byFile.endsWith("archetype.saas.json"));
+// config round-trips and the readers pick it up.
+const cfgDir = mkdtempSync(join(tmpdir(), "foresight-cfg-"));
+try {
+  check("readConfig returns null when absent", readConfig(cfgDir) === null);
+  const written = writeConfig(cfgDir, { schema: "foresight/config/v1", archetype: "archetype.saas.json" });
+  check("writeConfig creates foresight.config.json", written.endsWith(CONFIG_FILE));
+  check("readConfig round-trips the archetype", readConfig(cfgDir).archetype === "archetype.saas.json");
+} finally { rmSync(cfgDir, { recursive: true, force: true }); }
 
 console.log("");
 if (failures > 0) {

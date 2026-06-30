@@ -28,6 +28,7 @@ import { fileURLToPath } from "node:url";
 import { resolveArchetype } from "../library/resolve.mjs";
 import { loadRepo, selectForCheckpoint } from "./select.mjs";
 import { fingerprint, newRunId, recordPredictions, readOverrides } from "./store.mjs";
+import { readConfig, resolveManifestPath } from "./config.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -105,10 +106,20 @@ async function main() {
     return 2;
   }
 
+  // Archetype precedence: explicit --archetype > foresight.config.json in the repo > default.
   const archetypeArg = arg("--archetype", null);
-  const archetypePath = archetypeArg
-    ? pathResolve(process.cwd(), archetypeArg)
-    : pathResolve(here, "..", "archetype.ecommerce.json");
+  const config = readConfig(repoPath);
+  let archetypePath, archetypeSource;
+  if (archetypeArg) {
+    archetypePath = resolveManifestPath(archetypeArg, { cwd: process.cwd() });
+    archetypeSource = "flag";
+  } else if (config?.archetype) {
+    archetypePath = resolveManifestPath(config.archetype, { cwd: repoPath });
+    archetypeSource = "config";
+  } else {
+    archetypePath = pathResolve(here, "..", "archetype.ecommerce.json");
+    archetypeSource = "default";
+  }
 
   let archetype;
   try {
@@ -160,7 +171,8 @@ async function main() {
   if (!json) {
     if (note) console.error(`note: ${note}\n`);
     console.error(`Verifying ${repoPath}`);
-    console.error(`  ${archetype.archetype} v${archetype.version} | adapter: ${adapter.name ?? adapterName} | ${checkpoints.length} checkpoint(s)`);
+    const srcNote = archetypeSource === "config" ? " (from foresight.config.json)" : archetypeSource === "default" ? " (default — run `foresight init` to detect)" : "";
+    console.error(`  ${archetype.archetype} v${archetype.version}${srcNote} | adapter: ${adapter.name ?? adapterName} | ${checkpoints.length} checkpoint(s)`);
     if (appliedOverrides.length) console.error(`  calibration overrides applied: ${appliedOverrides.map((o) => `${o.id} ${o.from}→${o.to}`).join(", ")}`);
     console.error("");
   }

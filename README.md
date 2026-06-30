@@ -10,8 +10,21 @@ It draws each interrogation from a compounding **pattern library** and keeps the
 are adapters that drive the engine — never the thing it lives inside.
 
 > **Status: early build.** The specs and the first archetype are here, plus runnable tooling
-> (`schemas/`, `verifier-eval/`). New to this kind of project? Start with
+> (`schemas/`, `verifier-eval/`, `repo-verify/`). New to this kind of project? Start with
 > [`SETUP.md`](./SETUP.md) — it gets you running on Windows step by step.
+
+## Quickstart
+
+```bash
+foresight init            # detect your archetype, write foresight.config.json (commit it)
+foresight verify          # grade your backbone against it (mock baseline = $0)
+foresight gate --help     # wire the PR/CI gate that comments on every pull request
+```
+
+`init` reads only metadata (dependencies, paths, schema model names) to pick the archetype —
+never your code. Set `ANTHROPIC_API_KEY` + `ANTHROPIC_MODEL` for the reasoning verifier; without
+them everything still runs on the deterministic mock baseline. Full walkthrough:
+[`repo-verify/README.md`](./repo-verify/README.md).
 
 ## The documents
 
@@ -69,6 +82,12 @@ are adapters that drive the engine — never the thing it lives inside.
   verifier's precision/recall and **false-green rate** (`node verifier-eval/run-eval.mjs`).
   This is how "is the verifier trustworthy?" becomes a number instead of a hope — the
   validation gate the whole tool rests on.
+- [`repo-verify/`](./repo-verify) — the product surface: point the verifier at a *whole real
+  repo*. Archetype detection (`foresight init`), the verifier CLI, the calibration store
+  (the pattern/instance wall, made physical), and the git-aware **PR gate** + drop-in GitHub
+  Action (`action.yml`). Start at [`repo-verify/README.md`](./repo-verify/README.md).
+- [`bin/foresight.mjs`](./bin) — the unified `foresight` CLI (`init` / `verify` / `gate` /
+  `detect` / `feedback` / `calibrate`), exposed for `npx`.
 
 ## License
 

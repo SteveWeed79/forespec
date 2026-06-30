@@ -1,0 +1,85 @@
+name: "Foresight PR gate"
+description: "Grade the backbone checkpoints a PR's changed files touch, post a sticky comment with how each moved vs the last run, and feed the calibration store."
+author: "foresight"
+branding:
+  icon: "eye"
+  color: "purple"
+
+# Drop-in usage in another repo (.github/workflows/foresight.yml):
+#
+#   name: Foresight
+#   on: pull_request
+#   permissions:
+#     contents: read
+#     pull-requests: write     # required so the gate can upsert its comment
+#   jobs:
+#     foresight:
+#       runs-on: ubuntu-latest
+#       steps:
+#         - uses: actions/checkout@v4
+#           with: { fetch-depth: 0 }   # full history so it can diff the base branch
+#         - uses: SteveWeed79/glowing-barnacle@v1
+#           with:
+#             # optional — omit both for the deterministic mock baseline at $0:
+#             anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
+#             anthropic-model: ${{ vars.ANTHROPIC_MODEL }}
+#
+# Run `foresight init` in your repo once and commit foresight.config.json so the gate
+# grades against the right archetype; otherwise pass `archetype:` below.
+
+inputs:
+  repo:
+    description: "Path to the checked-out repo to grade."
+    default: ${{ github.workspace }}
+  base:
+    description: "Base git ref to diff against (without the origin/ prefix)."
+    default: ${{ github.base_ref }}
+  archetype:
+    description: "Archetype name or manifest, overriding foresight.config.json (e.g. 'ecommerce'). Optional."
+    default: ""
+  adapter:
+    description: "mock | claude. Default: claude when an API key + model are provided, else mock."
+    default: ""
+  fail:
+    description: "Set 'true' to block the PR on a touched-critical regression or a critical below level 6."
+    default: "false"
+  store:
+    description: "Calibration store directory."
+    default: ${{ github.workspace }}/.foresight
+  anthropic-api-key:
+    description: "Anthropic API key for the reasoning verifier. Optional — omit for the $0 mock baseline."
+    default: ""
+  anthropic-model:
+    description: "Anthropic model id. Required (with the key) to use the reasoning verifier."
+    default: ""
+  node-version:
+    description: "Node version to set up."
+    default: "20"
+
+runs:
+  using: "composite"
+  steps:
+    - uses: actions/setup-node@v4
+      with:
+        node-version: ${{ inputs.node-version }}
+
+    - name: Run Foresight gate
+      shell: bash
+      env:
+        # github.token is the job's GITHUB_TOKEN; the gate uses it to upsert the comment.
+        GITHUB_TOKEN: ${{ github.token }}
+        ANTHROPIC_API_KEY: ${{ inputs.anthropic-api-key }}
+        ANTHROPIC_MODEL: ${{ inputs.anthropic-model }}
+        FS_REPO: ${{ inputs.repo }}
+        FS_BASE: ${{ inputs.base }}
+        FS_ARCHETYPE: ${{ inputs.archetype }}
+        FS_ADAPTER: ${{ inputs.adapter }}
+        FS_FAIL: ${{ inputs.fail }}
+        FS_STORE: ${{ inputs.store }}
+        FS_ACTION_PATH: ${{ github.action_path }}
+      run: |
+        args=(gate --repo "$FS_REPO" --base "origin/$FS_BASE" --store "$FS_STORE" --comment)
+        [ -n "$FS_ARCHETYPE" ] && args+=(--archetype "$FS_ARCHETYPE")
+        [ -n "$FS_ADAPTER" ] && args+=(--adapter "$FS_ADAPTER")
+        [ "$FS_FAIL" = "true" ] && args+=(--fail)
+        node "$FS_ACTION_PATH/bin/foresight.mjs" "${args[@]}"
