@@ -27,7 +27,7 @@ import { existsSync, statSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { resolveArchetype } from "../library/resolve.mjs";
 import { loadRepo, selectForCheckpoint } from "./select.mjs";
-import { fingerprint, newRunId, recordPredictions } from "./store.mjs";
+import { fingerprint, newRunId, recordPredictions, readOverrides } from "./store.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -122,6 +122,19 @@ async function main() {
   const onlyId = arg("--checkpoint", null);
   const budget = Number(arg("--budget", "60000")) || 60_000;
   const json = has("--json");
+  const storeDir = pathResolve(process.cwd(), arg("--store", ".foresight"));
+
+  // Apply locally-accepted calibration overrides (brick 3) on top of the archetype.
+  // The shared library is untouched; this is earned, reversible, per-project tuning.
+  const overrides = readOverrides({ storeDir });
+  const appliedOverrides = [];
+  for (const cp of archetype.checkpoints) {
+    const ov = overrides.severity?.[cp.id];
+    if (ov && ov !== cp.severity) {
+      appliedOverrides.push({ id: cp.id, from: cp.severity, to: ov });
+      cp.severity = ov;
+    }
+  }
 
   let checkpoints = archetype.checkpoints;
   if (onlyId) {
@@ -147,7 +160,9 @@ async function main() {
   if (!json) {
     if (note) console.error(`note: ${note}\n`);
     console.error(`Verifying ${repoPath}`);
-    console.error(`  ${archetype.archetype} v${archetype.version} | adapter: ${adapter.name ?? adapterName} | ${checkpoints.length} checkpoint(s)\n`);
+    console.error(`  ${archetype.archetype} v${archetype.version} | adapter: ${adapter.name ?? adapterName} | ${checkpoints.length} checkpoint(s)`);
+    if (appliedOverrides.length) console.error(`  calibration overrides applied: ${appliedOverrides.map((o) => `${o.id} ${o.from}→${o.to}`).join(", ")}`);
+    console.error("");
   }
 
   const allFiles = loadRepo(repoPath);
@@ -190,7 +205,6 @@ async function main() {
   // Brick 1 — log this run as training data (pattern/instance split), unless disabled.
   let storeInfo = null;
   if (!has("--no-store")) {
-    const storeDir = pathResolve(process.cwd(), arg("--store", ".foresight"));
     const runId = newRunId();
     const { count } = recordPredictions({
       storeDir, runId,
@@ -201,7 +215,7 @@ async function main() {
   }
 
   if (json) {
-    console.log(JSON.stringify({ archetype: archetype.archetype, version: archetype.version, adapter: adapter.name ?? adapterName, results, rollup: { shippable, great, blocking: blocking.map((r) => r.id), ungraded: ungraded.map((r) => r.id) }, store: storeInfo }, null, 2));
+    console.log(JSON.stringify({ archetype: archetype.archetype, version: archetype.version, adapter: adapter.name ?? adapterName, overrides_applied: appliedOverrides, results, rollup: { shippable, great, blocking: blocking.map((r) => r.id), ungraded: ungraded.map((r) => r.id) }, store: storeInfo }, null, 2));
     return shippable ? 0 : 1;
   }
 

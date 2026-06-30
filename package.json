@@ -13,6 +13,7 @@
     "eval:claude": "node verifier-eval/run-eval.mjs --adapter claude --out verifier-eval/report.json",
     "verify": "node repo-verify/verify.mjs",
     "verify:self": "node repo-verify/self-test.mjs",
-    "feedback": "node repo-verify/feedback.mjs"
+    "feedback": "node repo-verify/feedback.mjs",
+    "calibrate": "node repo-verify/calibrate.mjs"
   }
 }
