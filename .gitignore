@@ -1,0 +1,8 @@
+# Node
+node_modules/
+npm-debug.log*
+*.log
+
+# Local env files (NEVER commit your API key)
+.env
+.env.local

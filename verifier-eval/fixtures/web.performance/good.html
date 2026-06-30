@@ -1,0 +1,12 @@
+<!-- Sized, compressed, lazy-loaded images; deferred scripts; preloaded critical asset. -->
+<head>
+  <link rel="preload" as="image" href="/hero-800.webp" />
+  <link rel="stylesheet" href="/site.css" />
+  <script src="/bundle.js" defer></script>       <!-- non-blocking -->
+</head>
+<body>
+  <img src="/hero-800.webp" width="800" height="600" fetchpriority="high" alt="Studio hero" />
+  <img src="/gallery-1.webp" width="400" height="300" loading="lazy" alt="Project one" />
+  <img src="/gallery-2.webp" width="400" height="300" loading="lazy" alt="Project two" />
+  <img src="/gallery-3.webp" width="400" height="300" loading="lazy" alt="Project three" />
+</body>

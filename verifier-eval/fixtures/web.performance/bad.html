@@ -1,0 +1,11 @@
+<!-- BAD: unoptimized hero, render-blocking scripts, no lazy-loading, no dimensions. -->
+<head>
+  <script src="/bundle.js"></script>            <!-- render-blocking in the head -->
+  <link rel="stylesheet" href="/huge.css" />
+</head>
+<body>
+  <img src="/hero-4000x3000.png" />              <!-- ~6MB, no width/height, eager -->
+  <img src="/gallery-1.png" />                   <!-- below the fold, still eager -->
+  <img src="/gallery-2.png" />
+  <img src="/gallery-3.png" />
+</body>

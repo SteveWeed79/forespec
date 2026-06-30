@@ -1,0 +1,117 @@
+{
+  "$schema": "foresight/checkpoint-library/v1",
+  "concern": "design",
+  "_note": "Design-dimension checkpoints (domain:design SUPPLIES judgment the builder lacks). Cross-domain — every site type reuses these. Some have a richer instrumented form in a *.design.json layer.",
+  "checkpoints": [
+    {
+      "id": "design.type_scale",
+      "domain": "design", "confidence": "established",
+      "title": "Typographic scale and readability meet documented standards",
+      "why": "BLIND-SPOT CHECKPOINT but the FLOOR is established, not taste. Readability has real specs: body legibility, line-length, line-height, consistent modular scale. The measurable part of looks-designed.",
+      "levels": {
+        "3": "Ad-hoc font sizes scattered in components; body text small or cramped; no consistent scale.",
+        "6": "Body text >= 16px; line-height ~1.4-1.6 for body; line length ~45-75 chars; defined modular scale (1.2-1.333 ratio) for headings.",
+        "9": "Coherent type system applied everywhere - scale, weight, spacing reinforce hierarchy; measure and rhythm hold across breakpoints."
+      },
+      "verify": {
+        "reasoning": "Is there a defined type scale or ad-hoc sizes? Is body text at least 16px with comfortable line-height? Are line lengths in the readable range on content-heavy views?",
+        "assertions": [
+          {"check": "A central type scale is defined (tokens/theme), not per-component magic sizes.", "type": "static"},
+          {"check": "Computed body font-size >= 16px and line-height between 1.4 and 1.7.", "type": "runtime"}
+        ]
+      }
+    },
+    {
+      "id": "design.contrast_a11y",
+      "domain": "design", "confidence": "established",
+      "title": "Color contrast and accessibility floor",
+      "why": "BLIND-SPOT CHECKPOINT, fully ESTABLISHED - WCAG defines hard numbers, no taste required. Backbone devs routinely ship unreadable low-contrast text and untouchable controls. Verifiable to a 9.",
+      "levels": {
+        "3": "Text/background contrast below WCAG AA in places; interactive elements unlabeled; keyboard nav broken.",
+        "6": "Body text meets AA (>=4.5:1), large text >=3:1; images have alt text; forms have labels; visible focus states.",
+        "9": "AA throughout including UI components and states; full keyboard operability; automated a11y pass with zero critical violations."
+      },
+      "verify": {
+        "reasoning": "Does text meet WCAG AA contrast (4.5:1 body, 3:1 large)? Do interactive elements have labels and visible focus? Are the key flows keyboard-operable?",
+        "assertions": [
+          {"check": "Text/background pairs meet AA contrast ratios.", "type": "runtime"},
+          {"check": "Form inputs have associated labels; images have alt attributes.", "type": "static"},
+          {"check": "An automated accessibility scan reports zero critical violations on key views.", "type": "runtime"}
+        ]
+      }
+    },
+    {
+      "id": "design.spacing_system",
+      "domain": "design", "confidence": "reasoned",
+      "title": "Consistent spacing system",
+      "why": "BLIND-SPOT CHECKPOINT. Inconsistent spacing is the clearest tell of assembled-not-designed UI. Principle established (a spacing scale); the specific scale is a reasoned default.",
+      "levels": {
+        "3": "Arbitrary margins/paddings; no shared scale; uneven rhythm.",
+        "6": "A spacing scale (e.g. 4/8px base) defined as tokens and used consistently.",
+        "9": "Spacing scale applied with intent so grouping and rhythm read clearly; related grouped, unrelated separated, consistent across views."
+      },
+      "verify": {
+        "reasoning": "Is spacing drawn from a defined scale or arbitrary per component? Count distinct spacing values - small intentional set or sprawl? Does spacing group related content?",
+        "assertions": [
+          {"check": "Spacing tokens are centrally defined.", "type": "static"},
+          {"check": "Distinct raw spacing values within a small set (default <= 10; tune per project).", "type": "static"}
+        ]
+      }
+    },
+    {
+      "id": "design.visual_hierarchy",
+      "domain": "design", "confidence": "taste_limited",
+      "title": "Clear visual hierarchy guides the eye",
+      "why": "BLIND-SPOT CHECKPOINT and honestly TASTE_LIMITED. The floor is checkable (one dominant CTA, type scale present). Whether hierarchy is genuinely great is partly aesthetic; a model grades it only weakly - bring a human eye to confirm the ceiling.",
+      "levels": {
+        "3": "Uniform weight; no clear primary action; user hunts for what matters.",
+        "6": "One clear primary action per view; type scale and spacing establish order; secondary actions visibly subordinate.",
+        "9": "[CEILING NOT MACHINE-VERIFIABLE] Deliberate hierarchy on every view so the eye lands correctly without effort - confirm with human review."
+      },
+      "verify": {
+        "reasoning": "On the key views: is there ONE obviously dominant primary action? Does the type scale create order or is everything similar weight? Would a first-time visitor know where to look without reading everything? Report the measurable floor confidently; flag the is-it-great judgment as needing human confirmation.",
+        "assertions": [
+          {"check": "Each key view has a single visually dominant primary CTA.", "type": "runtime"},
+          {"check": "A defined type scale exists (precondition for hierarchy).", "type": "static"}
+        ]
+      }
+    },
+    {
+      "id": "design.system_consistency",
+      "domain": "design", "confidence": "reasoned",
+      "title": "Consistent design system, not ad-hoc styling",
+      "why": "BLIND-SPOT CHECKPOINT. Scattered one-off colors/styles are the clearest tell of AI-assembled UI. Principle established; palette-size threshold is reasoned.",
+      "levels": {
+        "3": "Hard-coded colors/spacing/sizes repeated and inconsistent.",
+        "6": "Shared tokens for color, spacing, type, radius; components reuse them.",
+        "9": "Coherent system - small intentional palette, consistent scale, reused primitives; a new page composes from existing parts with zero new magic numbers."
+      },
+      "verify": {
+        "reasoning": "Are color/spacing/type defined as tokens and reused, or hard-coded per component? Is the palette intentional and small or sprawling? Could a new page be built from existing primitives?",
+        "assertions": [
+          {"check": "Design tokens (color/spacing/type) are centrally defined.", "type": "static"},
+          {"check": "Distinct raw color values within a small intentional set (default <= 12; tune per project).", "type": "static"}
+        ]
+      }
+    },
+    {
+      "id": "design.responsive",
+      "domain": "design", "confidence": "established",
+      "title": "Works and looks right on real screen sizes",
+      "why": "BLIND-SPOT CHECKPOINT, mostly ESTABLISHED. Most web traffic is mobile; a broken mobile layout silently loses the majority of users. Overflow, tap-target size, and legibility are measurable.",
+      "levels": {
+        "3": "Desktop-first; mobile overflow, tiny tap targets, or broken layout.",
+        "6": "Responsive across phone/tablet/desktop; tap targets >= 44px; no horizontal overflow.",
+        "9": "Designed per breakpoint (not just shrunk); mobile flows comfortable one-handed."
+      },
+      "verify": {
+        "reasoning": "Do key flows hold at narrow widths - no overflow, readable text, tappable controls? Is the layout designed for small screens or scaled down?",
+        "assertions": [
+          {"check": "No horizontal overflow at 360px width on key views.", "type": "runtime"},
+          {"check": "Interactive targets >= 44x44px on mobile.", "type": "runtime"},
+          {"check": "Layouts use responsive techniques, not fixed-pixel container widths.", "type": "static"}
+        ]
+      }
+    }
+  ]
+}

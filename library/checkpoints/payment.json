@@ -1,0 +1,97 @@
+{
+  "$schema": "foresight/checkpoint-library/v1",
+  "concern": "payment",
+  "_note": "Taking-money checkpoints. Cross-domain — ecommerce, SaaS subscriptions, marketplaces, and booking all reuse these.",
+  "checkpoints": [
+    {
+      "id": "payment.idempotency",
+      "domain": "backbone", "confidence": "established",
+      "title": "Idempotent payment handling",
+      "why": "Retries, double-clicks, and webhook re-delivery cause double charges or duplicate orders or actions without idempotency.",
+      "levels": {
+        "3": "No idempotency key; duplicate submissions can double-charge.",
+        "6": "Idempotency key on payment creation; client duplicates de-duplicated.",
+        "9": "Idempotency across the full path including provider webhooks (each event processed exactly once), with safe replay."
+      },
+      "verify": {
+        "reasoning": "Can the same payment be created twice from a retry? Are provider webhooks processed exactly once? Is there an idempotency key on creation and webhook handling?",
+        "assertions": [
+          {"check": "Idempotency key passed to payment provider on intent creation.", "type": "static"},
+          {"check": "Webhook handler de-duplicates by provider event id before mutating state.", "type": "static"}
+        ]
+      }
+    },
+    {
+      "id": "payment.state_integrity",
+      "domain": "backbone", "confidence": "established",
+      "title": "Payment state cannot diverge from your records",
+      "why": "Your record of a payment and the provider's actual payment status drifting apart (paid-no-record, record-unpaid) is a top source of silent revenue loss.",
+      "levels": {
+        "3": "The record is marked paid optimistically on client return, before provider confirmation.",
+        "6": "Record transitions are driven by verified provider webhooks, not client redirects.",
+        "9": "Explicit state machine, reconciliation job catching divergence, per-record audit trail."
+      },
+      "verify": {
+        "reasoning": "Is paid set from a verified server-side signal or the client redirect? Can a record be marked paid without confirmation, or money captured without a record? Is there reconciliation?",
+        "assertions": [
+          {"check": "Paid transition triggered by a verified webhook, not a client success route.", "type": "static"},
+          {"check": "A reconciliation path compares provider state to local state.", "type": "static"}
+        ]
+      }
+    },
+    {
+      "id": "payment.card_data_handling",
+      "domain": "backbone", "confidence": "established",
+      "title": "Card data never touches your server; payment secrets stay server-side",
+      "why": "Receiving or storing raw card numbers drags the whole app into PCI-DSS scope and is the most expensive class of mistake when taking payments. The safe path - provider-hosted fields / tokenization - is well documented, yet AI-generated payment flows often POST the PAN to a first-party backend. Equally fatal: the provider SECRET key shipped in the client bundle or committed to the repo.",
+      "levels": {
+        "3": "Raw card fields submitted to your own backend, or secret API keys present in client-side code / committed config.",
+        "6": "Card data captured by the provider's hosted fields/SDK so the PAN never reaches your server; only a token is handled; secret keys are server-side only.",
+        "9": "Tokenization end to end, secrets injected from a managed store (never in repo or bundle), and the integration documents its PCI-DSS scope (e.g. SAQ A) and holds to it."
+      },
+      "verify": {
+        "reasoning": "Does any raw card number (PAN, CVV) reach first-party code, or is it captured directly by the provider (hosted fields / Elements / SDK) and exchanged for a token? Is the provider secret key referenced only server-side, never in client bundles or committed files?",
+        "assertions": [
+          {"check": "No endpoint or form submits raw PAN/CVV to first-party code; payment uses a provider token.", "type": "static"},
+          {"check": "Provider secret keys are read from a server-side env/secret store, not present in client bundles or committed config.", "type": "static"}
+        ]
+      }
+    },
+    {
+      "id": "payment.webhook_authenticity",
+      "domain": "backbone", "confidence": "established",
+      "title": "Payment webhooks are authenticated before they are trusted",
+      "why": "Payment state is driven by provider webhooks (see payment.state_integrity). If the webhook endpoint does not verify the provider's signature, anyone who discovers the URL can POST a forged 'payment succeeded' and mark records paid for free. Signature verification is documented by every major provider and routinely omitted in AI-generated handlers.",
+      "levels": {
+        "3": "Webhook endpoint trusts the request body with no signature or authenticity check.",
+        "6": "Provider signature verified against the signing secret before any state change; invalid or unsigned requests rejected.",
+        "9": "Signature plus timestamp/replay-window verified against the raw body, secret from a managed store, and verification failures logged/alerted."
+      },
+      "verify": {
+        "reasoning": "Does the webhook handler verify the provider's signature against the raw request body before mutating any payment/record state? Are unsigned or invalid-signature requests rejected? Is the signing secret kept server-side?",
+        "assertions": [
+          {"check": "Webhook handler verifies the provider signature before processing the event.", "type": "static"},
+          {"check": "A test sends an unsigned/invalid-signature webhook and the handler rejects it without changing state.", "type": "test"}
+        ]
+      }
+    },
+    {
+      "id": "payment.refund_integrity",
+      "domain": "backbone", "confidence": "established",
+      "title": "Refunds and cancellations are correct, bounded, and idempotent",
+      "why": "The reverse-money path is built late and tested least. Without guards you can refund more than was captured, double-refund on retry or webhook redelivery, or refund without reversing related state - each a direct cash or inventory loss.",
+      "levels": {
+        "3": "Refunds issued ad hoc with no cap against the captured amount and no dedup; retries can refund twice.",
+        "6": "Refund amount bounded by the remaining captured balance, idempotent against retries/webhook redelivery, and related state adjusted.",
+        "9": "Full refund/cancel state machine: partial refunds tracked cumulatively, idempotent end to end, related state reconciled, audit trail per action."
+      },
+      "verify": {
+        "reasoning": "Can a refund exceed what was captured, or sum past it across partial refunds? Is a retried or re-delivered refund request de-duplicated? Does a refund or cancellation reverse the related state (inventory, entitlement)?",
+        "assertions": [
+          {"check": "Refund amount is validated against the remaining captured/refundable balance.", "type": "static"},
+          {"check": "Refund operations are idempotent (keyed so a retry does not double-refund).", "type": "static"}
+        ]
+      }
+    }
+  ]
+}

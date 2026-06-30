@@ -32,7 +32,7 @@ Build:
 - Archetype loader: parses one archetype JSON, exposes its checkpoints.
 - Model adapter: one interface, one implementation (whatever's simplest to wire). The
   thing that makes it tool-agnostic - swap the impl, not the engine.
-- Verifier core: takes ONE backbone checkpoint (`ec.checkout.atomic_stock_hold`), runs its
+- Verifier core: takes ONE backbone checkpoint (`ecommerce.checkout.atomic_stock_hold`), runs its
   reasoning question against the repo via the model adapter, returns level + gap + confidence.
 - Output: prints the one score with its full basis.
 
@@ -46,7 +46,7 @@ before building anything on top.** Do not proceed until this run tells the truth
 *Goal: the engine does its core job for real on the part I'm most confident in.*
 
 Build:
-- Run all 8 backbone checkpoints from the ecommerce archetype.
+- Run all 12 backbone checkpoints from the ecommerce archetype.
 - Static assertion layer: the `type:static` checks that are mechanically verifiable
   (AST/file inspection) - deterministic backstop under the reasoning layer.
 - Report: per-checkpoint level/gap/confidence + the goal_definition roll-up

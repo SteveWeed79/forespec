@@ -1,0 +1,63 @@
+{
+  "$schema": "foresight/checkpoint-library/v1",
+  "concern": "web",
+  "_note": "Cross-domain web-quality checkpoints (performance, discoverability, forms). Reusable by content, marketing, portfolio, and blog archetypes — anything public-facing.",
+  "checkpoints": [
+    {
+      "id": "web.performance",
+      "domain": "backbone", "confidence": "established",
+      "title": "Page performance meets Core Web Vitals",
+      "why": "On content and marketing sites, slow loads directly cost users and SEO ranking. The common AI-generated tells - unsized/uncompressed images, render-blocking scripts, no lazy-loading - are measurable against documented Core Web Vitals thresholds.",
+      "levels": {
+        "3": "Large unoptimized images, render-blocking scripts, no lazy-loading; LCP well over 2.5s on mobile.",
+        "6": "Images sized/compressed and lazy-loaded below the fold; scripts deferred/async; LCP < 2.5s, CLS < 0.1 on mobile.",
+        "9": "Performance budget enforced; responsive images, preloaded critical assets, minimal blocking; consistently green Core Web Vitals."
+      },
+      "verify": {
+        "reasoning": "Are images sized, compressed, and lazy-loaded? Are scripts deferred/async or render-blocking? Would the largest contentful paint plausibly land under 2.5s on mobile? Is there any performance budget?",
+        "assertions": [
+          {"check": "Images have explicit dimensions and below-the-fold images are lazy-loaded.", "type": "static"},
+          {"check": "Scripts are async/deferred, not render-blocking in the head.", "type": "static"},
+          {"check": "Core Web Vitals (LCP/CLS/INP) measured against documented thresholds.", "type": "runtime"}
+        ]
+      }
+    },
+    {
+      "id": "web.seo_metadata",
+      "domain": "backbone", "confidence": "established",
+      "title": "Discoverable: titles, meta, and semantic structure",
+      "why": "A site nobody can find or preview correctly underperforms regardless of quality. Per-page titles, meta descriptions, Open Graph/Twitter cards, semantic landmarks, and a sitemap are documented, mechanical wins AI scaffolds routinely skip.",
+      "levels": {
+        "3": "Generic or missing per-page title / meta description; no Open Graph; non-semantic div soup; no sitemap.",
+        "6": "Unique title + meta description per page; Open Graph/Twitter cards; semantic landmarks (header/nav/main); sitemap + robots.",
+        "9": "Structured data (schema.org) where relevant, canonical URLs, per-page social previews verified, clean crawlable routing."
+      },
+      "verify": {
+        "reasoning": "Does each page have a unique title and meta description? Are Open Graph / social-preview tags present? Is the markup semantic (landmarks, headings in order)? Is there a sitemap and robots?",
+        "assertions": [
+          {"check": "Each page sets a unique title and meta description.", "type": "static"},
+          {"check": "Open Graph / social-card tags are present.", "type": "static"},
+          {"check": "Semantic landmark elements are used (header, nav, main, footer).", "type": "static"}
+        ]
+      }
+    },
+    {
+      "id": "web.forms_integrity",
+      "domain": "backbone", "confidence": "reasoned",
+      "title": "Forms validate server-side and resist spam/abuse",
+      "why": "A contact or lead form that trusts the client and has no spam protection becomes a spam relay and a source of bad data. Server-side validation plus a honeypot/CAPTCHA and rate limiting are the established floor; exact thresholds are reasoned.",
+      "levels": {
+        "3": "Client-side validation only; no spam protection; submissions trusted and emailed/stored as-is.",
+        "6": "Server-side validation of every field; a honeypot or CAPTCHA; rate limiting; output escaped/sanitized.",
+        "9": "Layered: server validation, bot mitigation, rate + dedup limits, clear error/success states, and abuse monitoring."
+      },
+      "verify": {
+        "reasoning": "Is form input validated on the server, not just the client? Is there any spam/bot mitigation (honeypot, CAPTCHA, rate limit)? Is submitted content escaped/sanitized before storage or email?",
+        "assertions": [
+          {"check": "Form fields are validated server-side, not only in the browser.", "type": "static"},
+          {"check": "Spam/abuse mitigation (honeypot, CAPTCHA, or rate limit) is present on submit.", "type": "static"}
+        ]
+      }
+    }
+  ]
+}

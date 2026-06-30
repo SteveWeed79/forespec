@@ -49,9 +49,9 @@ keeps it legal and non-creepy. If these are tangled in one object now, you can n
 share later. Separating them costs nothing today and is the whole seam.
 
 ### 2. Stable checkpoint identity
-Calibration data is keyed to checkpoint ids (`ec.checkout.atomic_stock_hold`) and signal ids
+Calibration data is keyed to checkpoint ids (`ecommerce.checkout.atomic_stock_hold`) and signal ids
 (`cta_dominance`), not to free text. This is why ids must be stable and namespaced now —
-your hit/miss data on `ec.checkout.atomic_stock_hold` becomes directly poolable with a future
+your hit/miss data on `ecommerce.checkout.atomic_stock_hold` becomes directly poolable with a future
 user's data on the SAME id. Rename a checkpoint and you orphan its history. Treat ids as
 permanent contracts; version archetypes, never silently rename checkpoints.
 
@@ -148,3 +148,12 @@ reasoned guess that itself needs checking against whether "region re-flagged" re
 correlates with "the original advice was right." Even the calibration loop has a thing to
 calibrate. That's not a flaw to hide — it's the same discipline all the way down: state what's
 measured, name what's assumed, let reality move the numbers.
+
+One expectation to set honestly up front: **solo, the signal is sparse and the flywheel is
+slow.** The observable-map above shows real-world impact and aesthetic outcomes are largely
+invisible without analytics or an explicit rating moment, and action/recurrence data accrue
+only as fast as you actually commit. So the first accepted weight-delta is realistically
+weeks of real work away, not days — the loop is real but it crawls at n=1. That is the
+argument *for* the seam, not against it: the structure is built to receive many users' deltas
+precisely because one person's data earns the standard slowly. Don't read early silence as the
+loop being broken; read it as the sample being small.

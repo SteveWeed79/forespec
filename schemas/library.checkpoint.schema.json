@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "foresight/checkpoint-library/v1",
+  "title": "Foresight checkpoint library file",
+  "description": "Validates a shared-library checkpoint file (library/checkpoints/*.json). A library checkpoint defines WHAT to check and carries NO severity — severity is assigned per archetype in the manifest.",
+  "type": "object",
+  "required": ["concern", "checkpoints"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+    "concern": { "type": "string", "minLength": 1 },
+    "_note": { "type": "string" },
+    "checkpoints": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/checkpoint" }
+    }
+  },
+  "$defs": {
+    "checkpoint": {
+      "type": "object",
+      "required": ["id", "domain", "confidence", "title", "why", "levels", "verify"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z0-9]+(\\.[a-z0-9_]+)+$",
+          "description": "Stable, namespaced, permanent contract. Shared concerns are domain-neutral (auth.access_control); domain-specific ones carry a domain prefix (ecommerce.checkout.atomic_stock_hold)."
+        },
+        "domain": { "enum": ["backbone", "design"] },
+        "confidence": { "enum": ["established", "reasoned", "taste_limited"] },
+        "title": { "type": "string", "minLength": 1 },
+        "why": { "type": "string", "minLength": 1 },
+        "levels": {
+          "type": "object",
+          "required": ["3", "6", "9"],
+          "additionalProperties": false,
+          "properties": {
+            "3": { "type": "string", "minLength": 1 },
+            "6": { "type": "string", "minLength": 1 },
+            "9": { "type": "string", "minLength": 1 }
+          }
+        },
+        "verify": {
+          "type": "object",
+          "required": ["reasoning"],
+          "additionalProperties": false,
+          "properties": {
+            "reasoning": { "type": "string", "minLength": 1 },
+            "assertions": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["check", "type"],
+                "additionalProperties": false,
+                "properties": {
+                  "check": { "type": "string", "minLength": 1 },
+                  "type": { "enum": ["static", "test", "runtime"] }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
