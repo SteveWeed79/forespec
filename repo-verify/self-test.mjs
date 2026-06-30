@@ -13,7 +13,7 @@
 // Run: node repo-verify/self-test.mjs   (or: npm run verify:self)
 
 import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { rmSync, mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { resolveArchetype } from "../library/resolve.mjs";
@@ -24,6 +24,7 @@ import { aggregate, propose } from "./calibrate.mjs";
 import { scoreArchetypes, collectSignals, discoverManifests } from "./detect.mjs";
 import { readConfig, writeConfig, resolveManifestPath, CONFIG_FILE } from "./config.mjs";
 import { relevanceScore, selectForFeature, renderPlan } from "./plan.mjs";
+import { contrastRatio, parseColor, isLargeText, compositeToLevel, scoreContrast, scoreTypeScale, scoreResponsive, scoreSpacing } from "./design-metrics.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const archetypePath = join(here, "..", "archetype.ecommerce.json");
@@ -204,6 +205,42 @@ const md = renderPlan({ archetype, feature: "add checkout flow", relevant: sel.r
 check("spec carries the 'decide first' question", md.includes("Decide first:") && md.includes("reserved atomically"));
 check("spec carries acceptance checkboxes", md.includes("**Acceptance criteria:**") && md.includes("- [ ]"));
 check("spec states the shippable (level 6) bar", md.includes("Shippable (level 6):"));
+
+console.log("\n8. Instrumented design metrics (P3 — pure, no browser):");
+check("contrast black/white ≈ 21:1", Math.abs(contrastRatio({ r: 0, g: 0, b: 0 }, { r: 255, g: 255, b: 255 }) - 21) < 0.1);
+check("contrast #767676 on white ≈ 4.5:1 (AA boundary)", Math.abs(contrastRatio(parseColor("rgb(118,118,118)"), parseColor("rgb(255,255,255)")) - 4.54) < 0.15);
+check("isLargeText: 24px normal yes, 16px no, 19px bold yes", isLargeText(24, 400) && !isLargeText(16, 400) && isLargeText(19, 700));
+const cBad = scoreContrast({ textNodes: [{ color: "rgb(170,170,170)", bg: "rgb(255,255,255)", fontSize: 12, fontWeight: 400 }], images: { withAlt: 0, total: 1 }, inputs: { withLabel: 0, total: 1 } });
+check("scoreContrast flags a low-contrast page → level 3", compositeToLevel(cBad.score) === 3, `score ${cBad.score}`);
+const cGood = scoreContrast({ textNodes: [{ color: "rgb(34,34,34)", bg: "rgb(255,255,255)", fontSize: 16, fontWeight: 400 }], images: { withAlt: 1, total: 1 }, inputs: { withLabel: 1, total: 1 } });
+check("scoreContrast passes a high-contrast page → level 9", compositeToLevel(cGood.score) === 9, `score ${cGood.score}`);
+check("scoreTypeScale flags 12px body / single size → level 3", compositeToLevel(scoreTypeScale({ bodyFontSize: 12, bodyLineHeight: 13.2, headingSizes: [18] }).score) === 3);
+check("scoreTypeScale passes 16px body + modular scale → ≥6", compositeToLevel(scoreTypeScale({ bodyFontSize: 16, bodyLineHeight: 24, headingSizes: [32, 24, 18] }).score) >= 6);
+check("scoreResponsive flags overflow + tiny taps → level 3", compositeToLevel(scoreResponsive({ overflow: true, overflowPx: 751, tapTargets: [{ w: 18, h: 18 }, { w: 20, h: 16 }] }).score) === 3);
+check("scoreResponsive passes no-overflow + ≥44px taps → level 9", compositeToLevel(scoreResponsive({ overflow: false, tapTargets: [{ w: 48, h: 48 }, { w: 140, h: 48 }] }).score) === 9);
+check("scoreSpacing flags ad-hoc spacing → level 3", compositeToLevel(scoreSpacing({ values: [3, 7, 13, 17, 19, 5, 11, 23, 9] }).score) === 3);
+check("scoreSpacing passes a 4/8 scale → ≥6", compositeToLevel(scoreSpacing({ values: [8, 16, 16, 24, 8, 16, 32] }).score) >= 6);
+check("compositeToLevel mapping (8→9, 5→6, 4→3)", compositeToLevel(8) === 9 && compositeToLevel(5) === 6 && compositeToLevel(4) === 3);
+
+console.log("\n9. Instrumented design probe (P3 — live browser, if available):");
+let pwAvailable = false;
+try { await import("playwright-core"); pwAvailable = true; } catch { /* optional dep */ }
+if (!pwAvailable) {
+  console.log("  skip  playwright-core not installed (optional dep) — pure metrics above cover the scoring");
+} else {
+  try {
+    const { gradeUrl } = await import("./design-probe.mjs");
+    const lvl = (g, id) => g.results.find((r) => r.id === id)?.level;
+    const bad = await gradeUrl(pathToFileURL(join(here, "fixtures", "design-page", "bad.html")).href);
+    const good = await gradeUrl(pathToFileURL(join(here, "fixtures", "design-page", "good.html")).href);
+    check("probe: bad page contrast → level 3", lvl(bad, "design.contrast_a11y") === 3, `got ${lvl(bad, "design.contrast_a11y")}`);
+    check("probe: bad page responsive → level 3 (overflow caught)", lvl(bad, "design.responsive") === 3, `got ${lvl(bad, "design.responsive")}`);
+    check("probe: good page contrast → ≥6", lvl(good, "design.contrast_a11y") >= 6, `got ${lvl(good, "design.contrast_a11y")}`);
+    check("probe: good page responsive → ≥6", lvl(good, "design.responsive") >= 6, `got ${lvl(good, "design.responsive")}`);
+  } catch (e) {
+    console.log(`  skip  browser probe unavailable: ${String(e.message ?? e).slice(0, 80)}`);
+  }
+}
 
 console.log("");
 if (failures > 0) {

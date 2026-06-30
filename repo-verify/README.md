@@ -185,12 +185,36 @@ backbone hole with the mock baseline. To finish the real gate, point it at KTXZ 
 a key + model set; if it doesn't surface a real gotcha, the pearl isn't real and
 you've found out cheaply.
 
+## Design layer (instrumented) — `foresight design <url>`
+
+`verify` reads source; `design` renders the *live* page in a headless browser (Playwright)
+and **measures** it — the build-order Phase 3 layer. It grades the established, defensible
+design checkpoints:
+
+- `design.contrast_a11y` — WCAG contrast ratios across text, plus image-alt and input-label coverage
+- `design.type_scale` — body size (≥16px), line-height, and a modular heading scale
+- `design.responsive` — horizontal overflow and tap-target sizes at a mobile viewport
+- `design.spacing_system` — how consistently spacing lands on a 4/8 scale
+
+```bash
+foresight design http://localhost:3000      # a running dev server
+foresight design ./dist/index.html          # a built file
+foresight design <url> --json
+```
+
+The scoring lives in `design-metrics.mjs` (pure WCAG math, unit-tested, zero-dep); only the
+probe needs `playwright-core` (an **optional** dependency — the rest of the tool stays
+zero-dep). Honest by design: it scores only what it can measure and reports the rest
+(saliency, aesthetic coherence, "intent reads clearly") as **residual**, never folded into
+the number. Taste stays a human call.
+
 ## Scope
 
-Grades against the resolved checkpoints' reasoning questions — the backbone and the
-static parts of design. The instrumented design layer
-(`archetype.ecommerce.design.json`) needs a headless browser (build-order P3) and is
-not run here.
+`verify` grades the resolved checkpoints' reasoning questions — the backbone and the static
+parts of design. `design` adds the instrumented runtime layer for the measurable design
+checkpoints (above). The `model_scored` / `taste_limited` signals in
+`archetype.ecommerce.design.json` (saliency, aesthetic coherence) are deferred experiments
+(build-order P6) and are not scored.
 
 ## Limitations (read before trusting a number)
 
@@ -203,7 +227,9 @@ Learned from the first real-repo run — see `../VALIDATION-NOTES.md` for the fu
   exports of the same project can report a phantom "regression" that's really just the
   file selector surfacing different code in each. Real regression detection needs a
   git-grounded diff with consistent selection (a PR/CI gate), not two arbitrary dumps.
-- **Design grading is best-effort without a browser** (especially contrast/a11y); the
-  instrumented design layer (P3) is the real answer there.
+- **Design: instrumented for the measurable parts, silent on taste.** `foresight design`
+  now measures contrast, type scale, responsive, and spacing in a real browser (P3) — trust
+  those. But saliency, aesthetic coherence, and "does the hierarchy read" are *not* scored;
+  a high design grade means "the measurable fundamentals hold," not "it looks great."
 - **Single-pass, single-model.** Cross-check disputed or critical calls with a second
   model; the reasoning layer is a first pass meant to be paired with verification.

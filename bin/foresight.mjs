@@ -27,6 +27,7 @@ const PASSTHROUGH = {
   detect: rv("detect.mjs"),
   plan: rv("plan.mjs"),
   verify: rv("verify.mjs"),
+  design: rv("design-probe.mjs"),
   gate: rv("pr-gate.mjs"),
   feedback: rv("feedback.mjs"),
   calibrate: rv("calibrate.mjs"),
@@ -40,6 +41,7 @@ Commands:
   init [repo]        Detect the archetype for a repo and write ${CONFIG_FILE}
   plan "<feature>"   Interrogate a feature BEFORE building it; emit a spec
   verify [repo]      Grade the repo's backbone against its archetype
+  design <url>       Grade a live page's design in a headless browser (Playwright)
   gate [options]     PR/CI gate: grade the diff, post a comment, feed calibration
   detect [repo]      Show the archetype ranking (read-only, writes nothing)
   feedback <id> <outcome>   Record a verdict on a flag (hit|false-positive|over-severe|ignored)

@@ -19,6 +19,7 @@ are adapters that drive the engine — never the thing it lives inside.
 foresight init                      # detect your archetype, write foresight.config.json (commit it)
 foresight plan "add checkout flow"  # interrogate the feature BEFORE you build it
 foresight verify                    # grade your backbone against it (mock baseline = $0)
+foresight design http://localhost:3000   # measure a live page's design in a headless browser
 foresight gate --help               # wire the PR/CI gate that comments on every pull request
 ```
 
