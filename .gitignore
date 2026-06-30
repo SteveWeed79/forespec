@@ -6,3 +6,6 @@ npm-debug.log*
 # Local env files (NEVER commit your API key)
 .env
 .env.local
+
+# Foresight calibration store (contains local instance data — never commit)
+.foresight/
