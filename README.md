@@ -25,7 +25,9 @@ foresight gate --help               # wire the PR/CI gate that comments on every
 
 That's the loop the engine keeps live: **plan → build → verify → correct.** `plan` emits a
 pre-build spec (the questions to decide first + acceptance criteria); `verify`/`gate` grade
-the same checkpoints after.
+the same checkpoints after. Over time `foresight proficiency` reads how much judgment you've
+shown per domain (from the calibration store, self-facing only) and `plan` adapts how much it
+explains — full where you're learning, terse where you're fluent.
 
 `init` reads only metadata (dependencies, paths, schema model names) to pick the archetype —
 never your code. Set `ANTHROPIC_API_KEY` + `ANTHROPIC_MODEL` for the reasoning verifier; without

@@ -22,6 +22,7 @@ import { fileURLToPath } from "node:url";
 import { resolveArchetype } from "../library/resolve.mjs";
 import { keywordsFor } from "./select.mjs";
 import { readConfig, resolveManifestPath } from "./config.mjs";
+import { estimateProficiency, verbosityFor } from "./proficiency.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const arg = (f, fb) => { const i = process.argv.indexOf(f); return i !== -1 && process.argv[i + 1] ? process.argv[i + 1] : fb; };
@@ -73,7 +74,7 @@ export function selectForFeature(checkpoints, feature, { domain = "backbone", on
   return { relevant, mustHold };
 }
 
-function renderCheckpoint(cp) {
+function renderCheckpoint(cp, brief = false) {
   const L = [];
   L.push(`### ${cp.title}  ·  \`${cp.id}\`  ·  ${cp.severity}`);
   if (cp.verify?.reasoning) L.push(`**Decide first:** ${cp.verify.reasoning}`);
@@ -83,11 +84,14 @@ function renderCheckpoint(cp) {
     L.push(`**Acceptance criteria:**`);
     for (const a of assertions) L.push(`- [ ] ${a.check}${a.type ? ` _(${a.type})_` : ""}`);
   }
-  if (cp.why) L.push(`**Why:** ${cp.why}`);
+  // Proficiency adaptation: the "Why" is the teaching line — drop it in domains you're
+  // fluent in (you know why), keep it where you're still learning.
+  if (cp.why && !brief) L.push(`**Why:** ${cp.why}`);
   return L.join("\n");
 }
 
-export function renderPlan({ archetype, feature, relevant, mustHold }) {
+export function renderPlan({ archetype, feature, relevant, mustHold, verbosity }) {
+  const briefFor = (cp) => (verbosity ? verbosity(cp) === "brief" : false);
   const total = relevant.length + mustHold.length;
   const L = [];
   L.push(`# 🔭 Foresight plan — ${feature}`);
@@ -100,12 +104,12 @@ export function renderPlan({ archetype, feature, relevant, mustHold }) {
   }
   if (relevant.length) {
     L.push(`## Directly relevant to "${feature}"`, "");
-    L.push(relevant.map(renderCheckpoint).join("\n\n"));
+    L.push(relevant.map((cp) => renderCheckpoint(cp, briefFor(cp))).join("\n\n"));
     L.push("");
   }
   if (mustHold.length) {
     L.push(`## Backbone guarantees — critical, must hold regardless`, "");
-    L.push(mustHold.map(renderCheckpoint).join("\n\n"));
+    L.push(mustHold.map((cp) => renderCheckpoint(cp, briefFor(cp))).join("\n\n"));
     L.push("");
   }
   L.push("---");
@@ -148,7 +152,17 @@ function main() {
     return 0;
   }
 
-  const md = renderPlan({ archetype, feature, relevant, mustHold });
+  // Proficiency adaptation (P5): trim the teaching lines in domains you're fluent in.
+  // Auto when a calibration store exists; --no-adapt to force full detail.
+  let verbosity = null, adaptNote = "";
+  if (!has("--no-adapt")) {
+    const profile = estimateProficiency({ storeDir: pathResolve(repo, arg("--store", ".foresight")) });
+    verbosity = (cp) => verbosityFor(cp.domain, profile);
+    const brief = [...relevant, ...mustHold].filter((cp) => verbosity(cp) === "brief").length;
+    if (brief > 0) adaptNote = `\n_Adapted to your proficiency: trimmed the "why" on ${brief} checkpoint(s) in domains you're fluent in (\`foresight proficiency\` to see, \`--no-adapt\` to show all)._`;
+  }
+
+  const md = renderPlan({ archetype, feature, relevant, mustHold, verbosity }) + adaptNote;
   const out = arg("--out", null);
   if (out) {
     const path = pathResolve(process.cwd(), out);

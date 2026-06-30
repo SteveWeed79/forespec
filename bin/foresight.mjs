@@ -31,6 +31,7 @@ const PASSTHROUGH = {
   gate: rv("pr-gate.mjs"),
   feedback: rv("feedback.mjs"),
   calibrate: rv("calibrate.mjs"),
+  proficiency: rv("proficiency.mjs"),
 };
 
 const HELP = `foresight — plan with domain foresight, then verify what got built.
@@ -46,6 +47,7 @@ Commands:
   detect [repo]      Show the archetype ranking (read-only, writes nothing)
   feedback <id> <outcome>   Record a verdict on a flag (hit|false-positive|over-severe|ignored)
   calibrate [accept|reset]  Review or apply proposed severity deltas
+  proficiency        Your self-facing per-domain read (tunes how much I explain)
 
 Plan → build → verify → correct. Start with: foresight init`;
 

@@ -33,6 +33,7 @@
     "verify:self": "node repo-verify/self-test.mjs",
     "feedback": "node repo-verify/feedback.mjs",
     "calibrate": "node repo-verify/calibrate.mjs",
+    "proficiency": "node repo-verify/proficiency.mjs",
     "gate": "node repo-verify/pr-gate.mjs"
   }
 }

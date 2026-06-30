@@ -123,6 +123,30 @@ library stays pristine; the tuning is earned and reversible.
 
 `.foresight/` is gitignored (it holds local instance data).
 
+## Proficiency — the tool adapts to you (`foresight proficiency`)
+
+Build-order Phase 5, the differentiator. From the outcomes you already recorded (no new
+data collection), it estimates per domain — **backbone** vs **design** — how much
+demonstrated engagement + judgment you've shown, and dials explanation depth accordingly:
+carry you where you're learning, get out of the way where you're fluent.
+
+```bash
+foresight proficiency        # your self-facing read (learning | steady | fluent per domain)
+```
+
+Three rules it holds to:
+
+- **Asymmetric.** Good calls and precise terminology in your notes *raise* the estimate;
+  terse or plain input **never lowers** it (plenty of strong builders are blunt).
+- **Self-facing only.** It's computed on demand, locally, and only shown to you — never
+  written to the shareable pattern tier, never pooled, never a dossier for others' eyes.
+- **Honest framing.** It's "demonstrated engagement + judgment," not a competence grade;
+  it only tunes how much the tool explains.
+
+`foresight plan` uses it automatically: in a domain you're fluent in it trims the teaching
+"why" lines (you know why); where you're still learning it keeps the full detail. Pass
+`--no-adapt` to force full detail.
+
 ## PR gate (CI) — the git-aware surface
 
 `pr-gate.mjs` is the form factor a non-CLI user actually touches: it runs in CI on a

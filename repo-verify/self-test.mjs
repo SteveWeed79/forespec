@@ -25,6 +25,7 @@ import { scoreArchetypes, collectSignals, discoverManifests } from "./detect.mjs
 import { readConfig, writeConfig, resolveManifestPath, CONFIG_FILE } from "./config.mjs";
 import { relevanceScore, selectForFeature, renderPlan } from "./plan.mjs";
 import { contrastRatio, parseColor, isLargeText, compositeToLevel, scoreContrast, scoreTypeScale, scoreResponsive, scoreSpacing } from "./design-metrics.mjs";
+import { estimateFromRecords, bandFor, verbosityFor } from "./proficiency.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const archetypePath = join(here, "..", "archetype.ecommerce.json");
@@ -241,6 +242,37 @@ if (!pwAvailable) {
     console.log(`  skip  browser probe unavailable: ${String(e.message ?? e).slice(0, 80)}`);
   }
 }
+
+console.log("\n10. Proficiency layer — self-facing, asymmetric (P5):");
+// Empty store ⇒ everything "learning" ⇒ full explanations by default.
+const empty = estimateFromRecords({});
+check("empty store ⇒ both domains 'learning'", empty.backbone.band === "learning" && empty.design.band === "learning");
+check("profile is marked self_facing", empty.self_facing === true);
+check("verbosity default is 'full' when learning", verbosityFor("backbone", empty) === "full");
+
+// Demonstrated backbone engagement + judgment + precise terms raises ONLY backbone.
+const preds = [
+  { checkpoint_id: "payment.idempotency", domain: "backbone" },
+  { checkpoint_id: "design.contrast_a11y", domain: "design" },
+];
+const outPat = [
+  { checkpoint_id: "payment.idempotency", outcome: "over-severe", source: "self_observed" },
+  { checkpoint_id: "payment.idempotency", outcome: "false-positive", source: "expert_rating" },
+  { checkpoint_id: "payment.state_integrity", outcome: "over-severe", source: "self_observed" },
+];
+const outInst = [
+  { checkpoint_id: "payment.idempotency", note: "real but contained; the idempotency key + replay window already cover the webhook path" },
+  { checkpoint_id: "payment.state_integrity", note: "atomic transaction with optimistic lock; reconcile job exists" },
+];
+const overridesLog = [{ checkpoint: "data.money_precision" }];
+const prof = estimateFromRecords({ predictions: preds, outcomesPattern: outPat, outcomesInstance: outInst, overridesLog });
+check("backbone rises above 'learning' from real signals", prof.backbone.band !== "learning", `band ${prof.backbone.band} score ${prof.backbone.score}`);
+check("design stays 'learning' (no design signals)", prof.design.band === "learning");
+check("asymmetric: a blunt note never lowered the score", prof.backbone.score >= empty.backbone.score);
+check("counts surface the evidence", prof.backbone.counts.judgment_calls === 3 && prof.backbone.counts.terms_used >= 2, `judgment ${prof.backbone.counts.judgment_calls}, terms ${prof.backbone.counts.terms_used}`);
+check("bandFor thresholds (0.3→learning, 0.5→steady, 0.8→fluent)", bandFor(0.3) === "learning" && bandFor(0.5) === "steady" && bandFor(0.8) === "fluent");
+// A fluent domain switches verbosity to brief (the "get out of the way" behavior).
+check("fluent ⇒ brief verbosity", verbosityFor("backbone", { backbone: { band: "fluent" } }) === "brief");
 
 console.log("");
 if (failures > 0) {
