@@ -18,6 +18,7 @@
 //   --checkpoint <id>    Grade a single checkpoint by id
 //   --adapter <name>     mock | claude (default: claude if ANTHROPIC_API_KEY+MODEL set, else mock)
 //   --budget <chars>     Per-checkpoint context budget (default: 60000)
+//   --store <dir>        Calibration store dir (default: ./.foresight); --no-store to skip
 //   --json               Emit machine-readable JSON
 //   -h, --help
 
@@ -26,6 +27,7 @@ import { existsSync, statSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { resolveArchetype } from "../library/resolve.mjs";
 import { loadRepo, selectForCheckpoint } from "./select.mjs";
+import { fingerprint, newRunId, recordPredictions } from "./store.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -46,10 +48,14 @@ Options:
   --checkpoint <id>    Grade a single checkpoint by id
   --adapter <name>     mock | claude (default: claude if ANTHROPIC_API_KEY+ANTHROPIC_MODEL set, else mock)
   --budget <chars>     Per-checkpoint context budget (default: 60000)
+  --store <dir>        Calibration store dir for the prediction log (default: ./.foresight)
+  --no-store           Don't record this run to the calibration store
   --json               Machine-readable JSON
   -h, --help           This help
 
-The claude adapter reads ANTHROPIC_API_KEY and ANTHROPIC_MODEL from the environment.`;
+The claude adapter reads ANTHROPIC_API_KEY and ANTHROPIC_MODEL from the environment.
+Every run is logged to the calibration store (pattern + instance — the wall is physical);
+record a verdict on a flag with: node repo-verify/feedback.mjs <checkpoint-id> <outcome>`;
 
 const COLORS = { reset: "\x1b[0m", bold: "\x1b[1m", dim: "\x1b[2m", red: "\x1b[31m", green: "\x1b[32m", yellow: "\x1b[33m", cyan: "\x1b[36m" };
 function paint(on, code, s) {
@@ -84,7 +90,7 @@ async function main() {
   const positionals = process.argv.slice(2).filter((a, i, arr) => {
     if (a.startsWith("-")) return false;
     const prev = arr[i - 1];
-    return !["--archetype", "--domain", "--checkpoint", "--adapter", "--budget"].includes(prev);
+    return !["--archetype", "--domain", "--checkpoint", "--adapter", "--budget", "--store"].includes(prev);
   });
   const repoArg = positionals[0];
   if (!repoArg) {
@@ -155,18 +161,19 @@ async function main() {
     const cp = checkpoints[i];
     if (!json) process.stderr.write(`  [${i + 1}/${checkpoints.length}] ${cp.id}...\n`);
     const { files, code } = selectForCheckpoint(allFiles, cp, budget);
+    const fp = fingerprint(code); // join key: hash of the graded slice, not the code itself
     try {
       const v = await adapter.verify({ checkpoint: cp, code });
       results.push({
         id: cp.id, domain: cp.domain, severity: cp.severity,
         level: v.level, confidence: v.confidence, gap: v.gap, rationale: v.rationale,
-        evidence: files.map((f) => f.path), adapter: adapter.name ?? adapterName, error: null,
+        evidence: files.map((f) => f.path), adapter: adapter.name ?? adapterName, fingerprint: fp, error: null,
       });
     } catch (e) {
       results.push({
         id: cp.id, domain: cp.domain, severity: cp.severity,
         level: null, confidence: null, gap: null, rationale: null,
-        evidence: files.map((f) => f.path), adapter: adapter.name ?? adapterName, error: String(e.message ?? e),
+        evidence: files.map((f) => f.path), adapter: adapter.name ?? adapterName, fingerprint: fp, error: String(e.message ?? e),
       });
     }
   }
@@ -180,8 +187,21 @@ async function main() {
   const great = ungraded.length === 0 && critical.every((r) => lvl(r) >= 9) && others.every((r) => lvl(r) >= 6);
   const blocking = critical.filter((r) => lvl(r) < 6);
 
+  // Brick 1 — log this run as training data (pattern/instance split), unless disabled.
+  let storeInfo = null;
+  if (!has("--no-store")) {
+    const storeDir = pathResolve(process.cwd(), arg("--store", ".foresight"));
+    const runId = newRunId();
+    const { count } = recordPredictions({
+      storeDir, runId,
+      archetype: archetype.archetype, archetypeVersion: archetype.version,
+      project: repoPath, results,
+    });
+    storeInfo = { dir: storeDir, run_id: runId, recorded: count };
+  }
+
   if (json) {
-    console.log(JSON.stringify({ archetype: archetype.archetype, version: archetype.version, adapter: adapter.name ?? adapterName, results, rollup: { shippable, great, blocking: blocking.map((r) => r.id), ungraded: ungraded.map((r) => r.id) } }, null, 2));
+    console.log(JSON.stringify({ archetype: archetype.archetype, version: archetype.version, adapter: adapter.name ?? adapterName, results, rollup: { shippable, great, blocking: blocking.map((r) => r.id), ungraded: ungraded.map((r) => r.id) }, store: storeInfo }, null, 2));
     return shippable ? 0 : 1;
   }
 
@@ -211,6 +231,10 @@ async function main() {
   }
   if (ungraded.length) out.push(`  ${paint(useColor, COLORS.yellow, "ungraded:")} ${ungraded.map((r) => r.id).join(", ")}`);
   console.log(out.join("\n"));
+  if (storeInfo) {
+    console.error(`\nrecorded ${storeInfo.recorded} prediction(s) → ${storeInfo.dir} (run ${storeInfo.run_id})`);
+    console.error(`  give a flag a verdict: node repo-verify/feedback.mjs <checkpoint-id> hit|false-positive|over-severe|ignored`);
+  }
 
   return shippable ? 0 : 1;
 }

@@ -7,14 +7,19 @@
 //      to level 3 (hole present) → not shippable.
 //   2. Discrimination proof: the mock adapter returns 6 when a good signal is
 //      present, so a "3 everywhere" result reflects the code, not a dead pipeline.
+//   3. Calibration store: a run is logged with the pattern/instance wall enforced,
+//      and feedback records an outcome joined to the prediction by fingerprint.
 //
 // Run: node repo-verify/self-test.mjs   (or: npm run verify:self)
 
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { rmSync, mkdtempSync, readFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { resolveArchetype } from "../library/resolve.mjs";
 import * as mock from "../verifier-eval/adapters/mock.mjs";
 import { loadRepo, selectForCheckpoint } from "./select.mjs";
+import { fingerprint, recordPredictions, latestPrediction, recordOutcome, FILES } from "./store.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const archetypePath = join(here, "..", "archetype.ecommerce.json");
@@ -59,6 +64,47 @@ for (const tc of cases) {
   const cp = archetype.checkpoints.find((c) => c.id === tc.id);
   const v = await mock.verify({ checkpoint: cp, code: tc.code });
   check(`${tc.id} → level 6 when signal present`, v.level === 6, `got ${v.level}`);
+}
+
+console.log("\n3. Calibration store — pattern/instance wall (bricks 1–2):");
+const store = mkdtempSync(join(tmpdir(), "foresight-store-"));
+try {
+  const fakeResults = [{
+    id: "payment.idempotency", domain: "backbone", severity: "critical",
+    level: 3, confidence: 0.9,
+    gap: "add idempotencyKey in src/checkout/actions.ts",        // names a file → instance-only
+    rationale: "no idempotency key on session create in actions.ts",
+    evidence: ["src/checkout/actions.ts"],
+    adapter: "mock", fingerprint: fingerprint("some graded code slice"),
+  }];
+  const { count } = recordPredictions({
+    storeDir: store, runId: "run_selftest", archetype: "ecommerce", archetypeVersion: "2.0.0",
+    project: "selftest-project", results: fakeResults,
+  });
+  check("recorded the prediction", count === 1);
+
+  const patLine = readFileSync(join(store, FILES.predPattern), "utf8").trim();
+  const instLine = readFileSync(join(store, FILES.predInstance), "utf8").trim();
+  const pat = JSON.parse(patLine), inst = JSON.parse(instLine);
+
+  // THE WALL: the shareable pattern record carries ids/numbers/fingerprint only.
+  check("pattern record has checkpoint_id + level + fingerprint", !!pat.checkpoint_id && pat.level === 3 && !!pat.fingerprint);
+  check("pattern record has NO gap/rationale/evidence", !("gap" in pat) && !("rationale" in pat) && !("evidence" in pat));
+  check("pattern record leaks no file path / project name", !patLine.includes("actions.ts") && !patLine.includes("selftest-project"));
+  check("instance record keeps the code-specific detail", !!inst.gap && inst.evidence.length === 1);
+  check("instance fingerprint == pattern fingerprint (join key)", inst.fingerprint === pat.fingerprint);
+
+  // Brick 2: feedback writes an outcome joined to the prediction by fingerprint.
+  const pred = latestPrediction({ storeDir: store, checkpointId: "payment.idempotency" });
+  check("latestPrediction finds the prediction", !!pred && pred.fingerprint === pat.fingerprint);
+  recordOutcome({ storeDir: store, prediction: pred, outcome: "over-severe", source: "self_observed", note: "real but contained in actions.ts", project: "selftest-project" });
+  const outPat = JSON.parse(readFileSync(join(store, FILES.outPattern), "utf8").trim());
+  const outInst = JSON.parse(readFileSync(join(store, FILES.outInstance), "utf8").trim());
+  check("outcome pattern: outcome + reliability tier, NO note", outPat.outcome === "over-severe" && outPat.reliability === "high" && !("note" in outPat));
+  check("outcome instance keeps the note", !!outInst.note && outInst.note.includes("actions.ts"));
+  check("outcome joined to prediction by fingerprint", outPat.fingerprint === pat.fingerprint);
+} finally {
+  rmSync(store, { recursive: true, force: true });
 }
 
 console.log("");

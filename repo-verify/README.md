@@ -36,6 +36,34 @@ set (or `--adapter claude`); otherwise the `mock` baseline, with a note. The pro
 exits `0` when the repo is "shippable" by the archetype's rule (all critical
 checkpoints ≥ 6) and `1` otherwise — so it works as a CI gate.
 
+## Calibration store (bricks 1–2)
+
+Every run is logged so the tool can eventually *earn* its weights instead of using
+invented ones (build-order P2). Records go to `./.foresight/` (override with `--store`,
+disable with `--no-store`), and the **pattern/instance wall is physical** — two files,
+from the first write:
+
+- `predictions.patterns.jsonl` — **shareable**: checkpoint id, level, confidence,
+  severity, archetype, and a `fingerprint` (a hash of the graded slice, not the code).
+  No paths, no code, no free-text. This is the shape a future cross-repo pool consumes.
+- `predictions.instances.jsonl` — **local only**: the gap/rationale/evidence (which name
+  files) + the *same* fingerprint. Never synced.
+
+Record a human verdict on a flag (brick 2) — joined to the prediction by fingerprint:
+
+```bash
+# outcome: hit | false-positive | over-severe | ignored
+node repo-verify/feedback.mjs payment.idempotency over-severe \
+  --note "real but contained at the display edge" --source self_observed
+```
+
+Outcomes split the same way (`outcomes.patterns.jsonl` carries the outcome class +
+reliability tier; the note stays local in `outcomes.instances.jsonl`). The
+`over-severe` outcome is exactly the calibration signal that should later down-weight a
+flag that's "right but over-stated" — the lesson from the first real-repo run.
+
+`.foresight/` is gitignored (it holds local instance data).
+
 ## The P0 validation gate
 
 `fixtures/vulnerable-checkout/` carries the canonical AI-coded holes (non-atomic
