@@ -12,6 +12,24 @@ Zero dependencies. It reuses the rest of the project rather than duplicating it:
 - `repo-verify/select.mjs` → the new piece: walks a target repo and packs the most
   relevant files per checkpoint into the `code` string the adapters expect.
 
+## Onboarding — `foresight init` (start here)
+
+You don't have to know which archetype fits, and you don't retype it every run. The
+unified CLI (`bin/foresight.mjs`, exposed as `foresight` via `npx`) detects the archetype
+from cheap signals — declared dependencies, file paths, schema model names — and writes
+the choice once to `foresight.config.json`, which `verify` and the PR gate then read.
+
+```bash
+foresight init            # detect the archetype, write foresight.config.json (commit it)
+foresight detect          # show the ranking + evidence without writing anything
+foresight verify          # grade the backbone against the configured archetype
+foresight gate --help     # the PR/CI gate
+```
+
+`foresight.config.json` (committed) is the per-project archetype decision — distinct from
+`.foresight/` (the gitignored calibration store). Detection reads only metadata, never your
+code's contents.
+
 ## Usage
 
 ```bash
@@ -31,10 +49,35 @@ node repo-verify/verify.mjs /path/to/repo --checkpoint payment.idempotency
 node repo-verify/verify.mjs /path/to/repo --json
 ```
 
+Archetype precedence: explicit `--archetype` > `foresight.config.json` in the repo > the
+ecommerce default. A bare name (`--archetype saas`) or a manifest filename both resolve
+against the bundled archetypes, so it works when run from inside another repo.
+
 Adapter selection: `claude` when `ANTHROPIC_API_KEY` and `ANTHROPIC_MODEL` are both
 set (or `--adapter claude`); otherwise the `mock` baseline, with a note. The process
 exits `0` when the repo is "shippable" by the archetype's rule (all critical
 checkpoints ≥ 6) and `1` otherwise — so it works as a CI gate.
+
+## Plan — interrogate before you build (`foresight plan`)
+
+`verify`/`gate` grade what got built. `plan.mjs` runs *first* — the other half the name
+promises ("foresight **before** a feature"). It turns the archetype's checkpoints into the
+questions you must answer before writing the feature, and emits a spec your AI coder builds
+against, so the expensive discoveries surface at plan time (~10× cheaper than at PR time).
+
+```bash
+foresight plan "add checkout flow"                      # spec for the relevant checkpoints
+foresight plan "subscription billing" --archetype saas
+foresight plan "add login" --out foresight-plan.md      # write the spec to a file
+foresight plan "checkout" --json
+```
+
+It reuses the same library: the checkpoint's stored **reasoning question** becomes "decide
+first", its **level-6 definition** becomes the shippable bar, and its **assertions** become
+acceptance checkboxes. Selection surfaces every checkpoint the feature text matches **plus
+all critical-backbone checkpoints** (a feature touching the backbone must respect them
+regardless of wording) — so the backbone is never silently skipped at plan time. Static and
+$0; the reasoning adapter only sharpens phrasing, it isn't required.
 
 ## Calibration store (bricks 1–2)
 
@@ -80,6 +123,30 @@ library stays pristine; the tuning is earned and reversible.
 
 `.foresight/` is gitignored (it holds local instance data).
 
+## Proficiency — the tool adapts to you (`foresight proficiency`)
+
+Build-order Phase 5, the differentiator. From the outcomes you already recorded (no new
+data collection), it estimates per domain — **backbone** vs **design** — how much
+demonstrated engagement + judgment you've shown, and dials explanation depth accordingly:
+carry you where you're learning, get out of the way where you're fluent.
+
+```bash
+foresight proficiency        # your self-facing read (learning | steady | fluent per domain)
+```
+
+Three rules it holds to:
+
+- **Asymmetric.** Good calls and precise terminology in your notes *raise* the estimate;
+  terse or plain input **never lowers** it (plenty of strong builders are blunt).
+- **Self-facing only.** It's computed on demand, locally, and only shown to you — never
+  written to the shareable pattern tier, never pooled, never a dossier for others' eyes.
+- **Honest framing.** It's "demonstrated engagement + judgment," not a competence grade;
+  it only tunes how much the tool explains.
+
+`foresight plan` uses it automatically: in a domain you're fluent in it trims the teaching
+"why" lines (you know why); where you're still learning it keeps the full detail. Pass
+`--no-adapt` to force full detail.
+
 ## PR gate (CI) — the git-aware surface
 
 `pr-gate.mjs` is the form factor a non-CLI user actually touches: it runs in CI on a
@@ -101,10 +168,37 @@ node repo-verify/pr-gate.mjs --repo /path/to/repo --changed app/checkout/actions
 # In CI: wired in .github/workflows/foresight.yml (runs on pull_request).
 ```
 
-Advisory by default (comments, never blocks). Add `--fail` to the workflow's run step
-to make it a blocking required check (exits non-zero on a touched-critical regression or
-below-6). Set `ANTHROPIC_API_KEY` + `ANTHROPIC_MODEL` as repo secrets/vars to use the
-reasoning verifier; without them it runs the mock baseline at $0.
+### Drop it into another repo (one line)
+
+`action.yml` is a composite GitHub Action so any repo adds the gate without copying files:
+
+```yaml
+# .github/workflows/foresight.yml in YOUR repo
+name: Foresight
+on: pull_request
+permissions:
+  contents: read
+  pull-requests: write          # required so the gate can upsert its comment
+jobs:
+  foresight:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 } # full history so it can diff the base branch
+      - uses: SteveWeed79/glowing-barnacle@v1
+        with:
+          anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}  # optional ($0 mock without it)
+          anthropic-model: ${{ vars.ANTHROPIC_MODEL }}
+          # fail: "true"         # block the PR instead of just commenting
+```
+
+Run `foresight init` in that repo first and commit `foresight.config.json` so the gate
+grades against the right archetype (or pass `archetype: ecommerce` to the action).
+
+Advisory by default (comments, never blocks). Pass `fail: "true"` to the action (or
+`--fail` to the run step) to make it a blocking required check (exits non-zero on a
+touched-critical regression or below-6). Set `ANTHROPIC_API_KEY` + `ANTHROPIC_MODEL`
+to use the reasoning verifier; without them it runs the mock baseline at $0.
 
 ## The P0 validation gate
 
@@ -115,12 +209,36 @@ backbone hole with the mock baseline. To finish the real gate, point it at KTXZ 
 a key + model set; if it doesn't surface a real gotcha, the pearl isn't real and
 you've found out cheaply.
 
+## Design layer (instrumented) — `foresight design <url>`
+
+`verify` reads source; `design` renders the *live* page in a headless browser (Playwright)
+and **measures** it — the build-order Phase 3 layer. It grades the established, defensible
+design checkpoints:
+
+- `design.contrast_a11y` — WCAG contrast ratios across text, plus image-alt and input-label coverage
+- `design.type_scale` — body size (≥16px), line-height, and a modular heading scale
+- `design.responsive` — horizontal overflow and tap-target sizes at a mobile viewport
+- `design.spacing_system` — how consistently spacing lands on a 4/8 scale
+
+```bash
+foresight design http://localhost:3000      # a running dev server
+foresight design ./dist/index.html          # a built file
+foresight design <url> --json
+```
+
+The scoring lives in `design-metrics.mjs` (pure WCAG math, unit-tested, zero-dep); only the
+probe needs `playwright-core` (an **optional** dependency — the rest of the tool stays
+zero-dep). Honest by design: it scores only what it can measure and reports the rest
+(saliency, aesthetic coherence, "intent reads clearly") as **residual**, never folded into
+the number. Taste stays a human call.
+
 ## Scope
 
-Grades against the resolved checkpoints' reasoning questions — the backbone and the
-static parts of design. The instrumented design layer
-(`archetype.ecommerce.design.json`) needs a headless browser (build-order P3) and is
-not run here.
+`verify` grades the resolved checkpoints' reasoning questions — the backbone and the static
+parts of design. `design` adds the instrumented runtime layer for the measurable design
+checkpoints (above). The `model_scored` / `taste_limited` signals in
+`archetype.ecommerce.design.json` (saliency, aesthetic coherence) are deferred experiments
+(build-order P6) and are not scored.
 
 ## Limitations (read before trusting a number)
 
@@ -133,7 +251,9 @@ Learned from the first real-repo run — see `../VALIDATION-NOTES.md` for the fu
   exports of the same project can report a phantom "regression" that's really just the
   file selector surfacing different code in each. Real regression detection needs a
   git-grounded diff with consistent selection (a PR/CI gate), not two arbitrary dumps.
-- **Design grading is best-effort without a browser** (especially contrast/a11y); the
-  instrumented design layer (P3) is the real answer there.
+- **Design: instrumented for the measurable parts, silent on taste.** `foresight design`
+  now measures contrast, type scale, responsive, and spacing in a real browser (P3) — trust
+  those. But saliency, aesthetic coherence, and "does the hierarchy read" are *not* scored;
+  a high design grade means "the measurable fundamentals hold," not "it looks great."
 - **Single-pass, single-model.** Cross-check disputed or critical calls with a second
   model; the reasoning layer is a first pass meant to be paired with verification.

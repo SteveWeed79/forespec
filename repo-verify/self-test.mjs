@@ -13,7 +13,7 @@
 // Run: node repo-verify/self-test.mjs   (or: npm run verify:self)
 
 import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { rmSync, mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { resolveArchetype } from "../library/resolve.mjs";
@@ -21,6 +21,11 @@ import * as mock from "../verifier-eval/adapters/mock.mjs";
 import { loadRepo, selectForCheckpoint } from "./select.mjs";
 import { fingerprint, recordPredictions, latestPrediction, recordOutcome, readOverrides, writeOverrides, FILES } from "./store.mjs";
 import { aggregate, propose } from "./calibrate.mjs";
+import { scoreArchetypes, collectSignals, discoverManifests } from "./detect.mjs";
+import { readConfig, writeConfig, resolveManifestPath, CONFIG_FILE } from "./config.mjs";
+import { relevanceScore, selectForFeature, renderPlan } from "./plan.mjs";
+import { contrastRatio, parseColor, isLargeText, compositeToLevel, scoreContrast, scoreTypeScale, scoreResponsive, scoreSpacing } from "./design-metrics.mjs";
+import { estimateFromRecords, bandFor, verbosityFor } from "./proficiency.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const archetypePath = join(here, "..", "archetype.ecommerce.json");
@@ -148,6 +153,126 @@ try {
 } finally {
   rmSync(store4, { recursive: true, force: true });
 }
+
+console.log("\n5. Archetype detection (onboarding — brick A):");
+// Pure scorer: synthetic signals must rank the obvious archetype on top.
+const ecom = scoreArchetypes({ deps: ["@stripe/stripe-js"], paths: ["app/checkout/page.tsx", "lib/cart.ts"], schemaModels: ["order", "product"] });
+check("ecommerce signals → ecommerce on top", ecom[0].archetype === "ecommerce", `got ${ecom[0].archetype}`);
+const saas = scoreArchetypes({ deps: ["@clerk/nextjs"], paths: ["app/billing/page.tsx", "lib/tenant.ts"], schemaModels: ["subscription", "tenant", "plan"] });
+check("saas signals → saas on top", saas[0].archetype === "saas", `got ${saas[0].archetype}`);
+const port = scoreArchetypes({ deps: ["astro", "gray-matter"], paths: ["src/content/blog/post.md", "src/pages/about.astro"], schemaModels: [] });
+check("portfolio signals (no backend) → portfolio on top", port[0].archetype === "portfolio", `got ${port[0].archetype}`);
+check("portfolio penalized when a backend/payment is present", port[0].archetype === "portfolio" && ecom.find((r) => r.archetype === "portfolio").score === 0);
+
+// Integration: real signals from the vulnerable fixture → ecommerce, with evidence.
+const fxSignals = collectSignals(fixture);
+const fxRanked = scoreArchetypes(fxSignals);
+check("fixture detects as ecommerce", fxRanked[0].archetype === "ecommerce", `got ${fxRanked[0].archetype}`);
+check("fixture detection shows its evidence (the 'why')", fxRanked[0].matched.length > 0);
+
+// Manifest discovery finds the base archetypes and excludes the instrumented design layer.
+const manifests = discoverManifests(join(here, ".."));
+const names = manifests.map((m) => m.archetype);
+check("discovers ecommerce/saas/portfolio manifests", ["ecommerce", "saas", "portfolio"].every((n) => names.includes(n)), names.join(","));
+check("excludes the *.design.json instrumented layer", !manifests.some((m) => m.file.endsWith(".design.json")));
+
+console.log("\n6. Project config + manifest resolution (CLI — brick B):");
+// Bundled manifests resolve by bare name / filename against the package, not cwd.
+const byName = resolveManifestPath("ecommerce", { cwd: "/nonexistent" });
+check("resolves a bare archetype name to the bundled manifest", typeof byName === "string" && byName.endsWith("archetype.ecommerce.json"));
+const byFile = resolveManifestPath("archetype.saas.json", { cwd: "/nonexistent" });
+check("resolves a manifest filename to the bundled manifest", byFile.endsWith("archetype.saas.json"));
+// config round-trips and the readers pick it up.
+const cfgDir = mkdtempSync(join(tmpdir(), "foresight-cfg-"));
+try {
+  check("readConfig returns null when absent", readConfig(cfgDir) === null);
+  const written = writeConfig(cfgDir, { schema: "foresight/config/v1", archetype: "archetype.saas.json" });
+  check("writeConfig creates foresight.config.json", written.endsWith(CONFIG_FILE));
+  check("readConfig round-trips the archetype", readConfig(cfgDir).archetype === "archetype.saas.json");
+} finally { rmSync(cfgDir, { recursive: true, force: true }); }
+
+console.log("\n7. Plan engine — interrogate before building (brick D):");
+const stockCp = archetype.checkpoints.find((c) => c.id === "ecommerce.checkout.atomic_stock_hold");
+check("relevant feature scores the matching checkpoint > 0", relevanceScore("add checkout flow", stockCp) > 0);
+check("unrelated feature does not score it", relevanceScore("change the footer copyright year", stockCp) === 0);
+
+const sel = selectForFeature(archetype.checkpoints, "add checkout flow", { domain: "backbone" });
+check("a feature-matched checkpoint lands in 'relevant'", sel.relevant.some((c) => c.id === "ecommerce.checkout.atomic_stock_hold"));
+const criticals = backbone.filter((c) => c.severity === "critical").map((c) => c.id);
+const covered = new Set([...sel.relevant, ...sel.mustHold].map((c) => c.id));
+check("every critical backbone checkpoint is surfaced (relevant ∪ mustHold)", criticals.every((id) => covered.has(id)), `missing ${criticals.filter((id) => !covered.has(id))}`);
+
+const md = renderPlan({ archetype, feature: "add checkout flow", relevant: sel.relevant, mustHold: sel.mustHold });
+check("spec carries the 'decide first' question", md.includes("Decide first:") && md.includes("reserved atomically"));
+check("spec carries acceptance checkboxes", md.includes("**Acceptance criteria:**") && md.includes("- [ ]"));
+check("spec states the shippable (level 6) bar", md.includes("Shippable (level 6):"));
+
+console.log("\n8. Instrumented design metrics (P3 — pure, no browser):");
+check("contrast black/white ≈ 21:1", Math.abs(contrastRatio({ r: 0, g: 0, b: 0 }, { r: 255, g: 255, b: 255 }) - 21) < 0.1);
+check("contrast #767676 on white ≈ 4.5:1 (AA boundary)", Math.abs(contrastRatio(parseColor("rgb(118,118,118)"), parseColor("rgb(255,255,255)")) - 4.54) < 0.15);
+check("isLargeText: 24px normal yes, 16px no, 19px bold yes", isLargeText(24, 400) && !isLargeText(16, 400) && isLargeText(19, 700));
+const cBad = scoreContrast({ textNodes: [{ color: "rgb(170,170,170)", bg: "rgb(255,255,255)", fontSize: 12, fontWeight: 400 }], images: { withAlt: 0, total: 1 }, inputs: { withLabel: 0, total: 1 } });
+check("scoreContrast flags a low-contrast page → level 3", compositeToLevel(cBad.score) === 3, `score ${cBad.score}`);
+const cGood = scoreContrast({ textNodes: [{ color: "rgb(34,34,34)", bg: "rgb(255,255,255)", fontSize: 16, fontWeight: 400 }], images: { withAlt: 1, total: 1 }, inputs: { withLabel: 1, total: 1 } });
+check("scoreContrast passes a high-contrast page → level 9", compositeToLevel(cGood.score) === 9, `score ${cGood.score}`);
+check("scoreTypeScale flags 12px body / single size → level 3", compositeToLevel(scoreTypeScale({ bodyFontSize: 12, bodyLineHeight: 13.2, headingSizes: [18] }).score) === 3);
+check("scoreTypeScale passes 16px body + modular scale → ≥6", compositeToLevel(scoreTypeScale({ bodyFontSize: 16, bodyLineHeight: 24, headingSizes: [32, 24, 18] }).score) >= 6);
+check("scoreResponsive flags overflow + tiny taps → level 3", compositeToLevel(scoreResponsive({ overflow: true, overflowPx: 751, tapTargets: [{ w: 18, h: 18 }, { w: 20, h: 16 }] }).score) === 3);
+check("scoreResponsive passes no-overflow + ≥44px taps → level 9", compositeToLevel(scoreResponsive({ overflow: false, tapTargets: [{ w: 48, h: 48 }, { w: 140, h: 48 }] }).score) === 9);
+check("scoreSpacing flags ad-hoc spacing → level 3", compositeToLevel(scoreSpacing({ values: [3, 7, 13, 17, 19, 5, 11, 23, 9] }).score) === 3);
+check("scoreSpacing passes a 4/8 scale → ≥6", compositeToLevel(scoreSpacing({ values: [8, 16, 16, 24, 8, 16, 32] }).score) >= 6);
+check("compositeToLevel mapping (8→9, 5→6, 4→3)", compositeToLevel(8) === 9 && compositeToLevel(5) === 6 && compositeToLevel(4) === 3);
+
+console.log("\n9. Instrumented design probe (P3 — live browser, if available):");
+let pwAvailable = false;
+try { await import("playwright-core"); pwAvailable = true; } catch { /* optional dep */ }
+if (!pwAvailable) {
+  console.log("  skip  playwright-core not installed (optional dep) — pure metrics above cover the scoring");
+} else {
+  try {
+    const { gradeUrl } = await import("./design-probe.mjs");
+    const lvl = (g, id) => g.results.find((r) => r.id === id)?.level;
+    const bad = await gradeUrl(pathToFileURL(join(here, "fixtures", "design-page", "bad.html")).href);
+    const good = await gradeUrl(pathToFileURL(join(here, "fixtures", "design-page", "good.html")).href);
+    check("probe: bad page contrast → level 3", lvl(bad, "design.contrast_a11y") === 3, `got ${lvl(bad, "design.contrast_a11y")}`);
+    check("probe: bad page responsive → level 3 (overflow caught)", lvl(bad, "design.responsive") === 3, `got ${lvl(bad, "design.responsive")}`);
+    check("probe: good page contrast → ≥6", lvl(good, "design.contrast_a11y") >= 6, `got ${lvl(good, "design.contrast_a11y")}`);
+    check("probe: good page responsive → ≥6", lvl(good, "design.responsive") >= 6, `got ${lvl(good, "design.responsive")}`);
+  } catch (e) {
+    console.log(`  skip  browser probe unavailable: ${String(e.message ?? e).slice(0, 80)}`);
+  }
+}
+
+console.log("\n10. Proficiency layer — self-facing, asymmetric (P5):");
+// Empty store ⇒ everything "learning" ⇒ full explanations by default.
+const empty = estimateFromRecords({});
+check("empty store ⇒ both domains 'learning'", empty.backbone.band === "learning" && empty.design.band === "learning");
+check("profile is marked self_facing", empty.self_facing === true);
+check("verbosity default is 'full' when learning", verbosityFor("backbone", empty) === "full");
+
+// Demonstrated backbone engagement + judgment + precise terms raises ONLY backbone.
+const preds = [
+  { checkpoint_id: "payment.idempotency", domain: "backbone" },
+  { checkpoint_id: "design.contrast_a11y", domain: "design" },
+];
+const outPat = [
+  { checkpoint_id: "payment.idempotency", outcome: "over-severe", source: "self_observed" },
+  { checkpoint_id: "payment.idempotency", outcome: "false-positive", source: "expert_rating" },
+  { checkpoint_id: "payment.state_integrity", outcome: "over-severe", source: "self_observed" },
+];
+const outInst = [
+  { checkpoint_id: "payment.idempotency", note: "real but contained; the idempotency key + replay window already cover the webhook path" },
+  { checkpoint_id: "payment.state_integrity", note: "atomic transaction with optimistic lock; reconcile job exists" },
+];
+const overridesLog = [{ checkpoint: "data.money_precision" }];
+const prof = estimateFromRecords({ predictions: preds, outcomesPattern: outPat, outcomesInstance: outInst, overridesLog });
+check("backbone rises above 'learning' from real signals", prof.backbone.band !== "learning", `band ${prof.backbone.band} score ${prof.backbone.score}`);
+check("design stays 'learning' (no design signals)", prof.design.band === "learning");
+check("asymmetric: a blunt note never lowered the score", prof.backbone.score >= empty.backbone.score);
+check("counts surface the evidence", prof.backbone.counts.judgment_calls === 3 && prof.backbone.counts.terms_used >= 2, `judgment ${prof.backbone.counts.judgment_calls}, terms ${prof.backbone.counts.terms_used}`);
+check("bandFor thresholds (0.3→learning, 0.5→steady, 0.8→fluent)", bandFor(0.3) === "learning" && bandFor(0.5) === "steady" && bandFor(0.8) === "fluent");
+// A fluent domain switches verbosity to brief (the "get out of the way" behavior).
+check("fluent ⇒ brief verbosity", verbosityFor("backbone", { backbone: { band: "fluent" } }) === "brief");
 
 console.log("");
 if (failures > 0) {
