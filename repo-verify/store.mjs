@@ -12,7 +12,7 @@
 // The fingerprint (hash of the graded code slice) is what joins an outcome back to the
 // prediction it grades — across time, without storing the code.
 
-import { mkdirSync, appendFileSync, existsSync, readFileSync } from "node:fs";
+import { mkdirSync, appendFileSync, existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { createHash, randomUUID } from "node:crypto";
 
@@ -113,4 +113,31 @@ export function recordOutcome({ storeDir, prediction, outcome, source = "self_ob
     project: project ?? null, outcome, source, note: note ?? null,
   });
   return { reliability };
+}
+
+// ---- brick 3: reading the store + local severity overrides ----
+
+export function readPredictions({ storeDir }) {
+  return readJsonl(storeDir, FILES.predPattern);
+}
+export function readOutcomes({ storeDir }) {
+  return readJsonl(storeDir, FILES.outPattern);
+}
+
+export const OVERRIDES_FILE = "overrides.json";
+
+/**
+ * Local, human-accepted tuning the verifier applies on top of the archetype.
+ * Kept OUT of the shared library — the library stays pristine; tuning is earned
+ * (from accepted deltas) and reversible (delete the file or `calibrate reset`).
+ */
+export function readOverrides({ storeDir }) {
+  const p = join(storeDir, OVERRIDES_FILE);
+  if (!existsSync(p)) return { schema: "foresight/overrides/v1", severity: {}, log: [] };
+  return JSON.parse(readFileSync(p, "utf8"));
+}
+
+export function writeOverrides({ storeDir, overrides }) {
+  mkdirSync(storeDir, { recursive: true });
+  writeFileSync(join(storeDir, OVERRIDES_FILE), JSON.stringify(overrides, null, 2) + "\n");
 }

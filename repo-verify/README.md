@@ -62,6 +62,22 @@ reliability tier; the note stays local in `outcomes.instances.jsonl`). The
 `over-severe` outcome is exactly the calibration signal that should later down-weight a
 flag that's "right but over-stated" — the lesson from the first real-repo run.
 
+### Propose & accept deltas (brick 3)
+
+Once outcomes accumulate, see what the data suggests — nothing changes until you accept:
+
+```bash
+node repo-verify/calibrate.mjs                              # show proposals + evidence
+node repo-verify/calibrate.mjs accept data.money_precision  # apply the proposed severity
+node repo-verify/calibrate.mjs reset  data.money_precision  # undo
+```
+
+It aggregates recorded outcomes per checkpoint and proposes a severity delta with the
+evidence behind it (e.g. *"3 over-severe vs 0 hit → lower critical → high"*), never on
+thin evidence (default: needs ≥ 3 outcomes). Accepted deltas land in
+`.foresight/overrides.json`, which `verify` applies on top of the archetype — the shared
+library stays pristine; the tuning is earned and reversible.
+
 `.foresight/` is gitignored (it holds local instance data).
 
 ## The P0 validation gate

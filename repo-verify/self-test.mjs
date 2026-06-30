@@ -19,7 +19,8 @@ import { tmpdir } from "node:os";
 import { resolveArchetype } from "../library/resolve.mjs";
 import * as mock from "../verifier-eval/adapters/mock.mjs";
 import { loadRepo, selectForCheckpoint } from "./select.mjs";
-import { fingerprint, recordPredictions, latestPrediction, recordOutcome, FILES } from "./store.mjs";
+import { fingerprint, recordPredictions, latestPrediction, recordOutcome, readOverrides, writeOverrides, FILES } from "./store.mjs";
+import { aggregate, propose } from "./calibrate.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const archetypePath = join(here, "..", "archetype.ecommerce.json");
@@ -105,6 +106,47 @@ try {
   check("outcome joined to prediction by fingerprint", outPat.fingerprint === pat.fingerprint);
 } finally {
   rmSync(store, { recursive: true, force: true });
+}
+
+console.log("\n4. Calibration — propose & accept a delta (brick 3):");
+const store4 = mkdtempSync(join(tmpdir(), "foresight-cal-"));
+try {
+  recordPredictions({
+    storeDir: store4, runId: "run_cal", archetype: "ecommerce", archetypeVersion: "2.0.0",
+    project: "p", results: [{
+      id: "data.money_precision", domain: "backbone", severity: "critical",
+      level: 3, confidence: 0.9, gap: "floats in money math", rationale: "...",
+      evidence: ["lib/money.ts"], adapter: "mock", fingerprint: fingerprint("money code"),
+    }],
+  });
+  const pred = latestPrediction({ storeDir: store4, checkpointId: "data.money_precision" });
+  for (let i = 0; i < 3; i++) {
+    recordOutcome({ storeDir: store4, prediction: pred, outcome: "over-severe", source: "self_observed", note: `n${i}`, project: "p" });
+  }
+  const mp = propose(aggregate({ storeDir: store4 }), 3).find((p) => p.checkpoint === "data.money_precision");
+  check("proposes lowering severity after 3 over-severe", !!mp && mp.action === "lower-severity" && mp.from === "critical" && mp.to === "high", `got ${mp && mp.action}/${mp && mp.to}`);
+
+  const ov = readOverrides({ storeDir: store4 });
+  ov.severity["data.money_precision"] = "high";
+  writeOverrides({ storeDir: store4, overrides: ov });
+  check("accepted override persists", readOverrides({ storeDir: store4 }).severity["data.money_precision"] === "high");
+
+  const cp = { id: "data.money_precision", severity: "critical" };
+  const applied = readOverrides({ storeDir: store4 }).severity[cp.id];
+  if (applied) cp.severity = applied;
+  check("applying the override lowers severity critical→high", cp.severity === "high");
+
+  // thin evidence must NOT propose a change
+  const store5 = mkdtempSync(join(tmpdir(), "foresight-thin-"));
+  try {
+    recordPredictions({ storeDir: store5, runId: "r", archetype: "ecommerce", archetypeVersion: "2.0.0", project: "p", results: [{ id: "auth.access_control", domain: "backbone", severity: "critical", level: 3, confidence: 0.9, gap: "x", rationale: "y", evidence: ["a.ts"], adapter: "mock", fingerprint: fingerprint("a") }] });
+    const p2 = latestPrediction({ storeDir: store5, checkpointId: "auth.access_control" });
+    recordOutcome({ storeDir: store5, prediction: p2, outcome: "false-positive", source: "self_observed", project: "p" });
+    const thin = propose(aggregate({ storeDir: store5 }), 3).find((p) => p.checkpoint === "auth.access_control");
+    check("does NOT propose on thin evidence (n < min)", !!thin && thin.action === "watch", `got ${thin && thin.action}`);
+  } finally { rmSync(store5, { recursive: true, force: true }); }
+} finally {
+  rmSync(store4, { recursive: true, force: true });
 }
 
 console.log("");
