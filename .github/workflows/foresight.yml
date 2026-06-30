@@ -1,0 +1,51 @@
+name: Foresight PR gate
+
+# Grades the checkpoints a PR actually touches, posts a sticky comment with the
+# backbone read + how each moved vs the last run, and feeds the calibration store.
+# Advisory by default (never blocks): add `--fail` to the run step to make it a
+# required, blocking check.
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+  pull-requests: write # to upsert the Foresight comment
+
+jobs:
+  foresight:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # full history so we can diff HEAD against the base branch
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      # Persist the calibration store across runs so "vs prev" deltas and passive
+      # "flagged -> fixed" outcome capture work. Restores the most recent store and
+      # saves a fresh one each run. (Simplest option for a scaffold; for durable
+      # cross-run history a committed branch or external store would be sturdier —
+      # Actions caches are branch-scoped and can be evicted.)
+      - name: Restore calibration store
+        uses: actions/cache@v4
+        with:
+          path: .foresight
+          key: foresight-store-${{ github.run_id }}
+          restore-keys: |
+            foresight-store-
+
+      - name: Run Foresight gate
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Optional — set these (repo secret + variable) to use the reasoning
+          # verifier. Without them the gate runs the deterministic mock baseline,
+          # which still works and costs $0.
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          ANTHROPIC_MODEL: ${{ vars.ANTHROPIC_MODEL }}
+        run: >
+          node repo-verify/pr-gate.mjs
+          --base "origin/${{ github.base_ref }}"
+          --comment

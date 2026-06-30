@@ -98,7 +98,7 @@ export function keywordsFor(cp) {
   return Array.from(new Set([...curated, ...fromId]));
 }
 
-function scoreFile(file, keywords) {
+export function scoreFile(file, keywords) {
   const pathLower = file.path.toLowerCase();
   const bodyLower = file.content.toLowerCase();
   let score = 0;

@@ -80,6 +80,32 @@ library stays pristine; the tuning is earned and reversible.
 
 `.foresight/` is gitignored (it holds local instance data).
 
+## PR gate (CI) — the git-aware surface
+
+`pr-gate.mjs` is the form factor a non-CLI user actually touches: it runs in CI on a
+pull request, grades **only the backbone checkpoints the PR's changed files touch**,
+posts a sticky comment with the read + how each checkpoint moved **vs the last run**,
+and feeds the calibration store automatically. This is the *trustworthy* home for "what
+changed" — it compares the same checkpoint across real commits with consistent
+selection, instead of diffing two arbitrary snapshots (which produced a phantom
+regression in the first real-repo run).
+
+It also closes the calibration loop without anyone typing: when a checkpoint that was
+previously flagged (`< 6`) comes back `≥ 6` after a relevant file changed, it records a
+passive `hit` outcome (`source: passive_git`) — auto-feeding brick 3.
+
+```bash
+# Local dry run (no GitHub, no API key) — see the comment it would post:
+node repo-verify/pr-gate.mjs --repo /path/to/repo --changed app/checkout/actions.ts --adapter mock --dry-run
+
+# In CI: wired in .github/workflows/foresight.yml (runs on pull_request).
+```
+
+Advisory by default (comments, never blocks). Add `--fail` to the workflow's run step
+to make it a blocking required check (exits non-zero on a touched-critical regression or
+below-6). Set `ANTHROPIC_API_KEY` + `ANTHROPIC_MODEL` as repo secrets/vars to use the
+reasoning verifier; without them it runs the mock baseline at $0.
+
 ## The P0 validation gate
 
 `fixtures/vulnerable-checkout/` carries the canonical AI-coded holes (non-atomic
