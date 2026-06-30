@@ -23,6 +23,7 @@ import { fingerprint, recordPredictions, latestPrediction, recordOutcome, readOv
 import { aggregate, propose } from "./calibrate.mjs";
 import { scoreArchetypes, collectSignals, discoverManifests } from "./detect.mjs";
 import { readConfig, writeConfig, resolveManifestPath, CONFIG_FILE } from "./config.mjs";
+import { relevanceScore, selectForFeature, renderPlan } from "./plan.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const archetypePath = join(here, "..", "archetype.ecommerce.json");
@@ -187,6 +188,22 @@ try {
   check("writeConfig creates foresight.config.json", written.endsWith(CONFIG_FILE));
   check("readConfig round-trips the archetype", readConfig(cfgDir).archetype === "archetype.saas.json");
 } finally { rmSync(cfgDir, { recursive: true, force: true }); }
+
+console.log("\n7. Plan engine — interrogate before building (brick D):");
+const stockCp = archetype.checkpoints.find((c) => c.id === "ecommerce.checkout.atomic_stock_hold");
+check("relevant feature scores the matching checkpoint > 0", relevanceScore("add checkout flow", stockCp) > 0);
+check("unrelated feature does not score it", relevanceScore("change the footer copyright year", stockCp) === 0);
+
+const sel = selectForFeature(archetype.checkpoints, "add checkout flow", { domain: "backbone" });
+check("a feature-matched checkpoint lands in 'relevant'", sel.relevant.some((c) => c.id === "ecommerce.checkout.atomic_stock_hold"));
+const criticals = backbone.filter((c) => c.severity === "critical").map((c) => c.id);
+const covered = new Set([...sel.relevant, ...sel.mustHold].map((c) => c.id));
+check("every critical backbone checkpoint is surfaced (relevant ∪ mustHold)", criticals.every((id) => covered.has(id)), `missing ${criticals.filter((id) => !covered.has(id))}`);
+
+const md = renderPlan({ archetype, feature: "add checkout flow", relevant: sel.relevant, mustHold: sel.mustHold });
+check("spec carries the 'decide first' question", md.includes("Decide first:") && md.includes("reserved atomically"));
+check("spec carries acceptance checkboxes", md.includes("**Acceptance criteria:**") && md.includes("- [ ]"));
+check("spec states the shippable (level 6) bar", md.includes("Shippable (level 6):"));
 
 console.log("");
 if (failures > 0) {

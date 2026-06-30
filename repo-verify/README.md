@@ -58,6 +58,27 @@ set (or `--adapter claude`); otherwise the `mock` baseline, with a note. The pro
 exits `0` when the repo is "shippable" by the archetype's rule (all critical
 checkpoints ≥ 6) and `1` otherwise — so it works as a CI gate.
 
+## Plan — interrogate before you build (`foresight plan`)
+
+`verify`/`gate` grade what got built. `plan.mjs` runs *first* — the other half the name
+promises ("foresight **before** a feature"). It turns the archetype's checkpoints into the
+questions you must answer before writing the feature, and emits a spec your AI coder builds
+against, so the expensive discoveries surface at plan time (~10× cheaper than at PR time).
+
+```bash
+foresight plan "add checkout flow"                      # spec for the relevant checkpoints
+foresight plan "subscription billing" --archetype saas
+foresight plan "add login" --out foresight-plan.md      # write the spec to a file
+foresight plan "checkout" --json
+```
+
+It reuses the same library: the checkpoint's stored **reasoning question** becomes "decide
+first", its **level-6 definition** becomes the shippable bar, and its **assertions** become
+acceptance checkboxes. Selection surfaces every checkpoint the feature text matches **plus
+all critical-backbone checkpoints** (a feature touching the backbone must respect them
+regardless of wording) — so the backbone is never silently skipped at plan time. Static and
+$0; the reasoning adapter only sharpens phrasing, it isn't required.
+
 ## Calibration store (bricks 1–2)
 
 Every run is logged so the tool can eventually *earn* its weights instead of using

@@ -24,6 +24,7 @@
     "eval:claude": "node verifier-eval/run-eval.mjs --adapter claude --out verifier-eval/report.json",
     "init": "node bin/foresight.mjs init",
     "detect": "node repo-verify/detect.mjs",
+    "plan": "node repo-verify/plan.mjs",
     "verify": "node repo-verify/verify.mjs",
     "verify:self": "node repo-verify/self-test.mjs",
     "feedback": "node repo-verify/feedback.mjs",

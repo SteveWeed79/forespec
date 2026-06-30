@@ -16,10 +16,15 @@ are adapters that drive the engine — never the thing it lives inside.
 ## Quickstart
 
 ```bash
-foresight init            # detect your archetype, write foresight.config.json (commit it)
-foresight verify          # grade your backbone against it (mock baseline = $0)
-foresight gate --help     # wire the PR/CI gate that comments on every pull request
+foresight init                      # detect your archetype, write foresight.config.json (commit it)
+foresight plan "add checkout flow"  # interrogate the feature BEFORE you build it
+foresight verify                    # grade your backbone against it (mock baseline = $0)
+foresight gate --help               # wire the PR/CI gate that comments on every pull request
 ```
+
+That's the loop the engine keeps live: **plan → build → verify → correct.** `plan` emits a
+pre-build spec (the questions to decide first + acceptance criteria); `verify`/`gate` grade
+the same checkpoints after.
 
 `init` reads only metadata (dependencies, paths, schema model names) to pick the archetype —
 never your code. Set `ANTHROPIC_API_KEY` + `ANTHROPIC_MODEL` for the reasoning verifier; without

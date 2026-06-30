@@ -25,6 +25,7 @@ const rv = (f) => join(projectDir, "repo-verify", f);
 
 const PASSTHROUGH = {
   detect: rv("detect.mjs"),
+  plan: rv("plan.mjs"),
   verify: rv("verify.mjs"),
   gate: rv("pr-gate.mjs"),
   feedback: rv("feedback.mjs"),
@@ -37,13 +38,14 @@ Usage: foresight <command> [options]
 
 Commands:
   init [repo]        Detect the archetype for a repo and write ${CONFIG_FILE}
+  plan "<feature>"   Interrogate a feature BEFORE building it; emit a spec
   verify [repo]      Grade the repo's backbone against its archetype
   gate [options]     PR/CI gate: grade the diff, post a comment, feed calibration
   detect [repo]      Show the archetype ranking (read-only, writes nothing)
   feedback <id> <outcome>   Record a verdict on a flag (hit|false-positive|over-severe|ignored)
   calibrate [accept|reset]  Review or apply proposed severity deltas
 
-Run any command with -h for its own options. Start with: foresight init`;
+Plan → build → verify → correct. Start with: foresight init`;
 
 function run(script, args) {
   const r = spawnSync(process.execPath, [script, ...args], { stdio: "inherit" });
