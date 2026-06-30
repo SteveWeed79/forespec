@@ -1,0 +1,17 @@
+// Money stored as float; no product/variant split; stock is a bare mutable number
+// with no movement ledger.
+
+model Product {
+  id    String @id @default(cuid())
+  name  String
+  price Float
+  stock Int
+}
+
+model Order {
+  id        String @id @default(cuid())
+  productId String
+  quantity  Int
+  price     Float
+  status    String
+}
