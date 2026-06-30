@@ -28,6 +28,7 @@ export const SOURCE_TIERS = {
   objective_outcome: "highest", // reality graded it (oversell happened, override held up)
   expert_rating: "high", // someone with real judgment scored it
   self_observed: "high", // you watched your own outcome (medium in a pool)
+  passive_git: "medium", // inferred from git (flagged region changed + grade rose) — a heuristic
   casual_reaction: "lowest", // "looks nice" — appeal, not correctness
 };
 
