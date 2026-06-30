@@ -56,7 +56,7 @@ function buildPrompt(checkpoint, code) {
     code,
     "```",
     ``,
-    `Assign a level (3, 6, or 9), your confidence 0-1, the concrete gap to the next level, and a one-sentence rationale.`,
+    `Assign a level (3, 6, or 9), your confidence 0-1, the concrete gap to the next level (one or two sentences, not a list), and a one-sentence rationale.`,
   ].join("\n");
 }
 
@@ -81,7 +81,10 @@ export async function verify({ checkpoint, code }) {
     },
     body: JSON.stringify({
       model,
-      max_tokens: 1024,
+      // Room for adaptive thinking + the verdict JSON. At 1024/2048 a long,
+      // list-style `gap` could be truncated mid-string (stop_reason=max_tokens)
+      // → unparseable. The prompt also asks the model to keep `gap` short.
+      max_tokens: 4096,
       thinking: { type: "adaptive" },
       output_config: { effort: "high", format: { type: "json_schema", schema: SCHEMA } },
       system: SYSTEM,
