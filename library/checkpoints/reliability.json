@@ -1,0 +1,25 @@
+{
+  "$schema": "foresight/checkpoint-library/v1",
+  "concern": "reliability",
+  "_note": "Runtime-robustness checkpoints. Cross-domain — any app with a backend reuses these.",
+  "checkpoints": [
+    {
+      "id": "reliability.error_handling",
+      "domain": "backbone", "confidence": "reasoned",
+      "title": "Failures are handled and never leak internals to the client",
+      "why": "Generated code tends to swallow errors (empty catch), let promise rejections go unhandled, or return raw exceptions - so failures pass silently OR spill stack traces, SQL, and secrets to the user. Both are bad: one hides real faults, the other hands an attacker a map.",
+      "levels": {
+        "3": "Errors swallowed by empty catches, left as unhandled rejections, or returned to the client as raw exceptions/stack traces.",
+        "6": "Errors are caught and logged server-side; clients get a generic message with an appropriate status code; no stack trace, SQL, or secret in the response.",
+        "9": "Structured logging with correlation ids, typed error boundaries, alerting on error-rate spikes, and graceful degradation when a dependency fails."
+      },
+      "verify": {
+        "reasoning": "Are errors swallowed by empty catch blocks or left as unhandled rejections? When a request fails, does the client receive a generic message with a proper status code, or a raw stack trace / SQL / internal detail? Are failures logged server-side?",
+        "assertions": [
+          {"check": "Errors are not silently swallowed; failures are logged server-side.", "type": "static"},
+          {"check": "Client-facing errors are generic (no stack trace, SQL, or secret) with an appropriate status code.", "type": "static"}
+        ]
+      }
+    }
+  ]
+}

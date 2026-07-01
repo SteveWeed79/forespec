@@ -469,6 +469,153 @@
       "label": "good",
       "gold_level": 6,
       "note": "resolveEntitlements helper returns entitlements only for an active, in-period subscription; checks call it each time"
+    },
+    {
+      "checkpoint": "security.injection",
+      "fixture": "fixtures/security.injection/bad.ts",
+      "label": "bad",
+      "gold_level": 3,
+      "note": "SQL injection: user query interpolated into raw SQL via template literal"
+    },
+    {
+      "checkpoint": "security.injection",
+      "fixture": "fixtures/security.injection/bad2.ts",
+      "label": "bad",
+      "gold_level": 3,
+      "note": "NoSQL injection: req.body passed directly as a Mongo filter (operator injection)"
+    },
+    {
+      "checkpoint": "security.injection",
+      "fixture": "fixtures/security.injection/bad3.ts",
+      "label": "bad",
+      "gold_level": 3,
+      "note": "XSS: user-supplied text assigned to innerHTML without encoding/sanitization"
+    },
+    {
+      "checkpoint": "security.injection",
+      "fixture": "fixtures/security.injection/bad4.ts",
+      "label": "bad",
+      "gold_level": 3,
+      "note": "OS command injection: user filename interpolated into an exec shell string"
+    },
+    {
+      "checkpoint": "security.injection",
+      "fixture": "fixtures/security.injection/good.ts",
+      "label": "good",
+      "gold_level": 6,
+      "note": "parameterized query: user input bound as a $1 placeholder, never concatenated"
+    },
+    {
+      "checkpoint": "security.injection",
+      "fixture": "fixtures/security.injection/good2.ts",
+      "label": "good",
+      "gold_level": 6,
+      "note": "safe output: allowlist sanitization (DOMPurify) before insertion"
+    },
+    {
+      "checkpoint": "security.injection",
+      "fixture": "fixtures/security.injection/good3.ts",
+      "label": "good",
+      "gold_level": 6,
+      "note": "execFile with an argument array (no shell) plus strict filename allowlist"
+    },
+    {
+      "checkpoint": "security.secrets_management",
+      "fixture": "fixtures/security.secrets_management/bad.ts",
+      "label": "bad",
+      "gold_level": 3,
+      "note": "real-looking API key hardcoded as a string literal and used directly"
+    },
+    {
+      "checkpoint": "security.secrets_management",
+      "fixture": "fixtures/security.secrets_management/bad2.ts",
+      "label": "bad",
+      "gold_level": 3,
+      "note": "secret leaked to the client bundle via a NEXT_PUBLIC_ env var in a browser component"
+    },
+    {
+      "checkpoint": "security.secrets_management",
+      "fixture": "fixtures/security.secrets_management/bad3.ts",
+      "label": "bad",
+      "gold_level": 3,
+      "note": "apiKey/dbPassword committed as literals in an in-repo config object that is imported"
+    },
+    {
+      "checkpoint": "security.secrets_management",
+      "fixture": "fixtures/security.secrets_management/bad4.ts",
+      "label": "bad",
+      "gold_level": 3,
+      "note": "secret written to logs and returned in the API response body"
+    },
+    {
+      "checkpoint": "security.secrets_management",
+      "fixture": "fixtures/security.secrets_management/good.ts",
+      "label": "good",
+      "gold_level": 6,
+      "note": "secret read from process.env server-side with a startup check; never sent to the client"
+    },
+    {
+      "checkpoint": "security.secrets_management",
+      "fixture": "fixtures/security.secrets_management/good2.ts",
+      "label": "good",
+      "gold_level": 6,
+      "note": "client calls own server route; server-only handler reads the key from env"
+    },
+    {
+      "checkpoint": "security.secrets_management",
+      "fixture": "fixtures/security.secrets_management/good3.ts",
+      "label": "good",
+      "gold_level": 6,
+      "note": "secret pulled from a secret manager / injected env; repo ships only .env.example placeholders"
+    },
+    {
+      "checkpoint": "auth.credential_storage",
+      "fixture": "fixtures/auth.credential_storage/bad.ts",
+      "label": "bad",
+      "gold_level": 3,
+      "note": "passwords stored in plaintext; login compares plaintext"
+    },
+    {
+      "checkpoint": "auth.credential_storage",
+      "fixture": "fixtures/auth.credential_storage/bad2.ts",
+      "label": "bad",
+      "gold_level": 3,
+      "note": "fast unsalted sha256 hash of the password"
+    },
+    {
+      "checkpoint": "auth.credential_storage",
+      "fixture": "fixtures/auth.credential_storage/bad3.ts",
+      "label": "bad",
+      "gold_level": 3,
+      "note": "reversible AES encryption with a stored key, decrypted on login"
+    },
+    {
+      "checkpoint": "auth.credential_storage",
+      "fixture": "fixtures/auth.credential_storage/bad4.ts",
+      "label": "bad",
+      "gold_level": 3,
+      "note": "home-rolled sha256(globalSalt+password) with a single server-wide salt"
+    },
+    {
+      "checkpoint": "auth.credential_storage",
+      "fixture": "fixtures/auth.credential_storage/good.ts",
+      "label": "good",
+      "gold_level": 6,
+      "note": "bcrypt with a per-user salt (cost 12) and bcrypt.compare"
+    },
+    {
+      "checkpoint": "auth.credential_storage",
+      "fixture": "fixtures/auth.credential_storage/good2.ts",
+      "label": "good",
+      "gold_level": 6,
+      "note": "argon2id with recommended memory/time/parallelism parameters"
+    },
+    {
+      "checkpoint": "auth.credential_storage",
+      "fixture": "fixtures/auth.credential_storage/good3.ts",
+      "label": "good",
+      "gold_level": 6,
+      "note": "scrypt with a random per-user salt and crypto.timingSafeEqual comparison"
     }
   ]
 }

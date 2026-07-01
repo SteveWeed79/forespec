@@ -20,6 +20,78 @@
           {"check": "Provider-side fraud/abuse controls or failed-attempt velocity limits are configured.", "type": "static"}
         ]
       }
+    },
+    {
+      "id": "security.injection",
+      "domain": "backbone", "confidence": "established",
+      "title": "Untrusted input never reaches an interpreter unescaped",
+      "why": "Injection is the most common serious flaw in AI-generated code: user input concatenated into SQL/NoSQL queries, rendered as HTML without encoding (XSS), or passed to a shell. Each is a direct path to data theft, account takeover, or remote code execution.",
+      "levels": {
+        "3": "User input concatenated into queries, rendered as raw HTML, or passed to a shell command.",
+        "6": "Queries are parameterized; output is contextually escaped (or sanitized via an allowlist); shell calls avoid a shell or use argument arrays.",
+        "9": "Parameterization/encoding enforced by default (ORM/query builder, framework auto-escaping, a strict CSP), with input validated against a schema at the boundary."
+      },
+      "verify": {
+        "reasoning": "Does any user input reach a SQL/NoSQL query by string concatenation instead of bound parameters? Is any user-supplied content rendered as HTML without encoding (innerHTML/dangerouslySetInnerHTML/string-built markup)? Is any input passed to a shell command?",
+        "assertions": [
+          {"check": "Database queries use parameterized statements / bound params, not string concatenation of user input.", "type": "static"},
+          {"check": "User-supplied content is contextually escaped or sanitized before rendering; shell calls avoid interpolated user input.", "type": "static"}
+        ]
+      }
+    },
+    {
+      "id": "security.secrets_management",
+      "domain": "backbone", "confidence": "established",
+      "title": "Secrets are not hardcoded, committed, or shipped to the client",
+      "why": "AI code habitually pastes API keys and DB passwords as literals, exposes secret keys through client-readable env vars, or commits a real .env - and a secret in git history or a browser bundle is a secret already leaked.",
+      "levels": {
+        "3": "Secrets hardcoded in source, committed to the repo, exposed via client-readable env vars, or written to logs.",
+        "6": "Secrets loaded from environment/secret store on the server only, never in the client bundle, with real values kept out of version control.",
+        "9": "Managed secret store with rotation, least-privilege scoping, startup validation that required secrets are present, and no secret in logs or error output."
+      },
+      "verify": {
+        "reasoning": "Are any API keys, tokens, or passwords hardcoded as literals or in a committed config? Is any secret exposed to the client (e.g. a NEXT_PUBLIC_/VITE_ env var or use inside client code)? Are secrets ever logged? Do secrets come from a server-side env/secret store?",
+        "assertions": [
+          {"check": "No secret is hardcoded in source or committed config; secrets come from a server-side env/secret store.", "type": "static"},
+          {"check": "No secret is exposed to the client bundle or written to logs.", "type": "static"}
+        ]
+      }
+    },
+    {
+      "id": "security.transport_headers",
+      "domain": "backbone", "confidence": "reasoned",
+      "title": "Transport is encrypted and baseline security headers are set",
+      "why": "Generated apps ship over plain HTTP, set permissive CORS (a wildcard origin alongside credentials), and omit the baseline headers (HSTS, CSP, X-Content-Type-Options, frame protection) - each widening exposure to interception, cross-origin theft, clickjacking, and XSS.",
+      "levels": {
+        "3": "Served over HTTP or mixed content; CORS wildcarded with credentials; no security headers.",
+        "6": "HTTPS enforced; CORS restricted to known origins (no wildcard with credentials); core security headers set (HSTS, X-Content-Type-Options, frame protection).",
+        "9": "A tuned Content-Security-Policy, HSTS preload, Referrer-Policy/Permissions-Policy, and CORS scoped per route, verified by an automated header check."
+      },
+      "verify": {
+        "reasoning": "Is HTTPS enforced (redirects, HSTS)? Is CORS scoped to known origins rather than a wildcard combined with credentials? Are baseline security headers (X-Content-Type-Options, frame protection, a CSP) present?",
+        "assertions": [
+          {"check": "CORS is restricted to known origins; no wildcard origin combined with credentials.", "type": "static"},
+          {"check": "HTTPS is enforced and baseline security headers (HSTS, X-Content-Type-Options, frame/CSP) are set.", "type": "static"}
+        ]
+      }
+    },
+    {
+      "id": "security.file_upload",
+      "domain": "backbone", "confidence": "reasoned",
+      "title": "File uploads are validated and stored safely",
+      "why": "Upload handlers generated without care trust the client's filename and content type, write into the web root, and set no size cap - opening path traversal, stored-XSS/served-malware, and disk-exhaustion. Relevant only where the app accepts uploads.",
+      "levels": {
+        "3": "Uploads trust the client filename/content-type, are written to a web-served path, with no size or type limit.",
+        "6": "Type validated by content (not just extension), size-limited, stored with a generated name outside the served root (or in object storage), served with a safe content-type.",
+        "9": "Malware/content scanning, per-user quotas, signed time-limited access URLs, and images re-encoded to strip active content."
+      },
+      "verify": {
+        "reasoning": "For any file-upload path: is the file type validated by actual content (not just extension) and size-capped? Is the stored filename generated (not the client's) to prevent path traversal? Is it stored outside the web root / in object storage and served with a safe content type?",
+        "assertions": [
+          {"check": "Upload type and size are validated server-side; the stored name is generated, not the client-supplied path.", "type": "static"},
+          {"check": "Uploads are stored outside the web-served root (or in object storage) and served with a safe content type.", "type": "static"}
+        ]
+      }
     }
   ]
 }
