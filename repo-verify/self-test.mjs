@@ -185,6 +185,10 @@ const envSaas = scoreArchetypes({ deps: [], paths: [], schemaModels: [], envVars
 check("env vars (tenant/paddle/workspace) → saas", envSaas[0].archetype === "saas" && envSaas[0].matched.some((m) => m.startsWith("env:")));
 const envPort = scoreArchetypes({ deps: [], paths: [], schemaModels: [], envVars: ["sanity_project_id", "sanity_dataset"] });
 check("env vars (sanity CMS) → portfolio", envPort[0].archetype === "portfolio");
+// Self-description (CLAUDE.md etc): low-weight nudge, token-matched, never overrides.
+const docOnly = scoreArchetypes({ deps: [], paths: [], schemaModels: [], selfDescription: "This is a multi-tenant SaaS with subscription billing per workspace." });
+check("CLAUDE.md-style self-description nudges toward saas", docOnly[0].archetype === "saas" && docOnly[0].matched.some((m) => m.startsWith("doc:")));
+check("doc signal stays low-weight (capped, can't beat a config)", scoreArchetypes({ deps: [], paths: [], schemaModels: [], configHits: [{ archetype: "ecommerce", file: "medusa-config.ts" }], selfDescription: "blog blog post writing gallery essay author portfolio" })[0].archetype === "ecommerce");
 
 // Integration: real signals from the vulnerable fixture → ecommerce, with evidence.
 const fxSignals = collectSignals(fixture);
