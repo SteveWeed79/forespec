@@ -90,6 +90,14 @@ const KEYWORDS = {
   "saas.tenancy.isolation": ["tenant", "org", "workspace", "account", "scope", "where"],
   "saas.subscription.entitlement_integrity": ["subscription", "plan", "entitlement", "feature", "seat", "active"],
   "saas.subscription.lifecycle": ["subscription", "cancel", "renew", "trial", "period", "payment_failed", "downgrade"],
+  "security.injection": ["injection", "sql", "query", "select", "sequelize", "raw", "concat", "exec", "eval", "innerhtml", "dangerouslysetinnerhtml", "sanitize", "escape", "xss"],
+  "security.secrets_management": ["secret", "apikey", "api_key", "privatekey", "private_key", "credential", "token", "password", "process.env", "dotenv", "key"],
+  "auth.credential_storage": ["password", "hash", "bcrypt", "argon", "scrypt", "pbkdf2", "md5", "sha1", "sha256", "salt", "credential", "insecurity"],
+  "security.transport_headers": ["cors", "helmet", "header", "csp", "hsts", "content-security-policy", "x-frame", "referrer", "origin", "https"],
+  "security.file_upload": ["upload", "multer", "multipart", "filename", "mimetype", "attachment", "busboy", "formidable", "file"],
+  "data.pii_protection": ["pii", "personal", "gdpr", "ccpa", "erasure", "export", "retention", "consent", "email", "address", "phone"],
+  "reliability.error_handling": ["error", "catch", "exception", "throw", "reject", "stack", "trace", "handler", "try"],
+  "data.query_performance": ["findall", "pagination", "paginate", "limit", "offset", "include", "eager", "index", "query", "loop"],
 };
 
 export function keywordsFor(cp) {
@@ -115,7 +123,7 @@ export function scoreFile(file, keywords) {
  * and pack them into a `code` string (with `// FILE:` headers) for the adapter.
  * If nothing scores, falls back to the smallest files so `code` is never empty.
  */
-export function selectForCheckpoint(all, cp, budgetChars = 60_000) {
+export function selectForCheckpoint(all, cp, budgetChars = 60_000, perFileCap = 24_000) {
   const keywords = keywordsFor(cp);
   const ranked = all
     .map((f) => ({ f, score: scoreFile(f, keywords) }))
@@ -127,12 +135,19 @@ export function selectForCheckpoint(all, cp, budgetChars = 60_000) {
     ? ranked
     : [...all].sort((a, b) => a.content.length - b.content.length);
 
+  // Cap any single file's contribution so one huge file (e.g. a monolithic server.ts)
+  // can't eat the whole budget and starve out a higher-ranked-but-large vulnerable file.
+  // Real finding from the Juice Shop pre-run: lib/insecurity.ts (hardcoded keys) ranked #4
+  // for secrets but was budget-cut by a large server.ts → false-green risk.
+  const clip = (c) => (c.length > perFileCap ? c.slice(0, perFileCap) + "\n// …(truncated for budget)…\n" : c);
+
   const chosen = [];
   let used = 0;
   for (const f of ordered) {
-    if (used + f.content.length > budgetChars && chosen.length > 0) continue;
-    chosen.push(f);
-    used += f.content.length;
+    const content = clip(f.content);
+    if (used + content.length > budgetChars && chosen.length > 0) continue;
+    chosen.push({ ...f, content });
+    used += content.length;
     if (used >= budgetChars) break;
   }
 

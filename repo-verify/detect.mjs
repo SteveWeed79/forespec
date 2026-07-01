@@ -30,8 +30,8 @@ export const RULES = {
   // appears in every site (about, contact, content, project) is noise, not signal.
   ecommerce: {
     deps: ["stripe", "braintree", "square", "paypal", "snipcart", "medusa", "commercejs", "swell", "shopify", "vendure", "saleor", "bagisto", "spree"],
-    paths: ["checkout", "cart", "order", "product", "catalog", "inventory", "storefront", "sku"],
-    models: ["order", "product", "cart", "lineitem", "orderitem", "payment", "inventory", "sku", "variant"],
+    paths: ["checkout", "cart", "basket", "order", "product", "catalog", "inventory", "storefront", "sku"],
+    models: ["order", "product", "cart", "basket", "lineitem", "orderitem", "payment", "inventory", "sku", "variant"],
   },
   saas: {
     deps: ["clerk", "workos", "auth0", "lemonsqueezy", "paddle", "stripe"],
