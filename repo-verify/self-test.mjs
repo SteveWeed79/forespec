@@ -14,7 +14,7 @@
 
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { rmSync, mkdtempSync, readFileSync } from "node:fs";
+import { rmSync, mkdtempSync, readFileSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { resolveArchetype } from "../library/resolve.mjs";
 import * as mock from "../verifier-eval/adapters/mock.mjs";
@@ -273,6 +273,24 @@ check("counts surface the evidence", prof.backbone.counts.judgment_calls === 3 &
 check("bandFor thresholds (0.3→learning, 0.5→steady, 0.8→fluent)", bandFor(0.3) === "learning" && bandFor(0.5) === "steady" && bandFor(0.8) === "fluent");
 // A fluent domain switches verbosity to brief (the "get out of the way" behavior).
 check("fluent ⇒ brief verbosity", verbosityFor("backbone", { backbone: { band: "fluent" } }) === "brief");
+
+console.log("\n11. Accuracy corpus integrity (verifier-eval — statistical power):");
+const evalDir = join(here, "..", "verifier-eval");
+const corpus = JSON.parse(readFileSync(join(evalDir, "fixtures.json"), "utf8"));
+const allExist = corpus.cases.every((c) => existsSync(join(evalDir, c.fixture)));
+check("every corpus fixture file exists", allExist, `${corpus.cases.filter((c) => !existsSync(join(evalDir, c.fixture))).map((c) => c.fixture).join(", ")}`);
+check("labels/levels valid (bad→3, good→≥6)", corpus.cases.every((c) => (c.label === "bad" && c.gold_level === 3) || (c.label === "good" && c.gold_level >= 6)));
+// Criticality from the manifests; each critical checkpoint needs enough bad cases for power.
+const criticalIds = new Set();
+for (const cp of archetype.checkpoints) if (cp.severity === "critical") criticalIds.add(cp.id);
+const badPerCritical = {};
+for (const c of corpus.cases) if (c.label === "bad" && criticalIds.has(c.checkpoint)) badPerCritical[c.checkpoint] = (badPerCritical[c.checkpoint] || 0) + 1;
+const thinCriticals = [...criticalIds].filter((id) => corpus.cases.some((c) => c.checkpoint === id) && (badPerCritical[id] || 0) < 4);
+check("each covered critical checkpoint has ≥4 bad cases (rule-of-three power)", thinCriticals.length === 0, `thin: ${thinCriticals.join(", ")}`);
+const totalBadCrit = Object.values(badPerCritical).reduce((a, b) => a + b, 0);
+// ecommerce view = 6 criticals; run-eval counts all archetypes' criticals (more). This is a
+// rot-guard floor — enough bad cases that the rule-of-three bound stays meaningful.
+check("critical bad-case count supports a rule-of-three bound (≥24)", totalBadCrit >= 24, `have ${totalBadCrit}`);
 
 console.log("");
 if (failures > 0) {

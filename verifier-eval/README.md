@@ -43,24 +43,72 @@ Reported per-checkpoint and overall:
 - **false-alarm rate** — flagged-but-fine ÷ good implementations. High here means alarm fatigue.
 - **exact-level agreement** — predicted level == gold level
 
+## The launch gate: how much is enough?
+
+Accuracy is measured **per checkpoint**, not per site — labeled cases are cheap
+and carry all the statistical power; whole sites are expensive and carry almost
+none. The one number that defines "trustworthy" is the **false-green rate on
+criticals**. Sizing follows the **rule of three**: run *n* bad cases, see zero
+false-greens, and the 95% upper bound on the true rate is ≈ `3/n`.
+
+| bad critical cases, 0 false-greens | 95% upper bound |
+|---|---|
+| 30 | ≤ ~10% |
+| ~50 | ≤ ~6% — a defensible launch bar |
+| 100 | ≤ ~3% — strong |
+
+The harness prints this automatically as a **CRITICALS launch gate**:
+
+- **GO** — 0 false-greens and the bound is ≤ 6%.
+- **PROVISIONAL** — 0 false-greens but too few cases yet (bound > 6%); add variants.
+- **NO-GO** — a critical came back shippable when it shouldn't. Stop and fix; this
+  is not a "tune later." The run **exits non-zero** on a NO-GO.
+
 ## How to read a result
 
-The mock baseline reports ~92% accuracy with a false-alarm on
-`payment.state_integrity` — by design: the baseline has no keywords for that
-checkpoint, so it flags everything. That's the point — a verifier that doesn't
-*understand* a checkpoint shows up here as alarm noise (or, worse, as false
-greens). The real test is the `claude` adapter clearing the bar the baseline
-can't: **near-zero false greens across all six**, matching or beating the
-baseline's accuracy without its blind spot.
+The mock keyword baseline now returns **NO-GO** — and that's the corpus working.
+The bad variants deliberately contain the "good" keywords (an `idempotencyKey` on
+creation but no webhook dedupe; a signature check against the parsed body instead
+of the raw bytes), so keyword-matching gets fooled. A baseline that can't tell
+them apart *should* fail. The real test is the `claude` adapter clearing the bar
+the baseline can't: **zero false-greens on criticals**, GO with a tight bound.
 
 ## Corpus
 
-`fixtures.json` is the labeled manifest; `fixtures/<checkpoint>/{bad,good}.ts`
-are the samples. v1 covers the **6 severity:critical backbone checkpoints**.
-The fixtures are synthetic and **pattern-level — fully shareable** (no real
-project code; that's the pattern/instance wall). Expand the corpus over time:
-more labeled cases (and `9`-level "great" fixtures, and trickier near-misses)
-tighten the accuracy estimate and harden the verifier you're trusting.
+`fixtures.json` is the labeled manifest; `fixtures/<checkpoint>/{bad*,good*}.ts`
+are the samples. It covers the critical backbone checkpoints with **~4 bad + ~3
+good variants each** — every bad variant a *distinct failure mode* (real power,
+not near-duplicates), and **no "tells"**: bad fixtures read like plausible real
+code with no comment naming the flaw, so a reasoning model must actually detect
+it rather than read a label. The gold labels live in `fixtures.json`, not the
+code. Fixtures are synthetic and **pattern-level — fully shareable** (no real
+project code; that's the pattern/instance wall).
+
+Because the backbone checkpoints are **shared across archetypes** (library
+composition), proving `payment.webhook_authenticity` here validates it for
+ecommerce, SaaS, and portfolio at once. A new archetype only costs labeled cases
+for its *net-new* checkpoints — never a full re-validation.
+
+## Real-repo pass (the part your bank account feels)
+
+The labeled corpus buys statistical confidence for pennies. Real repos buy
+something different — **generalization**: does it false-alarm on messy real code?
+That needs surprisingly few. For one archetype (ecommerce), ~5 repos:
+
+```bash
+export ANTHROPIC_API_KEY=sk-...   ANTHROPIC_MODEL=<a current cheap Claude model id>
+# known-GOOD (expect few/no critical flags):
+node repo-verify/verify.mjs /path/to/vendure     --adapter claude --no-store
+node repo-verify/verify.mjs /path/to/medusa      --adapter claude --no-store
+# known-BAD (expect it to catch the planted holes):
+node repo-verify/verify.mjs /path/to/juice-shop  --adapter claude --no-store
+node repo-verify/verify.mjs /path/to/NodeGoat    --adapter claude --no-store
+# plus your own project (KTXZ ×2 already run). Opus spot-check anything borderline.
+```
+
+Go/no-go for the whole thing: **zero false-greens** across the ~50 bad criticals
+*and* the known-bad repos, with no wild false-alarms on the good ones. One-time
+spend is roughly **$15–30**; memoization makes re-runs near-free.
 
 ## Architecture
 
