@@ -2,7 +2,7 @@
   "$schema": "foresight/archetype/v2",
   "_readme": {
     "what_this_is": "Archetype MANIFEST for a personal / portfolio / content site. Resolve with `node library/resolve.mjs archetype.portfolio.json`.",
-    "reuse": "100% composed from the shared library — ZERO portfolio-specific checkpoints. The 6 design.* checkpoints are the same ones the ecommerce archetype uses; the 3 web.* checkpoints are shared with any content/marketing site. The strongest demonstration of the library: a whole new archetype with nothing new to author.",
+    "reuse": "Still 100% composed from the shared library — ZERO portfolio-specific checkpoints. The design.* checkpoints are the same ones the ecommerce archetype uses; the web.* checkpoints are shared with any content site; and it now also draws the universal security.*/data.*/reliability.* checkpoints every deployed site needs (HTTPS + headers, secrets, PII on the contact form, injection, error handling) — auth/upload/query checkpoints are omitted since a portfolio has no accounts or backend to speak of. The strongest demonstration of the library: a whole archetype with nothing new to author.",
     "no_criticals": "A portfolio has no revenue/data-critical backbone, so its goal_definition is expressed in terms of severity:high (the design + performance bar) rather than critical. goal_definition is archetype-contextual, like severity.",
     "how_scoring_works": "Levels 3/6/9. 3 = crude/risky. 6 = solid, shippable. 9 = great. TRUST THE GAP, NOT THE NUMBER."
   },
@@ -23,6 +23,11 @@
     { "ref": "design.system_consistency", "severity": "high" },
     { "ref": "design.responsive",         "severity": "high" },
     { "ref": "web.performance",           "severity": "high" },
+    { "ref": "security.transport_headers", "severity": "high" },
+    { "ref": "security.secrets_management", "severity": "high" },
+    { "ref": "data.pii_protection",       "severity": "high" },
+    { "ref": "security.injection",        "severity": "medium" },
+    { "ref": "reliability.error_handling", "severity": "medium" },
     { "ref": "design.spacing_system",     "severity": "medium" },
     { "ref": "web.seo_metadata",          "severity": "medium" },
     { "ref": "web.forms_integrity",       "severity": "medium" }

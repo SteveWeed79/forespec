@@ -42,10 +42,10 @@ them everything still runs on the deterministic mock baseline. Full walkthrough:
 | [`foresight.buildorder-2.md`](./foresight.buildorder-2.md) | **The authoritative roadmap.** Phases 0–7, verifier-first, each phase shippable and standing on its own. When any doc disagrees on *what to build in what order*, this one governs. |
 | [`foresight.calibration-1.md`](./foresight.calibration-1.md) | Layer 3 — the calibration loop that turns invented weights into ones earned on real work, and the seam that lets solo data later join a shared pool without a rewrite. |
 | [`library/`](./library) | The **shared checkpoint library** — every checkpoint definition (auth, payment, data, design, …), authored once and reused across archetypes. `resolve.mjs` composes a manifest + the library into a full archetype. |
-| [`archetype.ecommerce.json`](./archetype.ecommerce.json) | The ecommerce **archetype manifest**: selects 12 backbone + 7 design checkpoints from the library and sets each one's severity for this domain. Resolves to the durable standard a verifier grades against. |
+| [`archetype.ecommerce.json`](./archetype.ecommerce.json) | The ecommerce **archetype manifest**: selects 20 backbone + 7 design checkpoints from the library and sets each one's severity for this domain. Resolves to the durable standard a verifier grades against. |
 | [`archetype.ecommerce.design.json`](./archetype.ecommerce.design.json) | The **instrumented** design layer: design checkpoints decomposed into weighted, measurable sub-signals → a computed 0–10 composite. Its `model_scored` signals are deferred experiments until calibration earns them. |
-| [`archetype.saas.json`](./archetype.saas.json) | The SaaS / subscription **archetype manifest** — 18 checkpoints, **15 reused** from the library, 3 SaaS-specific (tenant isolation, entitlement integrity, subscription lifecycle). |
-| [`archetype.portfolio.json`](./archetype.portfolio.json) | The portfolio / content **archetype manifest** — 9 checkpoints, **100% composed** from the shared library (design + web), zero new authoring. |
+| [`archetype.saas.json`](./archetype.saas.json) | The SaaS / subscription **archetype manifest** — 26 checkpoints, all but 3 **reused** from the library, 3 SaaS-specific (tenant isolation, entitlement integrity, subscription lifecycle). |
+| [`archetype.portfolio.json`](./archetype.portfolio.json) | The portfolio / content **archetype manifest** — 14 checkpoints, **100% composed** from the shared library (design + web + the universal security/privacy set), zero new authoring. |
 
 ## Reading order
 

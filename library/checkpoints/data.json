@@ -20,6 +20,42 @@
           {"check": "Currency stored alongside every monetary amount.", "type": "static"}
         ]
       }
+    },
+    {
+      "id": "data.pii_protection",
+      "domain": "backbone", "confidence": "reasoned",
+      "title": "Personal data is minimized, protected, and deletable",
+      "why": "Apps quietly accumulate personal data (emails, addresses, phone, IPs) with no plan for it - collected beyond need, spilled into logs or over-broad API responses, kept forever, with no way to delete or export it. That is both a breach blast-radius multiplier and, in many places, a legal obligation (GDPR/CCPA) that AI-generated code never accounts for.",
+      "levels": {
+        "3": "Personal data collected without intent, returned in broad API responses or written to logs, kept indefinitely, with no deletion/export path.",
+        "6": "Only needed personal data is collected; it is kept out of logs and out of over-broad responses; a user-deletion (and export) path exists.",
+        "9": "Documented data inventory + retention windows, sensitive fields encrypted at rest, access scoped and audited, and tested deletion/export that honors linked records."
+      },
+      "verify": {
+        "reasoning": "What personal data does the app store, and is any of it beyond what the feature needs? Does personal data leak into logs or wide API responses? Is there a retention limit and a way for a user to delete or export their data?",
+        "assertions": [
+          {"check": "Personal data is not written to logs or returned in over-broad API responses.", "type": "static"},
+          {"check": "A path exists to delete (and export) a user's personal data.", "type": "static"}
+        ]
+      }
+    },
+    {
+      "id": "data.query_performance",
+      "domain": "backbone", "confidence": "reasoned",
+      "title": "Queries are bounded and free of N+1 patterns",
+      "why": "AI-generated data access commonly issues a query per row (N+1) and lists records with no pagination or limit. It looks fine on ten rows and falls over in production - slow pages, exhausted connection pools, memory blowups - and an unbounded list endpoint is a cheap denial-of-service.",
+      "levels": {
+        "3": "Queries issued inside loops (N+1); list/collection endpoints fetch all rows with no limit or pagination.",
+        "6": "Related data loaded in bulk (joins/batched/`include`), and list endpoints are paginated or bounded by a sane maximum.",
+        "9": "Hot paths backed by appropriate indexes, cursor pagination on large sets, and query counts/latency watched so regressions surface."
+      },
+      "verify": {
+        "reasoning": "Are there queries executed inside loops (a query per item) where a single batched or joined query would do? Do list/collection endpoints paginate or cap results, or can they return unbounded rows?",
+        "assertions": [
+          {"check": "No per-row query inside a loop where a batched/joined query would do.", "type": "static"},
+          {"check": "List/collection endpoints are paginated or bounded by a maximum.", "type": "static"}
+        ]
+      }
     }
   ]
 }

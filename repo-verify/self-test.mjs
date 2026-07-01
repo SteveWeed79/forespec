@@ -14,14 +14,14 @@
 
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { rmSync, mkdtempSync, readFileSync } from "node:fs";
+import { rmSync, mkdtempSync, readFileSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { resolveArchetype } from "../library/resolve.mjs";
 import * as mock from "../verifier-eval/adapters/mock.mjs";
 import { loadRepo, selectForCheckpoint } from "./select.mjs";
 import { fingerprint, recordPredictions, latestPrediction, recordOutcome, readOverrides, writeOverrides, FILES } from "./store.mjs";
 import { aggregate, propose } from "./calibrate.mjs";
-import { scoreArchetypes, collectSignals, discoverManifests } from "./detect.mjs";
+import { scoreArchetypes, collectSignals, discoverManifests, isAmbiguous, classifyWithAI } from "./detect.mjs";
 import { readConfig, writeConfig, resolveManifestPath, CONFIG_FILE } from "./config.mjs";
 import { relevanceScore, selectForFeature, renderPlan } from "./plan.mjs";
 import { contrastRatio, parseColor, isLargeText, compositeToLevel, scoreContrast, scoreTypeScale, scoreResponsive, scoreSpacing } from "./design-metrics.mjs";
@@ -164,6 +164,32 @@ const port = scoreArchetypes({ deps: ["astro", "gray-matter"], paths: ["src/cont
 check("portfolio signals (no backend) → portfolio on top", port[0].archetype === "portfolio", `got ${port[0].archetype}`);
 check("portfolio penalized when a backend/payment is present", port[0].archetype === "portfolio" && ecom.find((r) => r.archetype === "portfolio").score === 0);
 
+// Regression: token matching must kill substring false positives that fooled the v1 heuristic.
+const dash = scoreArchetypes({ deps: ["react", "vite", "postcss", "recharts"], paths: ["src/config/production.ts", "src/utils/cartesian.ts", "src/lib/remember-me.ts"], schemaModels: [] });
+check("generic app → no archetype guessed (not confidently ecommerce)", dash[0].score === 0 && dash[0].confidence === "none", `got ${dash[0].archetype}/${dash[0].score}`);
+check("'production' does not match 'product'", scoreArchetypes({ deps: [], paths: ["config/production.ts"], schemaModels: [] }).find((r) => r.archetype === "ecommerce").score === 0);
+check("'remember' does not match 'member'", scoreArchetypes({ deps: [], paths: ["lib/remember-me.ts"], schemaModels: [] }).find((r) => r.archetype === "saas").score === 0);
+// Broadened coverage: a non-JS shop (Django + Stripe in requirements.txt) is still detected via depText.
+const py = scoreArchetypes({ deps: [], depText: "django==4.2\nstripe==7.0\n", paths: ["shop/models.py", "orders/views.py"], schemaModels: [] });
+check("python shop detected via manifest text + paths", py[0].archetype === "ecommerce" && py[0].score > 0, `got ${py[0].archetype}`);
+// AI-on-ambiguity fallback: fires only when unsure, degrades gracefully without a key.
+check("isAmbiguous: confident result is NOT ambiguous", isAmbiguous(ecom) === false, `ecom top ${ecom[0].confidence}`);
+check("isAmbiguous: an abstain (all-zero) IS ambiguous", isAmbiguous(dash) === true);
+const aiNoKey = await classifyWithAI({ signals: { deps: [], paths: [], schemaModels: [] }, candidates: [{ archetype: "saas", applies_when: "x" }] });
+check("classifyWithAI returns null without a key (never breaks the $0 path)", process.env.ANTHROPIC_API_KEY ? true : aiNoKey === null);
+// Config-file fingerprint (#1): a domain-specific config is a strong, decisive signal.
+const cfg = scoreArchetypes({ deps: [], paths: [], schemaModels: [], configHits: [{ archetype: "ecommerce", file: "medusa-config.ts" }] });
+check("medusa-config.ts → ecommerce on top with a config signal", cfg[0].archetype === "ecommerce" && cfg[0].matched.some((m) => m.startsWith("config:")));
+// .env.example var names (#2): discriminating integrations classify without any code.
+const envSaas = scoreArchetypes({ deps: [], paths: [], schemaModels: [], envVars: ["tenant_id", "paddle_api_key", "workspace_slug"] });
+check("env vars (tenant/paddle/workspace) → saas", envSaas[0].archetype === "saas" && envSaas[0].matched.some((m) => m.startsWith("env:")));
+const envPort = scoreArchetypes({ deps: [], paths: [], schemaModels: [], envVars: ["sanity_project_id", "sanity_dataset"] });
+check("env vars (sanity CMS) → portfolio", envPort[0].archetype === "portfolio");
+// Self-description (CLAUDE.md etc): low-weight nudge, token-matched, never overrides.
+const docOnly = scoreArchetypes({ deps: [], paths: [], schemaModels: [], selfDescription: "This is a multi-tenant SaaS with subscription billing per workspace." });
+check("CLAUDE.md-style self-description nudges toward saas", docOnly[0].archetype === "saas" && docOnly[0].matched.some((m) => m.startsWith("doc:")));
+check("doc signal stays low-weight (capped, can't beat a config)", scoreArchetypes({ deps: [], paths: [], schemaModels: [], configHits: [{ archetype: "ecommerce", file: "medusa-config.ts" }], selfDescription: "blog blog post writing gallery essay author portfolio" })[0].archetype === "ecommerce");
+
 // Integration: real signals from the vulnerable fixture → ecommerce, with evidence.
 const fxSignals = collectSignals(fixture);
 const fxRanked = scoreArchetypes(fxSignals);
@@ -273,6 +299,24 @@ check("counts surface the evidence", prof.backbone.counts.judgment_calls === 3 &
 check("bandFor thresholds (0.3→learning, 0.5→steady, 0.8→fluent)", bandFor(0.3) === "learning" && bandFor(0.5) === "steady" && bandFor(0.8) === "fluent");
 // A fluent domain switches verbosity to brief (the "get out of the way" behavior).
 check("fluent ⇒ brief verbosity", verbosityFor("backbone", { backbone: { band: "fluent" } }) === "brief");
+
+console.log("\n11. Accuracy corpus integrity (verifier-eval — statistical power):");
+const evalDir = join(here, "..", "verifier-eval");
+const corpus = JSON.parse(readFileSync(join(evalDir, "fixtures.json"), "utf8"));
+const allExist = corpus.cases.every((c) => existsSync(join(evalDir, c.fixture)));
+check("every corpus fixture file exists", allExist, `${corpus.cases.filter((c) => !existsSync(join(evalDir, c.fixture))).map((c) => c.fixture).join(", ")}`);
+check("labels/levels valid (bad→3, good→≥6)", corpus.cases.every((c) => (c.label === "bad" && c.gold_level === 3) || (c.label === "good" && c.gold_level >= 6)));
+// Criticality from the manifests; each critical checkpoint needs enough bad cases for power.
+const criticalIds = new Set();
+for (const cp of archetype.checkpoints) if (cp.severity === "critical") criticalIds.add(cp.id);
+const badPerCritical = {};
+for (const c of corpus.cases) if (c.label === "bad" && criticalIds.has(c.checkpoint)) badPerCritical[c.checkpoint] = (badPerCritical[c.checkpoint] || 0) + 1;
+const thinCriticals = [...criticalIds].filter((id) => corpus.cases.some((c) => c.checkpoint === id) && (badPerCritical[id] || 0) < 4);
+check("each covered critical checkpoint has ≥4 bad cases (rule-of-three power)", thinCriticals.length === 0, `thin: ${thinCriticals.join(", ")}`);
+const totalBadCrit = Object.values(badPerCritical).reduce((a, b) => a + b, 0);
+// ecommerce view = 6 criticals; run-eval counts all archetypes' criticals (more). This is a
+// rot-guard floor — enough bad cases that the rule-of-three bound stays meaningful.
+check("critical bad-case count supports a rule-of-three bound (≥24)", totalBadCrit >= 24, `have ${totalBadCrit}`);
 
 console.log("");
 if (failures > 0) {

@@ -16,7 +16,7 @@
 import { spawnSync } from "node:child_process";
 import { dirname, join, resolve as pathResolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { detect } from "../repo-verify/detect.mjs";
+import { detectAuto } from "../repo-verify/detect.mjs";
 import { writeConfig, readConfig, CONFIG_FILE } from "../repo-verify/config.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -57,10 +57,10 @@ function run(script, args) {
   return r.status ?? 1;
 }
 
-function init(args) {
+async function init(args) {
   const positional = args.find((a) => !a.startsWith("-"));
   const repoRoot = pathResolve(process.cwd(), positional ?? ".");
-  const { ranked } = detect({ repoRoot, projectDir });
+  const { ranked, ai } = await detectAuto({ repoRoot, projectDir, useAI: !args.includes("--no-ai") });
 
   if (ranked.length === 0) {
     console.error("No archetype manifests found to match against.");
@@ -71,14 +71,17 @@ function init(args) {
   for (let i = 0; i < ranked.length; i++) {
     const r = ranked[i];
     const mark = i === 0 ? "→" : " ";
-    const conf = i === 0 ? `  (${r.confidence})` : "";
+    const conf = i === 0 ? `  (${r.confidence}${r.source === "ai" ? ", via AI" : ""})` : "";
     console.log(`${mark} ${r.archetype.padEnd(11)} score ${String(r.score).padStart(2)}${conf}`);
     if (r.matched.length) console.log(`    why: ${r.matched.join(", ")}`);
   }
   console.log("");
+  if (ai.used) console.log(`AI tie-breaker: ${ai.rationale}\n`);
 
   const top = ranked[0];
-  if (top.score === 0 || top.confidence === "none") {
+  if ((top.score === 0 || top.confidence === "none") && !ai.used) {
+    if (ai.decided_none) console.log(`AI also saw no clear fit: ${ai.rationale}`);
+    else if (!ai.available) console.log("Ambiguous — set ANTHROPIC_API_KEY + ANTHROPIC_MODEL to let one AI call break the tie, or pick manually:");
     console.log("Couldn't detect a clear fit. Pick one and write it yourself, e.g.:");
     console.log(`  echo '{ "archetype": "${ranked[0].manifest}" }' > ${CONFIG_FILE}`);
     return 1;
@@ -88,7 +91,7 @@ function init(args) {
   const config = {
     schema: "foresight/config/v1",
     archetype: top.manifest,
-    detected: { archetype: top.archetype, confidence: top.confidence, score: top.score },
+    detected: { archetype: top.archetype, confidence: top.confidence, score: top.score, via: top.source === "ai" ? "ai" : "heuristic" },
     created: new Date().toISOString(),
   };
   const path = writeConfig(repoRoot, config);
@@ -99,17 +102,14 @@ function init(args) {
   return 0;
 }
 
-const [cmd, ...rest] = process.argv.slice(2);
-if (!cmd || cmd === "-h" || cmd === "--help" || cmd === "help") {
-  console.log(HELP);
-  process.exit(0);
+async function dispatch() {
+  const [cmd, ...rest] = process.argv.slice(2);
+  if (!cmd || cmd === "-h" || cmd === "--help" || cmd === "help") { console.log(HELP); return 0; }
+  if (cmd === "init") return await init(rest);
+  if (PASSTHROUGH[cmd]) return run(PASSTHROUGH[cmd], rest);
+  console.error(`unknown command: ${cmd}\n`);
+  console.error(HELP);
+  return 2;
 }
-if (cmd === "init") {
-  process.exit(init(rest));
-}
-if (PASSTHROUGH[cmd]) {
-  process.exit(run(PASSTHROUGH[cmd], rest));
-}
-console.error(`unknown command: ${cmd}\n`);
-console.error(HELP);
-process.exit(2);
+
+dispatch().then((c) => process.exit(c), (e) => { console.error(`fatal: ${e?.message ?? e}`); process.exit(2); });

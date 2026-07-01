@@ -12,10 +12,10 @@
 //
 // Exit code is non-zero if any fixture errored, so CI can catch a broken run.
 
-import { readFileSync, writeFileSync } from "node:fs";
+import { readFileSync, writeFileSync, readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join, resolve } from "node:path";
-import { loadLibrary } from "../library/resolve.mjs";
+import { loadLibrary, resolveArchetype } from "../library/resolve.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -29,6 +29,14 @@ const outPath = arg("--out", null);
 
 const corpus = JSON.parse(readFileSync(join(here, "fixtures.json"), "utf8"));
 const checkpointById = loadLibrary(); // checkpoint definitions by id, across all archetypes
+
+// Which checkpoints are "critical" in ANY archetype. False-greens HERE are the launch
+// gate — blessing bad code on a critical is the one error that must be ~0.
+const criticalIds = new Set();
+for (const f of readdirSync(join(here, "..")).filter((n) => /^archetype\..+\.json$/.test(n) && !n.endsWith(".design.json"))) {
+  try { for (const c of resolveArchetype(join(here, "..", f)).checkpoints) if (c.severity === "critical") criticalIds.add(c.id); }
+  catch { /* skip a manifest that doesn't resolve */ }
+}
 
 const adapter = await import(`./adapters/${adapterName}.mjs`);
 
@@ -91,12 +99,39 @@ for (const id of new Set(cases.map((c) => c.checkpoint))) {
   perCheckpoint[id] = metricsFor(cases.filter((c) => c.checkpoint === id));
 }
 
+// ---- criticals: the launch gate + rule-of-three bound ----
+// The plan's unit is the checkpoint and the number is the false-green rate on criticals.
+// With 0 false-greens across n bad cases, the 95% upper bound on the true rate ≈ 3/n.
+const critScored = cases.filter((c) => criticalIds.has(c.checkpoint) && c.outcome !== "ERROR");
+const critBadN = critScored.filter((c) => c.gold_level < SHIPPABLE).length;
+const critFG = critScored.filter((c) => c.outcome === "FALSE_GREEN").length;
+const critFA = critScored.filter((c) => c.outcome === "FALSE_ALARM").length;
+const critErrors = cases.filter((c) => criticalIds.has(c.checkpoint) && c.outcome === "ERROR").length;
+const ruleOfThreeUpperPct = critFG === 0 && critBadN > 0 ? Math.round((300 / critBadN) * 10) / 10 : null;
+
+let verdict, verdictLine;
+if (critFG > 0) {
+  verdict = "NO-GO";
+  verdictLine = `NO-GO — ${critFG} false-green(s) on critical bad cases: a critical came back shippable when it shouldn't. Stop and fix before anyone's bank account but yours is involved.`;
+} else if (critBadN === 0) {
+  verdict = "N/A";
+  verdictLine = "N/A — no critical bad cases in the corpus.";
+} else if (ruleOfThreeUpperPct <= 6) {
+  verdict = "GO";
+  verdictLine = `GO — 0 false-greens on ${critBadN} critical bad cases → true rate ≤ ${ruleOfThreeUpperPct}% (95%). At/under the ≤6% launch bar.`;
+} else {
+  verdict = "PROVISIONAL";
+  verdictLine = `PROVISIONAL — 0 false-greens, but only ${critBadN} critical bad cases → ≤ ${ruleOfThreeUpperPct}% (95%). Add bad variants toward ~50 (≤6%) to clear the launch bar.`;
+}
+const criticals = { critical_bad_cases: critBadN, false_green: critFG, false_alarm: critFA, errors: critErrors, upper95_pct: ruleOfThreeUpperPct, verdict };
+
 // ---- report ----
 const report = {
   adapter: adapter.name ?? adapterName,
   model: adapterName === "claude" ? process.env.ANTHROPIC_MODEL ?? null : null,
   generated_at: new Date().toISOString(),
   overall,
+  criticals,
   per_checkpoint: perCheckpoint,
   cases: cases.map((c) => ({
     checkpoint: c.checkpoint, label: c.label, gold_level: c.gold_level,
@@ -127,9 +162,22 @@ if (overall.false_green > 0) {
   }
 }
 
+// ---- criticals: the actual launch gate ----
+console.log("\n" + "═".repeat(78));
+console.log("CRITICALS — the launch gate (false-greens here are the number that matters)");
+console.log(
+  `  critical bad cases: ${critBadN}  |  false-greens: ${critFG}` +
+  (ruleOfThreeUpperPct != null ? `  |  95% upper bound ≤ ${ruleOfThreeUpperPct}% (rule of three: 3/n)` : "") +
+  `  |  false-alarms on good criticals: ${critFA}` + (critErrors ? `  |  errors: ${critErrors}` : ""),
+);
+console.log(`  ${verdict === "GO" ? "✅" : verdict === "NO-GO" ? "🚫" : "🟡"} ${verdictLine}`);
+if (critFA > 0) console.log(`  note: ${critFA} false-alarm(s) on good criticals — not a hard gate, but watch for "cries wolf" on clean code.`);
+console.log("═".repeat(78));
+
 if (outPath) {
   writeFileSync(resolve(process.cwd(), outPath), JSON.stringify(report, null, 2));
   console.log(`\nwrote ${outPath}`);
 }
 
-process.exit(overall.errors > 0 ? 1 : 0);
+// Fail the run on a broken corpus (errors) OR a NO-GO (a critical false-green).
+process.exit(overall.errors > 0 || critFG > 0 ? 1 : 0);

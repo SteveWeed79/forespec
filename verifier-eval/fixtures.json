@@ -8,43 +8,614 @@
     "coverage": "Covers the high-stakes backbone checkpoints across the first three archetypes (ecommerce, SaaS, portfolio/web). Design checkpoints need rendered output and aren't fixtured as static snippets yet. Expand with more cases (and 9-level fixtures) over time."
   },
   "cases": [
-    { "checkpoint": "ecommerce.checkout.atomic_stock_hold", "fixture": "fixtures/ecommerce.checkout.atomic_stock_hold/bad.ts",  "label": "bad",  "gold_level": 3, "note": "availability check and decrement are separate non-atomic steps; race window oversells" },
-    { "checkpoint": "ecommerce.checkout.atomic_stock_hold", "fixture": "fixtures/ecommerce.checkout.atomic_stock_hold/good.ts", "label": "good", "gold_level": 6, "note": "atomic conditional reservation committed before the payment intent, with an expiring hold" },
-
-    { "checkpoint": "payment.idempotency", "fixture": "fixtures/payment.idempotency/bad.ts",  "label": "bad",  "gold_level": 3, "note": "no idempotency key; webhook reprocesses on every redelivery" },
-    { "checkpoint": "payment.idempotency", "fixture": "fixtures/payment.idempotency/good.ts", "label": "good", "gold_level": 6, "note": "idempotency key on creation; webhook dedupes by provider event id" },
-
-    { "checkpoint": "payment.state_integrity", "fixture": "fixtures/payment.state_integrity/bad.ts",  "label": "bad",  "gold_level": 3, "note": "record marked paid from the client redirect, before provider confirmation" },
-    { "checkpoint": "payment.state_integrity", "fixture": "fixtures/payment.state_integrity/good.ts", "label": "good", "gold_level": 6, "note": "paid set only from a verified webhook via a state machine, plus reconciliation" },
-
-    { "checkpoint": "payment.card_data_handling", "fixture": "fixtures/payment.card_data_handling/bad.ts",  "label": "bad",  "gold_level": 3, "note": "raw PAN posted to first-party backend; secret key in client config" },
-    { "checkpoint": "payment.card_data_handling", "fixture": "fixtures/payment.card_data_handling/good.ts", "label": "good", "gold_level": 6, "note": "provider token only; secret key server-side via env" },
-
-    { "checkpoint": "payment.webhook_authenticity", "fixture": "fixtures/payment.webhook_authenticity/bad.ts",  "label": "bad",  "gold_level": 3, "note": "webhook trusts the body with no signature verification" },
-    { "checkpoint": "payment.webhook_authenticity", "fixture": "fixtures/payment.webhook_authenticity/good.ts", "label": "good", "gold_level": 6, "note": "verifies provider signature against the raw body before mutating state" },
-
-    { "checkpoint": "auth.access_control", "fixture": "fixtures/auth.access_control/bad.ts",  "label": "bad",  "gold_level": 3, "note": "fetch by id alone — IDOR" },
-    { "checkpoint": "auth.access_control", "fixture": "fixtures/auth.access_control/good.ts", "label": "good", "gold_level": 6, "note": "fetch filtered by authenticated owner id" },
-
-    { "checkpoint": "auth.session_security", "fixture": "fixtures/auth.session_security/bad.ts",  "label": "bad",  "gold_level": 3, "note": "non-expiring session, client-only logout, guessable reset token" },
-    { "checkpoint": "auth.session_security", "fixture": "fixtures/auth.session_security/good.ts", "label": "good", "gold_level": 6, "note": "random short-lived sessions, server-side revocation, single-use expiring reset tokens" },
-
-    { "checkpoint": "saas.tenancy.isolation", "fixture": "fixtures/saas.tenancy.isolation/bad.ts",  "label": "bad",  "gold_level": 3, "note": "query by id alone — crosses the tenant boundary" },
-    { "checkpoint": "saas.tenancy.isolation", "fixture": "fixtures/saas.tenancy.isolation/good.ts", "label": "good", "gold_level": 6, "note": "every query scoped by tenant id from the session" },
-
-    { "checkpoint": "saas.subscription.entitlement_integrity", "fixture": "fixtures/saas.subscription.entitlement_integrity/bad.ts",  "label": "bad",  "gold_level": 3, "note": "gate trusts a client header / a flag set once at signup" },
-    { "checkpoint": "saas.subscription.entitlement_integrity", "fixture": "fixtures/saas.subscription.entitlement_integrity/good.ts", "label": "good", "gold_level": 6, "note": "entitlement from server-side subscription state updated by webhooks" },
-
-    { "checkpoint": "saas.subscription.lifecycle", "fixture": "fixtures/saas.subscription.lifecycle/bad.ts",  "label": "bad",  "gold_level": 3, "note": "only create/cancel; failed renewal leaves status active forever" },
-    { "checkpoint": "saas.subscription.lifecycle", "fixture": "fixtures/saas.subscription.lifecycle/good.ts", "label": "good", "gold_level": 6, "note": "trial-end, dunning, proration, cancel-at-period-end handled" },
-
-    { "checkpoint": "web.performance", "fixture": "fixtures/web.performance/bad.html",  "label": "bad",  "gold_level": 3, "note": "render-blocking scripts, unsized eager images, no lazy-loading" },
-    { "checkpoint": "web.performance", "fixture": "fixtures/web.performance/good.html", "label": "good", "gold_level": 6, "note": "sized/compressed/lazy images, deferred scripts, preloaded hero" },
-
-    { "checkpoint": "web.seo_metadata", "fixture": "fixtures/web.seo_metadata/bad.html",  "label": "bad",  "gold_level": 3, "note": "generic title, no description, no Open Graph, div soup" },
-    { "checkpoint": "web.seo_metadata", "fixture": "fixtures/web.seo_metadata/good.html", "label": "good", "gold_level": 6, "note": "unique title + description, Open Graph, semantic landmarks" },
-
-    { "checkpoint": "web.forms_integrity", "fixture": "fixtures/web.forms_integrity/bad.ts",  "label": "bad",  "gold_level": 3, "note": "trusts the client, no validation or spam protection" },
-    { "checkpoint": "web.forms_integrity", "fixture": "fixtures/web.forms_integrity/good.ts", "label": "good", "gold_level": 6, "note": "server-side validation + honeypot + rate limit" }
+    {
+      "checkpoint": "ecommerce.checkout.atomic_stock_hold",
+      "fixture": "fixtures/ecommerce.checkout.atomic_stock_hold/bad.ts",
+      "label": "bad",
+      "gold_level": 3,
+      "note": "availability check and decrement are separate non-atomic steps; race window oversells"
+    },
+    {
+      "checkpoint": "ecommerce.checkout.atomic_stock_hold",
+      "fixture": "fixtures/ecommerce.checkout.atomic_stock_hold/good.ts",
+      "label": "good",
+      "gold_level": 6,
+      "note": "atomic conditional reservation committed before the payment intent, with an expiring hold"
+    },
+    {
+      "checkpoint": "payment.idempotency",
+      "fixture": "fixtures/payment.idempotency/bad.ts",
+      "label": "bad",
+      "gold_level": 3,
+      "note": "no idempotency key; webhook reprocesses on every redelivery"
+    },
+    {
+      "checkpoint": "payment.idempotency",
+      "fixture": "fixtures/payment.idempotency/good.ts",
+      "label": "good",
+      "gold_level": 6,
+      "note": "idempotency key on creation; webhook dedupes by provider event id"
+    },
+    {
+      "checkpoint": "payment.state_integrity",
+      "fixture": "fixtures/payment.state_integrity/bad.ts",
+      "label": "bad",
+      "gold_level": 3,
+      "note": "record marked paid from the client redirect, before provider confirmation"
+    },
+    {
+      "checkpoint": "payment.state_integrity",
+      "fixture": "fixtures/payment.state_integrity/good.ts",
+      "label": "good",
+      "gold_level": 6,
+      "note": "paid set only from a verified webhook via a state machine, plus reconciliation"
+    },
+    {
+      "checkpoint": "payment.card_data_handling",
+      "fixture": "fixtures/payment.card_data_handling/bad.ts",
+      "label": "bad",
+      "gold_level": 3,
+      "note": "raw PAN posted to first-party backend; secret key in client config"
+    },
+    {
+      "checkpoint": "payment.card_data_handling",
+      "fixture": "fixtures/payment.card_data_handling/good.ts",
+      "label": "good",
+      "gold_level": 6,
+      "note": "provider token only; secret key server-side via env"
+    },
+    {
+      "checkpoint": "payment.webhook_authenticity",
+      "fixture": "fixtures/payment.webhook_authenticity/bad.ts",
+      "label": "bad",
+      "gold_level": 3,
+      "note": "webhook trusts the body with no signature verification"
+    },
+    {
+      "checkpoint": "payment.webhook_authenticity",
+      "fixture": "fixtures/payment.webhook_authenticity/good.ts",
+      "label": "good",
+      "gold_level": 6,
+      "note": "verifies provider signature against the raw body before mutating state"
+    },
+    {
+      "checkpoint": "auth.access_control",
+      "fixture": "fixtures/auth.access_control/bad.ts",
+      "label": "bad",
+      "gold_level": 3,
+      "note": "fetch by id alone — IDOR"
+    },
+    {
+      "checkpoint": "auth.access_control",
+      "fixture": "fixtures/auth.access_control/good.ts",
+      "label": "good",
+      "gold_level": 6,
+      "note": "fetch filtered by authenticated owner id"
+    },
+    {
+      "checkpoint": "auth.session_security",
+      "fixture": "fixtures/auth.session_security/bad.ts",
+      "label": "bad",
+      "gold_level": 3,
+      "note": "non-expiring session, client-only logout, guessable reset token"
+    },
+    {
+      "checkpoint": "auth.session_security",
+      "fixture": "fixtures/auth.session_security/good.ts",
+      "label": "good",
+      "gold_level": 6,
+      "note": "random short-lived sessions, server-side revocation, single-use expiring reset tokens"
+    },
+    {
+      "checkpoint": "saas.tenancy.isolation",
+      "fixture": "fixtures/saas.tenancy.isolation/bad.ts",
+      "label": "bad",
+      "gold_level": 3,
+      "note": "query by id alone — crosses the tenant boundary"
+    },
+    {
+      "checkpoint": "saas.tenancy.isolation",
+      "fixture": "fixtures/saas.tenancy.isolation/good.ts",
+      "label": "good",
+      "gold_level": 6,
+      "note": "every query scoped by tenant id from the session"
+    },
+    {
+      "checkpoint": "saas.subscription.entitlement_integrity",
+      "fixture": "fixtures/saas.subscription.entitlement_integrity/bad.ts",
+      "label": "bad",
+      "gold_level": 3,
+      "note": "gate trusts a client header / a flag set once at signup"
+    },
+    {
+      "checkpoint": "saas.subscription.entitlement_integrity",
+      "fixture": "fixtures/saas.subscription.entitlement_integrity/good.ts",
+      "label": "good",
+      "gold_level": 6,
+      "note": "entitlement from server-side subscription state updated by webhooks"
+    },
+    {
+      "checkpoint": "saas.subscription.lifecycle",
+      "fixture": "fixtures/saas.subscription.lifecycle/bad.ts",
+      "label": "bad",
+      "gold_level": 3,
+      "note": "only create/cancel; failed renewal leaves status active forever"
+    },
+    {
+      "checkpoint": "saas.subscription.lifecycle",
+      "fixture": "fixtures/saas.subscription.lifecycle/good.ts",
+      "label": "good",
+      "gold_level": 6,
+      "note": "trial-end, dunning, proration, cancel-at-period-end handled"
+    },
+    {
+      "checkpoint": "web.performance",
+      "fixture": "fixtures/web.performance/bad.html",
+      "label": "bad",
+      "gold_level": 3,
+      "note": "render-blocking scripts, unsized eager images, no lazy-loading"
+    },
+    {
+      "checkpoint": "web.performance",
+      "fixture": "fixtures/web.performance/good.html",
+      "label": "good",
+      "gold_level": 6,
+      "note": "sized/compressed/lazy images, deferred scripts, preloaded hero"
+    },
+    {
+      "checkpoint": "web.seo_metadata",
+      "fixture": "fixtures/web.seo_metadata/bad.html",
+      "label": "bad",
+      "gold_level": 3,
+      "note": "generic title, no description, no Open Graph, div soup"
+    },
+    {
+      "checkpoint": "web.seo_metadata",
+      "fixture": "fixtures/web.seo_metadata/good.html",
+      "label": "good",
+      "gold_level": 6,
+      "note": "unique title + description, Open Graph, semantic landmarks"
+    },
+    {
+      "checkpoint": "web.forms_integrity",
+      "fixture": "fixtures/web.forms_integrity/bad.ts",
+      "label": "bad",
+      "gold_level": 3,
+      "note": "trusts the client, no validation or spam protection"
+    },
+    {
+      "checkpoint": "web.forms_integrity",
+      "fixture": "fixtures/web.forms_integrity/good.ts",
+      "label": "good",
+      "gold_level": 6,
+      "note": "server-side validation + honeypot + rate limit"
+    },
+    {
+      "checkpoint": "ecommerce.checkout.atomic_stock_hold",
+      "fixture": "fixtures/ecommerce.checkout.atomic_stock_hold/bad2.ts",
+      "label": "bad",
+      "gold_level": 3,
+      "note": "SELECT availability then a separate unconditional UPDATE decrement: read-then-write TOCTOU race window"
+    },
+    {
+      "checkpoint": "ecommerce.checkout.atomic_stock_hold",
+      "fixture": "fixtures/ecommerce.checkout.atomic_stock_hold/bad3.ts",
+      "label": "bad",
+      "gold_level": 3,
+      "note": "stock decremented only after the payment intent confirms, so concurrent buyers oversell during payment"
+    },
+    {
+      "checkpoint": "ecommerce.checkout.atomic_stock_hold",
+      "fixture": "fixtures/ecommerce.checkout.atomic_stock_hold/bad4.ts",
+      "label": "bad",
+      "gold_level": 3,
+      "note": "UPDATE decrements with only WHERE id=? and no stock>=qty guard, driving stock negative under concurrency"
+    },
+    {
+      "checkpoint": "ecommerce.checkout.atomic_stock_hold",
+      "fixture": "fixtures/ecommerce.checkout.atomic_stock_hold/good2.ts",
+      "label": "good",
+      "gold_level": 6,
+      "note": "single atomic conditional UPDATE SET stock=stock-qty WHERE id=? AND stock>=qty, hold committed before the intent"
+    },
+    {
+      "checkpoint": "ecommerce.checkout.atomic_stock_hold",
+      "fixture": "fixtures/ecommerce.checkout.atomic_stock_hold/good3.ts",
+      "label": "good",
+      "gold_level": 6,
+      "note": "SELECT FOR UPDATE row lock in a txn to decrement + create hold, commit, then create the intent outside the txn"
+    },
+    {
+      "checkpoint": "payment.idempotency",
+      "fixture": "fixtures/payment.idempotency/bad2.ts",
+      "label": "bad",
+      "gold_level": 3,
+      "note": "idempotency key on creation but webhook mutates state on every delivery with no dedupe (redelivery double-fulfills)"
+    },
+    {
+      "checkpoint": "payment.idempotency",
+      "fixture": "fixtures/payment.idempotency/bad3.ts",
+      "label": "bad",
+      "gold_level": 3,
+      "note": "webhook dedupes by orderId instead of provider event id, dropping distinct legitimate events"
+    },
+    {
+      "checkpoint": "payment.idempotency",
+      "fixture": "fixtures/payment.idempotency/bad4.ts",
+      "label": "bad",
+      "gold_level": 3,
+      "note": "retry wrapper re-calls paymentIntents.create on network error with no idempotency key (transient failure double-creates)"
+    },
+    {
+      "checkpoint": "payment.idempotency",
+      "fixture": "fixtures/payment.idempotency/good2.ts",
+      "label": "good",
+      "gold_level": 6,
+      "note": "insert-first exactly-once: inserts provider event id into a unique-constraint table and bails on failure, plus key on creation"
+    },
+    {
+      "checkpoint": "payment.idempotency",
+      "fixture": "fixtures/payment.idempotency/good3.ts",
+      "label": "good",
+      "gold_level": 6,
+      "note": "idempotency key on creation plus webhook that checks-and-records processed event id in a transaction before mutating"
+    },
+    {
+      "checkpoint": "payment.state_integrity",
+      "fixture": "fixtures/payment.state_integrity/bad2.ts",
+      "label": "bad",
+      "gold_level": 3,
+      "note": "status set to paid on intent creation, not on provider confirmation; reconcile stub only reads, never transitions"
+    },
+    {
+      "checkpoint": "payment.state_integrity",
+      "fixture": "fixtures/payment.state_integrity/bad3.ts",
+      "label": "bad",
+      "gold_level": 3,
+      "note": "webhook writes paid with no current-state guard, so replayed/out-of-order events regress fulfilled/refunded orders"
+    },
+    {
+      "checkpoint": "payment.state_integrity",
+      "fixture": "fixtures/payment.state_integrity/bad4.ts",
+      "label": "bad",
+      "gold_level": 3,
+      "note": "capture at provider with no local record write, and a separate path creates a paid record with no capture — money/records diverge"
+    },
+    {
+      "checkpoint": "payment.state_integrity",
+      "fixture": "fixtures/payment.state_integrity/good2.ts",
+      "label": "good",
+      "gold_level": 6,
+      "note": "idempotent webhook-driven paid transition guarded by pending status, ignores non-pending/terminal orders"
+    },
+    {
+      "checkpoint": "payment.state_integrity",
+      "fixture": "fixtures/payment.state_integrity/good3.ts",
+      "label": "good",
+      "gold_level": 6,
+      "note": "guarded webhook paid transition plus reconciliation comparing provider state to local and flagging mismatches"
+    },
+    {
+      "checkpoint": "payment.card_data_handling",
+      "fixture": "fixtures/payment.card_data_handling/bad2.ts",
+      "label": "bad",
+      "gold_level": 3,
+      "note": "Stripe secret key exposed to the client via NEXT_PUBLIC_STRIPE_SECRET_KEY in browser code"
+    },
+    {
+      "checkpoint": "payment.card_data_handling",
+      "fixture": "fixtures/payment.card_data_handling/bad3.ts",
+      "label": "bad",
+      "gold_level": 3,
+      "note": "full PAN and CVV logged to console and persisted to the database"
+    },
+    {
+      "checkpoint": "payment.card_data_handling",
+      "fixture": "fixtures/payment.card_data_handling/bad4.ts",
+      "label": "bad",
+      "gold_level": 3,
+      "note": "first-party form POSTs raw card number/cvv/exp to the app's own backend endpoint"
+    },
+    {
+      "checkpoint": "payment.card_data_handling",
+      "fixture": "fixtures/payment.card_data_handling/good2.ts",
+      "label": "good",
+      "gold_level": 6,
+      "note": "client-side Elements tokenization; only the paymentMethod id reaches the backend"
+    },
+    {
+      "checkpoint": "payment.card_data_handling",
+      "fixture": "fixtures/payment.card_data_handling/good3.ts",
+      "label": "good",
+      "gold_level": 6,
+      "note": "provider-hosted Checkout session created server-side with the secret from env; no card fields in code"
+    },
+    {
+      "checkpoint": "payment.webhook_authenticity",
+      "fixture": "fixtures/payment.webhook_authenticity/bad2.ts",
+      "label": "bad",
+      "gold_level": 3,
+      "note": "verifies the signature against JSON.stringify of the parsed body, not the raw request bytes"
+    },
+    {
+      "checkpoint": "payment.webhook_authenticity",
+      "fixture": "fixtures/payment.webhook_authenticity/bad3.ts",
+      "label": "bad",
+      "gold_level": 3,
+      "note": "authenticates via shared-secret query-param equality instead of a payload signature"
+    },
+    {
+      "checkpoint": "payment.webhook_authenticity",
+      "fixture": "fixtures/payment.webhook_authenticity/bad4.ts",
+      "label": "bad",
+      "gold_level": 3,
+      "note": "compares a self-computed HMAC with naive === equality, timing-unsafe, no provider verify"
+    },
+    {
+      "checkpoint": "payment.webhook_authenticity",
+      "fixture": "fixtures/payment.webhook_authenticity/good2.ts",
+      "label": "good",
+      "gold_level": 6,
+      "note": "uses the Stripe SDK constructEvent on the raw body + signing secret, rejects before any state change"
+    },
+    {
+      "checkpoint": "payment.webhook_authenticity",
+      "fixture": "fixtures/payment.webhook_authenticity/good3.ts",
+      "label": "good",
+      "gold_level": 6,
+      "note": "manual HMAC-SHA256 over the raw body compared with crypto.timingSafeEqual against the signature header"
+    },
+    {
+      "checkpoint": "auth.access_control",
+      "fixture": "fixtures/auth.access_control/bad2.ts",
+      "label": "bad",
+      "gold_level": 3,
+      "note": "authenticates the session but fetches the record by id alone with no ownership filter"
+    },
+    {
+      "checkpoint": "auth.access_control",
+      "fixture": "fixtures/auth.access_control/bad3.ts",
+      "label": "bad",
+      "gold_level": 3,
+      "note": "read path scoped by userId but a sibling update mutates by id alone (write path is the hole)"
+    },
+    {
+      "checkpoint": "auth.access_control",
+      "fixture": "fixtures/auth.access_control/bad4.ts",
+      "label": "bad",
+      "gold_level": 3,
+      "note": "scopes the query by a client-supplied req.query.userId instead of the session identity"
+    },
+    {
+      "checkpoint": "auth.access_control",
+      "fixture": "fixtures/auth.access_control/good2.ts",
+      "label": "good",
+      "gold_level": 6,
+      "note": "findFirst scoped by id AND session.userId, returns 404 on mismatch"
+    },
+    {
+      "checkpoint": "auth.access_control",
+      "fixture": "fixtures/auth.access_control/good3.ts",
+      "label": "good",
+      "gold_level": 6,
+      "note": "fetch then an explicit userId ownership assertion applied on both read and delete"
+    },
+    {
+      "checkpoint": "saas.tenancy.isolation",
+      "fixture": "fixtures/saas.tenancy.isolation/bad2.ts",
+      "label": "bad",
+      "gold_level": 3,
+      "note": "tenant id scoping the query is read from req.body instead of the session"
+    },
+    {
+      "checkpoint": "saas.tenancy.isolation",
+      "fixture": "fixtures/saas.tenancy.isolation/bad3.ts",
+      "label": "bad",
+      "gold_level": 3,
+      "note": "join filters only the primary table by tenant; joined rows are not tenant-scoped and leak across tenants"
+    },
+    {
+      "checkpoint": "saas.tenancy.isolation",
+      "fixture": "fixtures/saas.tenancy.isolation/bad4.ts",
+      "label": "bad",
+      "gold_level": 3,
+      "note": "user-facing export uses an adminDb raw query that bypasses the tenant scoping applied elsewhere"
+    },
+    {
+      "checkpoint": "saas.tenancy.isolation",
+      "fixture": "fixtures/saas.tenancy.isolation/good2.ts",
+      "label": "good",
+      "gold_level": 6,
+      "note": "every query including the joined table is scoped by the session tenantId"
+    },
+    {
+      "checkpoint": "saas.tenancy.isolation",
+      "fixture": "fixtures/saas.tenancy.isolation/good3.ts",
+      "label": "good",
+      "gold_level": 6,
+      "note": "a repository wrapper injects the session tenantId into every query so call sites can't forget isolation"
+    },
+    {
+      "checkpoint": "saas.subscription.entitlement_integrity",
+      "fixture": "fixtures/saas.subscription.entitlement_integrity/bad2.ts",
+      "label": "bad",
+      "gold_level": 3,
+      "note": "gate trusts client-controllable JWT claims (session.claims.plan) instead of server-side subscription state"
+    },
+    {
+      "checkpoint": "saas.subscription.entitlement_integrity",
+      "fixture": "fixtures/saas.subscription.entitlement_integrity/bad3.ts",
+      "label": "bad",
+      "gold_level": 3,
+      "note": "plan/seats flag written on the user record at signup and never updated, so it goes stale on lapse/cancel"
+    },
+    {
+      "checkpoint": "saas.subscription.entitlement_integrity",
+      "fixture": "fixtures/saas.subscription.entitlement_integrity/bad4.ts",
+      "label": "bad",
+      "gold_level": 3,
+      "note": "gate checks only that a subscription row exists, not status/period, so canceled/expired subs still pass"
+    },
+    {
+      "checkpoint": "saas.subscription.entitlement_integrity",
+      "fixture": "fixtures/saas.subscription.entitlement_integrity/good2.ts",
+      "label": "good",
+      "gold_level": 6,
+      "note": "entitlement requires status==active AND now<currentPeriodEnd from webhook-updated subscription state"
+    },
+    {
+      "checkpoint": "saas.subscription.entitlement_integrity",
+      "fixture": "fixtures/saas.subscription.entitlement_integrity/good3.ts",
+      "label": "good",
+      "gold_level": 6,
+      "note": "resolveEntitlements helper returns entitlements only for an active, in-period subscription; checks call it each time"
+    },
+    {
+      "checkpoint": "security.injection",
+      "fixture": "fixtures/security.injection/bad.ts",
+      "label": "bad",
+      "gold_level": 3,
+      "note": "SQL injection: user query interpolated into raw SQL via template literal"
+    },
+    {
+      "checkpoint": "security.injection",
+      "fixture": "fixtures/security.injection/bad2.ts",
+      "label": "bad",
+      "gold_level": 3,
+      "note": "NoSQL injection: req.body passed directly as a Mongo filter (operator injection)"
+    },
+    {
+      "checkpoint": "security.injection",
+      "fixture": "fixtures/security.injection/bad3.ts",
+      "label": "bad",
+      "gold_level": 3,
+      "note": "XSS: user-supplied text assigned to innerHTML without encoding/sanitization"
+    },
+    {
+      "checkpoint": "security.injection",
+      "fixture": "fixtures/security.injection/bad4.ts",
+      "label": "bad",
+      "gold_level": 3,
+      "note": "OS command injection: user filename interpolated into an exec shell string"
+    },
+    {
+      "checkpoint": "security.injection",
+      "fixture": "fixtures/security.injection/good.ts",
+      "label": "good",
+      "gold_level": 6,
+      "note": "parameterized query: user input bound as a $1 placeholder, never concatenated"
+    },
+    {
+      "checkpoint": "security.injection",
+      "fixture": "fixtures/security.injection/good2.ts",
+      "label": "good",
+      "gold_level": 6,
+      "note": "safe output: allowlist sanitization (DOMPurify) before insertion"
+    },
+    {
+      "checkpoint": "security.injection",
+      "fixture": "fixtures/security.injection/good3.ts",
+      "label": "good",
+      "gold_level": 6,
+      "note": "execFile with an argument array (no shell) plus strict filename allowlist"
+    },
+    {
+      "checkpoint": "security.secrets_management",
+      "fixture": "fixtures/security.secrets_management/bad.ts",
+      "label": "bad",
+      "gold_level": 3,
+      "note": "real-looking API key hardcoded as a string literal and used directly"
+    },
+    {
+      "checkpoint": "security.secrets_management",
+      "fixture": "fixtures/security.secrets_management/bad2.ts",
+      "label": "bad",
+      "gold_level": 3,
+      "note": "secret leaked to the client bundle via a NEXT_PUBLIC_ env var in a browser component"
+    },
+    {
+      "checkpoint": "security.secrets_management",
+      "fixture": "fixtures/security.secrets_management/bad3.ts",
+      "label": "bad",
+      "gold_level": 3,
+      "note": "apiKey/dbPassword committed as literals in an in-repo config object that is imported"
+    },
+    {
+      "checkpoint": "security.secrets_management",
+      "fixture": "fixtures/security.secrets_management/bad4.ts",
+      "label": "bad",
+      "gold_level": 3,
+      "note": "secret written to logs and returned in the API response body"
+    },
+    {
+      "checkpoint": "security.secrets_management",
+      "fixture": "fixtures/security.secrets_management/good.ts",
+      "label": "good",
+      "gold_level": 6,
+      "note": "secret read from process.env server-side with a startup check; never sent to the client"
+    },
+    {
+      "checkpoint": "security.secrets_management",
+      "fixture": "fixtures/security.secrets_management/good2.ts",
+      "label": "good",
+      "gold_level": 6,
+      "note": "client calls own server route; server-only handler reads the key from env"
+    },
+    {
+      "checkpoint": "security.secrets_management",
+      "fixture": "fixtures/security.secrets_management/good3.ts",
+      "label": "good",
+      "gold_level": 6,
+      "note": "secret pulled from a secret manager / injected env; repo ships only .env.example placeholders"
+    },
+    {
+      "checkpoint": "auth.credential_storage",
+      "fixture": "fixtures/auth.credential_storage/bad.ts",
+      "label": "bad",
+      "gold_level": 3,
+      "note": "passwords stored in plaintext; login compares plaintext"
+    },
+    {
+      "checkpoint": "auth.credential_storage",
+      "fixture": "fixtures/auth.credential_storage/bad2.ts",
+      "label": "bad",
+      "gold_level": 3,
+      "note": "fast unsalted sha256 hash of the password"
+    },
+    {
+      "checkpoint": "auth.credential_storage",
+      "fixture": "fixtures/auth.credential_storage/bad3.ts",
+      "label": "bad",
+      "gold_level": 3,
+      "note": "reversible AES encryption with a stored key, decrypted on login"
+    },
+    {
+      "checkpoint": "auth.credential_storage",
+      "fixture": "fixtures/auth.credential_storage/bad4.ts",
+      "label": "bad",
+      "gold_level": 3,
+      "note": "home-rolled sha256(globalSalt+password) with a single server-wide salt"
+    },
+    {
+      "checkpoint": "auth.credential_storage",
+      "fixture": "fixtures/auth.credential_storage/good.ts",
+      "label": "good",
+      "gold_level": 6,
+      "note": "bcrypt with a per-user salt (cost 12) and bcrypt.compare"
+    },
+    {
+      "checkpoint": "auth.credential_storage",
+      "fixture": "fixtures/auth.credential_storage/good2.ts",
+      "label": "good",
+      "gold_level": 6,
+      "note": "argon2id with recommended memory/time/parallelism parameters"
+    },
+    {
+      "checkpoint": "auth.credential_storage",
+      "fixture": "fixtures/auth.credential_storage/good3.ts",
+      "label": "good",
+      "gold_level": 6,
+      "note": "scrypt with a random per-user salt and crypto.timingSafeEqual comparison"
+    }
   ]
 }
