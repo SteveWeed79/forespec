@@ -21,7 +21,7 @@ import * as mock from "../verifier-eval/adapters/mock.mjs";
 import { loadRepo, selectForCheckpoint } from "./select.mjs";
 import { fingerprint, recordPredictions, latestPrediction, recordOutcome, readOverrides, writeOverrides, FILES } from "./store.mjs";
 import { aggregate, propose } from "./calibrate.mjs";
-import { scoreArchetypes, collectSignals, discoverManifests } from "./detect.mjs";
+import { scoreArchetypes, collectSignals, discoverManifests, isAmbiguous, classifyWithAI } from "./detect.mjs";
 import { readConfig, writeConfig, resolveManifestPath, CONFIG_FILE } from "./config.mjs";
 import { relevanceScore, selectForFeature, renderPlan } from "./plan.mjs";
 import { contrastRatio, parseColor, isLargeText, compositeToLevel, scoreContrast, scoreTypeScale, scoreResponsive, scoreSpacing } from "./design-metrics.mjs";
@@ -172,6 +172,11 @@ check("'remember' does not match 'member'", scoreArchetypes({ deps: [], paths: [
 // Broadened coverage: a non-JS shop (Django + Stripe in requirements.txt) is still detected via depText.
 const py = scoreArchetypes({ deps: [], depText: "django==4.2\nstripe==7.0\n", paths: ["shop/models.py", "orders/views.py"], schemaModels: [] });
 check("python shop detected via manifest text + paths", py[0].archetype === "ecommerce" && py[0].score > 0, `got ${py[0].archetype}`);
+// AI-on-ambiguity fallback: fires only when unsure, degrades gracefully without a key.
+check("isAmbiguous: confident result is NOT ambiguous", isAmbiguous(ecom) === false, `ecom top ${ecom[0].confidence}`);
+check("isAmbiguous: an abstain (all-zero) IS ambiguous", isAmbiguous(dash) === true);
+const aiNoKey = await classifyWithAI({ signals: { deps: [], paths: [], schemaModels: [] }, candidates: [{ archetype: "saas", applies_when: "x" }] });
+check("classifyWithAI returns null without a key (never breaks the $0 path)", process.env.ANTHROPIC_API_KEY ? true : aiNoKey === null);
 
 // Integration: real signals from the vulnerable fixture → ecommerce, with evidence.
 const fxSignals = collectSignals(fixture);

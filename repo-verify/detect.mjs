@@ -187,30 +187,150 @@ export function detect({ repoRoot, projectDir = here && join(here, "..") }) {
   return { signals, ranked, manifests };
 }
 
+// ---------------- AI-on-ambiguity fallback ----------------
+// The heuristic is cheap and right most of the time. The one model call happens ONLY when
+// it abstains or two archetypes are close — the philosophy in miniature: cheap by default,
+// spend the oracle exactly when the need is there. Always degrades gracefully: no key, or
+// any error, and we keep the heuristic result — the $0 path never breaks.
+
+/** True when the heuristic is unsure enough to be worth a model call. */
+export function isAmbiguous(ranked) {
+  const [top, runner] = ranked;
+  if (!top) return false;
+  if (top.confidence === "none" || top.confidence === "low") return true;
+  if (runner && top.score > 0 && top.score - runner.score <= 2) return true;
+  return false;
+}
+
+const CLASSIFY_SYSTEM =
+  "You classify a code repository into exactly one archetype from the provided list, or 'none' " +
+  "if none genuinely fit. You are given cheap metadata only — dependency names, a sample of file " +
+  "paths, and schema model names — never the code's contents. Reason strictly from the signals; " +
+  "do not invent features that aren't evidenced. Prefer 'none' over a weak guess. Respond with the " +
+  "structured object only.";
+
+function buildClassifyPrompt(signals, candidates) {
+  const paths = (signals.paths ?? []).slice(0, 120);
+  const manifestHint = (signals.depText ?? "").trim().slice(0, 400);
+  return [
+    "# Candidate archetypes",
+    ...candidates.map((c) => `- ${c.archetype}: ${c.applies_when}`),
+    "- none: none of the above genuinely fit",
+    "",
+    "# Repository signals (metadata only, no source shown)",
+    `Dependencies: ${(signals.deps ?? []).join(", ") || "(no package.json deps)"}`,
+    manifestHint ? `Other manifest text: ${manifestHint}` : "",
+    "",
+    `File paths (${paths.length} shown):`,
+    paths.join("\n") || "(none)",
+    "",
+    `Schema models: ${(signals.schemaModels ?? []).join(", ") || "(none found)"}`,
+    "",
+    "Pick the single best-fit archetype (or 'none'), a confidence, and a one-sentence rationale citing the signals.",
+  ].filter((l) => l !== "").join("\n");
+}
+
+/** One classification call. Returns { archetype, confidence, rationale } or null (unavailable/error). */
+export async function classifyWithAI({ signals, candidates }) {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  const model = process.env.ANTHROPIC_MODEL;
+  if (!apiKey || !model || !candidates?.length) return null;
+  const baseUrl = process.env.ANTHROPIC_BASE_URL ?? "https://api.anthropic.com";
+  const names = candidates.map((c) => c.archetype);
+  const schema = {
+    type: "object",
+    additionalProperties: false,
+    properties: {
+      archetype: { type: "string", enum: [...names, "none"] },
+      confidence: { type: "string", enum: ["high", "medium", "low"] },
+      rationale: { type: "string" },
+    },
+    required: ["archetype", "confidence", "rationale"],
+  };
+  try {
+    const res = await fetch(`${baseUrl}/v1/messages`, {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01" },
+      body: JSON.stringify({
+        model,
+        max_tokens: 1024,
+        // No thinking/effort params: classification is easy, and omitting them keeps this
+        // compatible with every model tier (Haiku rejects `effort`).
+        output_config: { format: { type: "json_schema", schema } },
+        system: CLASSIFY_SYSTEM,
+        messages: [{ role: "user", content: buildClassifyPrompt(signals, candidates) }],
+      }),
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    const textBlock = (data.content ?? []).find((b) => b.type === "text");
+    if (!textBlock) return null;
+    const parsed = JSON.parse(textBlock.text);
+    return { archetype: parsed.archetype, confidence: parsed.confidence, rationale: parsed.rationale };
+  } catch {
+    return null; // network/parse/model error → caller keeps the heuristic result
+  }
+}
+
+/**
+ * Heuristic detect + optional AI tie-breaker. Returns { signals, ranked, manifests, ai }.
+ * `ai` = { available, invoked, used, rationale, decided_none }. The heuristic result is
+ * returned unchanged unless the AI confidently picks a candidate.
+ */
+export async function detectAuto({ repoRoot, projectDir = pathResolve(here, ".."), useAI = true }) {
+  const base = detect({ repoRoot, projectDir });
+  const available = !!(process.env.ANTHROPIC_API_KEY && process.env.ANTHROPIC_MODEL);
+  const ai = { available, invoked: false, used: false, rationale: null, decided_none: false };
+  if (useAI && available && isAmbiguous(base.ranked)) {
+    ai.invoked = true;
+    const pick = await classifyWithAI({ signals: base.signals, candidates: base.manifests });
+    if (pick && pick.archetype && pick.archetype !== "none") {
+      const idx = base.ranked.findIndex((r) => r.archetype === pick.archetype);
+      if (idx >= 0) {
+        const chosen = base.ranked[idx];
+        chosen.confidence = pick.confidence;
+        chosen.source = "ai";
+        chosen.ai_rationale = pick.rationale;
+        base.ranked.splice(idx, 1);
+        base.ranked.unshift(chosen);
+        ai.used = true;
+        ai.rationale = pick.rationale;
+      }
+    } else if (pick && pick.archetype === "none") {
+      ai.decided_none = true;
+      ai.rationale = pick.rationale;
+    }
+  }
+  return { ...base, ai };
+}
+
 // ---------------- CLI ----------------
 
 const arg = (f, fb) => { const i = process.argv.indexOf(f); return i !== -1 && process.argv[i + 1] ? process.argv[i + 1] : fb; };
 const has = (f) => process.argv.includes(f);
 
-function main() {
+async function main() {
   if (has("-h") || has("--help")) {
     console.log(`foresight detect — propose which archetype fits a repo.
 
 Usage:
   node repo-verify/detect.mjs [repo]   (default: .)
   node repo-verify/detect.mjs [repo] --json
+  node repo-verify/detect.mjs [repo] --no-ai
 
 It reads declared dependencies, file paths, and schema model names — never your code's
-content — and ranks the archetypes it can see, with the evidence behind each.`);
+content — and ranks the archetypes it can see, with the evidence behind each. When the
+heuristic is unsure (abstains or two archetypes tie) and ANTHROPIC_API_KEY + ANTHROPIC_MODEL
+are set, it spends one model call to break the tie; --no-ai disables that.`);
     return 0;
   }
   const positional = process.argv.slice(2).find((a) => !a.startsWith("-"));
   const repoRoot = pathResolve(process.cwd(), positional ?? ".");
   const projectDir = pathResolve(here, "..");
-  const { ranked, signals } = detect({ repoRoot, projectDir });
+  const { ranked, signals, ai } = await detectAuto({ repoRoot, projectDir, useAI: !has("--no-ai") });
 
   if (has("--json")) {
-    console.log(JSON.stringify({ repo: repoRoot, ranked, signals }, null, 2));
+    console.log(JSON.stringify({ repo: repoRoot, ranked, signals, ai }, null, 2));
     return 0;
   }
 
@@ -223,17 +343,21 @@ content — and ranks the archetypes it can see, with the evidence behind each.`
   for (let i = 0; i < ranked.length; i++) {
     const r = ranked[i];
     const mark = i === 0 ? "→" : " ";
-    const conf = i === 0 ? `  (${r.confidence})` : "";
+    const conf = i === 0 ? `  (${r.confidence}${r.source === "ai" ? ", via AI" : ""})` : "";
     console.log(`${mark} ${r.archetype.padEnd(11)} score ${String(r.score).padStart(2)}${conf}`);
     if (r.matched.length) console.log(`    why: ${r.matched.join(", ")}`);
   }
   const top = ranked[0];
   console.log("");
-  if (top.score === 0 || top.confidence === "none") {
-    console.log("Couldn't detect a clear fit — no strong signals. Pick one explicitly:");
+  if (ai.used) console.log(`AI tie-breaker: ${ai.rationale}`);
+  const abstained = (top.score === 0 || top.confidence === "none") && !ai.used;
+  if (abstained) {
+    if (ai.decided_none) console.log(`AI also saw no clear fit: ${ai.rationale}`);
+    else if (!ai.available) console.log("Ambiguous — set ANTHROPIC_API_KEY + ANTHROPIC_MODEL to let one AI call break the tie.");
+    console.log("Couldn't detect a clear fit. Pick one explicitly:");
     for (const r of ranked) console.log(`  --archetype ${r.manifest}   (${r.applies_when})`);
   } else {
-    if (top.confidence === "low") console.log("Low confidence — sanity-check before trusting it.");
+    if (top.confidence === "low" && !ai.used) console.log("Low confidence — sanity-check before trusting it.");
     console.log(`Recommended: ${top.archetype}  (${top.applies_when})`);
     console.log(`  node repo-verify/verify.mjs ${repoRoot} --archetype ${top.manifest}`);
   }
@@ -241,5 +365,5 @@ content — and ranks the archetypes it can see, with the evidence behind each.`
 }
 
 if (process.argv[1] && pathResolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  process.exit(main());
+  main().then((c) => process.exit(c), (e) => { console.error(`fatal: ${e?.message ?? e}`); process.exit(2); });
 }
