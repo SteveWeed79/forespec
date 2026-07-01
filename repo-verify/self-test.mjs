@@ -177,6 +177,14 @@ check("isAmbiguous: confident result is NOT ambiguous", isAmbiguous(ecom) === fa
 check("isAmbiguous: an abstain (all-zero) IS ambiguous", isAmbiguous(dash) === true);
 const aiNoKey = await classifyWithAI({ signals: { deps: [], paths: [], schemaModels: [] }, candidates: [{ archetype: "saas", applies_when: "x" }] });
 check("classifyWithAI returns null without a key (never breaks the $0 path)", process.env.ANTHROPIC_API_KEY ? true : aiNoKey === null);
+// Config-file fingerprint (#1): a domain-specific config is a strong, decisive signal.
+const cfg = scoreArchetypes({ deps: [], paths: [], schemaModels: [], configHits: [{ archetype: "ecommerce", file: "medusa-config.ts" }] });
+check("medusa-config.ts → ecommerce on top with a config signal", cfg[0].archetype === "ecommerce" && cfg[0].matched.some((m) => m.startsWith("config:")));
+// .env.example var names (#2): discriminating integrations classify without any code.
+const envSaas = scoreArchetypes({ deps: [], paths: [], schemaModels: [], envVars: ["tenant_id", "paddle_api_key", "workspace_slug"] });
+check("env vars (tenant/paddle/workspace) → saas", envSaas[0].archetype === "saas" && envSaas[0].matched.some((m) => m.startsWith("env:")));
+const envPort = scoreArchetypes({ deps: [], paths: [], schemaModels: [], envVars: ["sanity_project_id", "sanity_dataset"] });
+check("env vars (sanity CMS) → portfolio", envPort[0].archetype === "portfolio");
 
 // Integration: real signals from the vulnerable fixture → ecommerce, with evidence.
 const fxSignals = collectSignals(fixture);

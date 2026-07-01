@@ -32,8 +32,12 @@ code's contents.
 
 Matching is **token-based** (whole words + simple plurals), so "product" no longer matches
 "production" and "remember" no longer matches "member" — and when signals are genuinely thin
-it says *"couldn't detect — pick one"* rather than guessing. It also reads non-JS manifests
-(requirements.txt, Gemfile, go.mod, …) and Drizzle/Mongoose/TypeORM/Sequelize models, not
+it says *"couldn't detect — pick one"* rather than guessing. Beyond `package.json` deps it
+reads the artifacts a project uses to **describe itself**: domain-specific **config files**
+(`medusa-config`, `astro.config`, …, matched by existence — a near-decisive tell), the
+**variable names in `.env.example`** (`SHOPIFY_*` → shop, `TENANT_*`/`PADDLE_*` → SaaS,
+`SANITY_*` → content — names only, never `.env` or its values), non-JS manifests
+(requirements.txt, Gemfile, go.mod, …), and Drizzle/Mongoose/TypeORM/Sequelize models, not
 just Prisma. **AI-on-ambiguity:** when the heuristic abstains or two archetypes tie *and*
 `ANTHROPIC_API_KEY` + `ANTHROPIC_MODEL` are set, it spends **one** model call (metadata only,
 no code) to break the tie; `--no-ai` disables it, and with no key it just falls back to the

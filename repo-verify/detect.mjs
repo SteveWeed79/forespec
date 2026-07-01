@@ -50,11 +50,33 @@ export const RULES = {
 const BACKEND_DEPS = ["prisma", "drizzle", "mongoose", "typeorm", "sequelize", "knex", "kysely", "pg", "mysql", "mysql2", "sqlite", "mongodb", "planetscale", "supabase", "firebase-admin"];
 const PAYMENT_DEPS = ["stripe", "braintree", "square", "paypal", "paddle", "lemonsqueezy", "snipcart", "medusa"];
 
-const SCORE = { dep: 4, path: 3, model: 3, noBackend: 4 };
+const SCORE = { dep: 4, path: 3, model: 3, noBackend: 4, config: 6, env: 3 };
 
 // Dependency manifests for other ecosystems — so a Python/Ruby/Go/PHP shop isn't invisible
 // just because it has no package.json. We scan their raw text for dep keywords.
 const EXTRA_MANIFESTS = ["requirements.txt", "pyproject.toml", "Pipfile", "Gemfile", "go.mod", "go.sum", "composer.json", "pom.xml", "build.gradle"];
+
+// Domain-specific config files are a near-deterministic tell (medusa-config = ecommerce).
+// Only DISCRIMINATING configs — generic framework configs (next/nuxt/remix) name the stack,
+// not the archetype, so they're deliberately absent. Matched by existence, not contents.
+const CONFIG_FILES = [
+  ["medusa-config.ts", "ecommerce"], ["medusa-config.js", "ecommerce"],
+  ["vendure-config.ts", "ecommerce"], ["vendure-config.js", "ecommerce"],
+  ["astro.config.mjs", "portfolio"], ["astro.config.ts", "portfolio"], ["astro.config.js", "portfolio"],
+  ["gatsby-config.ts", "portfolio"], ["gatsby-config.js", "portfolio"],
+  ["docusaurus.config.ts", "portfolio"], ["docusaurus.config.js", "portfolio"],
+  ["eleventy.config.js", "portfolio"], [".eleventy.js", "portfolio"], ["_config.yml", "portfolio"],
+];
+
+// Placeholder env files only (never .env — that holds real secrets and is gitignored). We
+// read the variable NAMES, not values. Discriminating integrations only; payment providers
+// (STRIPE_*) are ambiguous between ecommerce/saas, so they're left to deps/paths.
+const ENV_FILES = [".env.example", ".env.sample", ".env.template", ".env.local.example", ".env.dist"];
+const ENV_RULES = {
+  ecommerce: ["shopify", "medusa", "snipcart", "swell", "vendure", "printful", "bigcommerce"],
+  saas: ["tenant", "workspace", "subscription", "billing", "paddle", "lemonsqueezy", "seat", "entitlement"],
+  portfolio: ["sanity", "contentful", "storyblok", "ghost", "hygraph", "datocms", "prismic"],
+};
 
 // Split into whole tokens, breaking on non-alphanumerics AND camelCase, lowercased.
 export function tokenize(str) {
@@ -88,6 +110,25 @@ export function collectSignals(repoRoot, { files } = {}) {
     if (existsSync(p)) { try { depText += "\n" + readFileSync(p, "utf8").toLowerCase(); } catch { /* skip */ } }
   }
 
+  // #1 config-file fingerprints — existence only, no contents read.
+  const configHits = [];
+  for (const [file, archetype] of CONFIG_FILES) {
+    if (existsSync(join(repoRoot, file))) configHits.push({ archetype, file });
+  }
+
+  // #2 .env.example variable NAMES (placeholder files only; never .env).
+  const envVars = [];
+  for (const ef of ENV_FILES) {
+    const p = join(repoRoot, ef);
+    if (!existsSync(p)) continue;
+    try {
+      for (const line of readFileSync(p, "utf8").split("\n")) {
+        const m = line.match(/^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=/);
+        if (m) envVars.push(m[1].toLowerCase());
+      }
+    } catch { /* skip */ }
+  }
+
   const repoFiles = files ?? loadRepo(repoRoot);
   const paths = repoFiles.map((f) => f.path.toLowerCase());
   const schemaModels = [];
@@ -105,7 +146,7 @@ export function collectSignals(repoRoot, { files } = {}) {
       for (const m of c.matchAll(/\.define\s*\(\s*["'`](\w+)/g)) add(m[1]);                          // sequelize
     }
   }
-  return { deps: [...deps], paths, schemaModels, depText };
+  return { deps: [...deps], paths, schemaModels, depText, configHits, envVars };
 }
 
 /**
@@ -118,11 +159,15 @@ export function scoreArchetypes(signals, available = Object.keys(RULES)) {
   const depText = (signals.depText ?? "") + " " + depNames.join(" ");
   const pathTokens = tokenSet(signals.paths);
   const modelTokens = tokenSet(signals.schemaModels);
+  const envTokens = tokenSet(signals.envVars);
+  const configHits = signals.configHits ?? [];
   const hasDep = (kw) => depNames.some((d) => d.includes(kw)) || depText.includes(kw);
   const pathHit = (kw) => hasTok(pathTokens, kw);
   const modelHit = (kw) => hasTok(modelTokens, kw);
-  const hasBackend = BACKEND_DEPS.some(hasDep) || (signals.schemaModels?.length > 0);
-  const hasPayment = PAYMENT_DEPS.some(hasDep) || pathHit("payment") || pathHit("checkout");
+  const envHit = (kw) => hasTok(envTokens, kw);
+  const configForBackend = configHits.some((c) => c.archetype === "ecommerce" || c.archetype === "saas");
+  const hasBackend = BACKEND_DEPS.some(hasDep) || (signals.schemaModels?.length > 0) || configForBackend;
+  const hasPayment = PAYMENT_DEPS.some(hasDep) || pathHit("payment") || pathHit("checkout") || configForBackend;
 
   const scored = [];
   for (const name of available) {
@@ -130,9 +175,11 @@ export function scoreArchetypes(signals, available = Object.keys(RULES)) {
     if (!rule) continue;
     const matched = [];
     let score = 0;
+    for (const c of configHits) if (c.archetype === name) { score += SCORE.config; matched.push(`config:${c.file}`); }
     for (const d of rule.deps) if (hasDep(d)) { score += SCORE.dep; matched.push(`dep:${d}`); }
     for (const p of rule.paths) if (pathHit(p)) { score += SCORE.path; matched.push(`path:${p}`); }
     for (const m of rule.models) if (modelHit(m)) { score += SCORE.model; matched.push(`model:${m}`); }
+    for (const e of ENV_RULES[name] ?? []) if (envHit(e)) { score += SCORE.env; matched.push(`env:${e}`); }
     if (name === "portfolio") {
       // The no-backend bonus is a bonus ON TOP of a real portfolio signal, never a
       // standalone reason to guess portfolio — otherwise every backendless app (a
