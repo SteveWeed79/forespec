@@ -172,6 +172,9 @@ check("'remember' does not match 'member'", scoreArchetypes({ deps: [], paths: [
 // Broadened coverage: a non-JS shop (Django + Stripe in requirements.txt) is still detected via depText.
 const py = scoreArchetypes({ deps: [], depText: "django==4.2\nstripe==7.0\n", paths: ["shop/models.py", "orders/views.py"], schemaModels: [] });
 check("python shop detected via manifest text + paths", py[0].archetype === "ecommerce" && py[0].score > 0, `got ${py[0].archetype}`);
+// A lone weak signal (one doc token) must abstain, not false-lean (RailsGoat lesson).
+const loneDoc = scoreArchetypes({ deps: [], paths: [], schemaModels: [], selfDescription: "employees can view their checkout summary" });
+check("a single doc-token does not suggest an archetype (abstains)", loneDoc[0].confidence === "none", `got ${loneDoc[0].confidence} (score ${loneDoc[0].score})`);
 // AI-on-ambiguity fallback: fires only when unsure, degrades gracefully without a key.
 check("isAmbiguous: confident result is NOT ambiguous", isAmbiguous(ecom) === false, `ecom top ${ecom[0].confidence}`);
 check("isAmbiguous: an abstain (all-zero) IS ambiguous", isAmbiguous(dash) === true);

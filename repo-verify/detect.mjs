@@ -220,7 +220,9 @@ export function scoreArchetypes(signals, available = Object.keys(RULES)) {
   const [top, runner] = scored;
   if (top) {
     const margin = top.score - (runner?.score ?? 0);
-    if (top.score === 0) top.confidence = "none";
+    // A lone weak signal (e.g. a single doc-token like "checkout" in prose) is not enough
+    // to even suggest an archetype — abstain rather than false-lean. Needs a real signal.
+    if (top.score < 3) top.confidence = "none";
     else if (top.score >= 9 && margin >= 4) top.confidence = "high";
     else if (top.score >= 5 && margin >= 2) top.confidence = "medium";
     else top.confidence = "low";
