@@ -24,19 +24,23 @@ const here = dirname(fileURLToPath(import.meta.url));
 // new archetype manifest + a RULES entry is all it takes. deps are matched as substrings
 // (so "stripe" catches "@stripe/stripe-js"); paths and models likewise.
 export const RULES = {
+  // Keywords are matched as whole TOKENS (with simple plurals), never raw substrings —
+  // so "product" no longer matches "production", "cart" no longer matches "cartesian",
+  // and "member" no longer matches "remember". Keep them DISCRIMINATING: a keyword that
+  // appears in every site (about, contact, content, project) is noise, not signal.
   ecommerce: {
-    deps: ["stripe", "braintree", "square", "paypal", "snipcart", "medusa", "commercejs", "swell", "shopify"],
-    paths: ["checkout", "cart", "/order", "product", "catalog", "inventory", "storefront"],
+    deps: ["stripe", "braintree", "square", "paypal", "snipcart", "medusa", "commercejs", "swell", "shopify", "vendure", "saleor", "bagisto", "spree"],
+    paths: ["checkout", "cart", "order", "product", "catalog", "inventory", "storefront", "sku"],
     models: ["order", "product", "cart", "lineitem", "orderitem", "payment", "inventory", "sku", "variant"],
   },
   saas: {
     deps: ["clerk", "workos", "auth0", "lemonsqueezy", "paddle", "stripe"],
-    paths: ["tenant", "organization", "/org", "workspace", "subscription", "billing", "/plan", "seat", "entitlement", "member"],
+    paths: ["tenant", "organization", "workspace", "subscription", "billing", "plan", "seat", "entitlement", "membership"],
     models: ["subscription", "tenant", "organization", "plan", "seat", "membership", "workspace", "entitlement", "invoice"],
   },
   portfolio: {
-    deps: ["astro", "gatsby", "eleventy", "11ty", "contentlayer", "gray-matter", "next-mdx-remote", "contentful", "sanity", "tinacms"],
-    paths: ["blog", "/post", "portfolio", "/project", "about", "contact", "content", "writing", "essay", "gallery"],
+    deps: ["astro", "gatsby", "eleventy", "contentlayer", "gray-matter", "next-mdx-remote", "contentful", "sanity", "tinacms", "hexo", "jekyll"],
+    paths: ["blog", "post", "portfolio", "essay", "writing", "gallery", "article", "author"],
     models: [],
   },
 };
@@ -48,9 +52,28 @@ const PAYMENT_DEPS = ["stripe", "braintree", "square", "paypal", "paddle", "lemo
 
 const SCORE = { dep: 4, path: 3, model: 3, noBackend: 4 };
 
+// Dependency manifests for other ecosystems — so a Python/Ruby/Go/PHP shop isn't invisible
+// just because it has no package.json. We scan their raw text for dep keywords.
+const EXTRA_MANIFESTS = ["requirements.txt", "pyproject.toml", "Pipfile", "Gemfile", "go.mod", "go.sum", "composer.json", "pom.xml", "build.gradle"];
+
+// Split into whole tokens, breaking on non-alphanumerics AND camelCase, lowercased.
+export function tokenize(str) {
+  return String(str).replace(/([a-z0-9])([A-Z])/g, "$1 $2").toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
+}
+function tokenSet(list) {
+  const s = new Set();
+  for (const item of list ?? []) for (const t of tokenize(item)) s.add(t);
+  return s;
+}
+// Token match with naive plurals — "orders" matches "order", but "border" (token "border") does not.
+function hasTok(set, kw) {
+  return set.has(kw) || set.has(kw + "s") || set.has(kw + "es");
+}
+
 /** I/O: gather cheap signals from a repo on disk. Pass `files` to reuse a prior walk. */
 export function collectSignals(repoRoot, { files } = {}) {
   const deps = new Set();
+  let depText = "";
   const pkgPath = join(repoRoot, "package.json");
   if (existsSync(pkgPath)) {
     try {
@@ -60,17 +83,29 @@ export function collectSignals(repoRoot, { files } = {}) {
       }
     } catch { /* malformed package.json — just skip it */ }
   }
+  for (const m of EXTRA_MANIFESTS) {
+    const p = join(repoRoot, m);
+    if (existsSync(p)) { try { depText += "\n" + readFileSync(p, "utf8").toLowerCase(); } catch { /* skip */ } }
+  }
+
   const repoFiles = files ?? loadRepo(repoRoot);
   const paths = repoFiles.map((f) => f.path.toLowerCase());
   const schemaModels = [];
+  const add = (m) => { if (m) schemaModels.push(m.toLowerCase()); };
   for (const f of repoFiles) {
+    const c = f.content;
     if (f.path.endsWith(".prisma")) {
-      for (const m of f.content.matchAll(/\bmodel\s+(\w+)/g)) schemaModels.push(m[1].toLowerCase());
+      for (const m of c.matchAll(/\bmodel\s+(\w+)/g)) add(m[1]);
     } else if (f.path.endsWith(".sql")) {
-      for (const m of f.content.matchAll(/create\s+table\s+(?:if\s+not\s+exists\s+)?["`']?(\w+)/gi)) schemaModels.push(m[1].toLowerCase());
+      for (const m of c.matchAll(/create\s+table\s+(?:if\s+not\s+exists\s+)?["`']?(\w+)/gi)) add(m[1]);
+    } else if (/\.(ts|tsx|js|mjs|cjs)$/.test(f.path)) {
+      for (const m of c.matchAll(/\b(?:pg|mysql|sqlite)Table\s*\(\s*["'`](\w+)/g)) add(m[1]);      // drizzle
+      for (const m of c.matchAll(/\bmodel\s*(?:<[^>]+>)?\s*\(\s*["'`](\w+)/g)) add(m[1]);           // mongoose model("Name"
+      for (const m of c.matchAll(/@Entity\([^)]*\)\s*(?:export\s+)?(?:abstract\s+)?class\s+(\w+)/g)) add(m[1]); // typeorm
+      for (const m of c.matchAll(/\.define\s*\(\s*["'`](\w+)/g)) add(m[1]);                          // sequelize
     }
   }
-  return { deps: [...deps], paths, schemaModels };
+  return { deps: [...deps], paths, schemaModels, depText };
 }
 
 /**
@@ -78,11 +113,16 @@ export function collectSignals(repoRoot, { files } = {}) {
  * with the matched signals (the "why") and a confidence read on the top pick.
  */
 export function scoreArchetypes(signals, available = Object.keys(RULES)) {
-  const hasDep = (needle) => signals.deps.some((d) => d.includes(needle));
-  const pathHit = (needle) => signals.paths.some((p) => p.includes(needle));
-  const modelHit = (needle) => signals.schemaModels.some((m) => m.includes(needle));
-  const hasBackend = BACKEND_DEPS.some(hasDep) || signals.schemaModels.length > 0;
-  const hasPayment = PAYMENT_DEPS.some(hasDep) || signals.paths.some((p) => p.includes("payment") || p.includes("checkout"));
+  const depNames = signals.deps ?? [];
+  // dep names are specific enough for substring; also scan other-ecosystem manifest text.
+  const depText = (signals.depText ?? "") + " " + depNames.join(" ");
+  const pathTokens = tokenSet(signals.paths);
+  const modelTokens = tokenSet(signals.schemaModels);
+  const hasDep = (kw) => depNames.some((d) => d.includes(kw)) || depText.includes(kw);
+  const pathHit = (kw) => hasTok(pathTokens, kw);
+  const modelHit = (kw) => hasTok(modelTokens, kw);
+  const hasBackend = BACKEND_DEPS.some(hasDep) || (signals.schemaModels?.length > 0);
+  const hasPayment = PAYMENT_DEPS.some(hasDep) || pathHit("payment") || pathHit("checkout");
 
   const scored = [];
   for (const name of available) {
@@ -94,7 +134,11 @@ export function scoreArchetypes(signals, available = Object.keys(RULES)) {
     for (const p of rule.paths) if (pathHit(p)) { score += SCORE.path; matched.push(`path:${p}`); }
     for (const m of rule.models) if (modelHit(m)) { score += SCORE.model; matched.push(`model:${m}`); }
     if (name === "portfolio") {
-      if (!hasBackend) { score += SCORE.noBackend; matched.push("signal:no-backend"); }
+      // The no-backend bonus is a bonus ON TOP of a real portfolio signal, never a
+      // standalone reason to guess portfolio — otherwise every backendless app (a
+      // dashboard, a landing page) gets mislabeled. No positive signal ⇒ no guess.
+      const hasPositive = matched.length > 0;
+      if (hasPositive && !hasBackend) { score += SCORE.noBackend; matched.push("signal:no-backend"); }
       if (hasBackend) { score -= 3; matched.push("penalty:backend-present"); }
       if (hasPayment) { score -= 6; matched.push("penalty:payment-present"); }
     }

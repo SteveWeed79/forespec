@@ -164,6 +164,15 @@ const port = scoreArchetypes({ deps: ["astro", "gray-matter"], paths: ["src/cont
 check("portfolio signals (no backend) → portfolio on top", port[0].archetype === "portfolio", `got ${port[0].archetype}`);
 check("portfolio penalized when a backend/payment is present", port[0].archetype === "portfolio" && ecom.find((r) => r.archetype === "portfolio").score === 0);
 
+// Regression: token matching must kill substring false positives that fooled the v1 heuristic.
+const dash = scoreArchetypes({ deps: ["react", "vite", "postcss", "recharts"], paths: ["src/config/production.ts", "src/utils/cartesian.ts", "src/lib/remember-me.ts"], schemaModels: [] });
+check("generic app → no archetype guessed (not confidently ecommerce)", dash[0].score === 0 && dash[0].confidence === "none", `got ${dash[0].archetype}/${dash[0].score}`);
+check("'production' does not match 'product'", scoreArchetypes({ deps: [], paths: ["config/production.ts"], schemaModels: [] }).find((r) => r.archetype === "ecommerce").score === 0);
+check("'remember' does not match 'member'", scoreArchetypes({ deps: [], paths: ["lib/remember-me.ts"], schemaModels: [] }).find((r) => r.archetype === "saas").score === 0);
+// Broadened coverage: a non-JS shop (Django + Stripe in requirements.txt) is still detected via depText.
+const py = scoreArchetypes({ deps: [], depText: "django==4.2\nstripe==7.0\n", paths: ["shop/models.py", "orders/views.py"], schemaModels: [] });
+check("python shop detected via manifest text + paths", py[0].archetype === "ecommerce" && py[0].score > 0, `got ${py[0].archetype}`);
+
 // Integration: real signals from the vulnerable fixture → ecommerce, with evidence.
 const fxSignals = collectSignals(fixture);
 const fxRanked = scoreArchetypes(fxSignals);
