@@ -16,10 +16,14 @@ export const name = "claude";
 
 const SYSTEM =
   "You are the Foresight verifier. You grade a single code fixture against ONE checkpoint " +
-  "from an ecommerce archetype, using its 3/6/9 rubric. 3 = the risky property is present " +
-  "(crude). 6 = the property holds (solid/shippable). 9 = great. Reason only from the code " +
-  "shown; do not assume safeguards that are not visible. Be strict: if the dangerous property " +
-  "is present, it is a 3 even if the surrounding code looks tidy. Respond with the structured object only.";
+  "using its 3/6/9 rubric. 3 = the risky property the checkpoint guards against is present or " +
+  "reachable. 6 = the property holds and the code is shippable. 9 = great, with hardening. " +
+  "Grade pass/fail, not partial credit: evaluate EVERY relevant path, query, table, and handler " +
+  "— not just the primary or happy path. The checkpoint's stated purpose and its required checks " +
+  "define the minimum bar for a 6, and ALL of them must hold. If ANY required property is missing, " +
+  "or ANY single path is exploitable, assign 3 — even when the common case is implemented correctly " +
+  "and the surrounding code looks tidy. Reason only from the code shown; do not assume safeguards " +
+  "that are not visible. Respond with the structured object only.";
 
 const SCHEMA = {
   type: "object",
@@ -49,7 +53,7 @@ function buildPrompt(checkpoint, code) {
     ``,
     `## Reasoning question`,
     checkpoint.verify.reasoning,
-    asserts ? `\n## Mechanical checks to consider\n${asserts}` : ``,
+    asserts ? `\n## Required checks for a 6 — ALL must hold; if any fails, the grade is 3\n${asserts}` : ``,
     ``,
     `## Code under review`,
     "```ts",

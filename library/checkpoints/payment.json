@@ -10,8 +10,8 @@
       "why": "Retries, double-clicks, and webhook re-delivery cause double charges or duplicate orders or actions without idempotency.",
       "levels": {
         "3": "No idempotency key; duplicate submissions can double-charge.",
-        "6": "Idempotency key on payment creation; client duplicates de-duplicated.",
-        "9": "Idempotency across the full path including provider webhooks (each event processed exactly once), with safe replay."
+        "6": "Idempotency key on payment creation AND the webhook handler de-duplicates by provider event id before mutating state; both retried creations and re-delivered webhooks are processed exactly once.",
+        "9": "Idempotency enforced structurally across the full path — a unique constraint or idempotency store makes duplicate processing impossible — with safe replay and reconciliation of duplicate deliveries."
       },
       "verify": {
         "reasoning": "Can the same payment be created twice from a retry? Are provider webhooks processed exactly once? Is there an idempotency key on creation and webhook handling?",
@@ -64,8 +64,8 @@
       "why": "Payment state is driven by provider webhooks (see payment.state_integrity). If the webhook endpoint does not verify the provider's signature, anyone who discovers the URL can POST a forged 'payment succeeded' and mark records paid for free. Signature verification is documented by every major provider and routinely omitted in AI-generated handlers.",
       "levels": {
         "3": "Webhook endpoint trusts the request body with no signature or authenticity check.",
-        "6": "Provider signature verified against the signing secret before any state change; invalid or unsigned requests rejected.",
-        "9": "Signature plus timestamp/replay-window verified against the raw body, secret from a managed store, and verification failures logged/alerted."
+        "6": "Provider signature verified against the signing secret and the raw (unparsed) request body before any state change; invalid or unsigned requests rejected.",
+        "9": "Signature plus timestamp/replay-window verified, the signing secret sourced from a managed store, and verification failures logged/alerted."
       },
       "verify": {
         "reasoning": "Does the webhook handler verify the provider's signature against the raw request body before mutating any payment/record state? Are unsigned or invalid-signature requests rejected? Is the signing secret kept server-side?",
