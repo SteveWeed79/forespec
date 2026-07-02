@@ -18,7 +18,7 @@ import { rmSync, mkdtempSync, readFileSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { resolveArchetype } from "../library/resolve.mjs";
 import * as mock from "../verifier-eval/adapters/mock.mjs";
-import { loadRepo, selectForCheckpoint } from "./select.mjs";
+import { loadRepo, selectForCheckpoint, scoreFile } from "./select.mjs";
 import { fingerprint, recordPredictions, latestPrediction, recordOutcome, readOverrides, writeOverrides, FILES } from "./store.mjs";
 import { aggregate, propose } from "./calibrate.mjs";
 import { scoreArchetypes, collectSignals, discoverManifests, isAmbiguous, classifyWithAI } from "./detect.mjs";
@@ -320,6 +320,37 @@ const totalBadCrit = Object.values(badPerCritical).reduce((a, b) => a + b, 0);
 // ecommerce view = 6 criticals; run-eval counts all archetypes' criticals (more). This is a
 // rot-guard floor — enough bad cases that the rule-of-three bound stays meaningful.
 check("critical bad-case count supports a rule-of-three bound (≥24)", totalBadCrit >= 24, `have ${totalBadCrit}`);
+
+console.log("\n12. File selection determinism + budget discipline (select.mjs — the component that decides what the verifier sees):");
+// Determinism: loadRepo order must not depend on filesystem walk order.
+const paths1 = loadRepo(fixture).map((f) => f.path);
+check("loadRepo returns a stable, path-sorted order", JSON.stringify(paths1) === JSON.stringify([...paths1].sort()));
+// Same repo → identical slice, every run (the field-noted coverage-variance guard).
+const cpSel = archetype.checkpoints.find((c) => c.id === "payment.idempotency");
+const s1 = selectForCheckpoint(loadRepo(fixture), cpSel);
+const s2 = selectForCheckpoint(loadRepo(fixture), cpSel);
+check("selectForCheckpoint is deterministic (same repo → same slice)", s1.code === s2.code && s1.files.length === s2.files.length);
+// Stable tie-break: equal-scoring files order by path regardless of input order.
+const tieA = { path: "z.ts", content: "stock" }, tieB = { path: "a.ts", content: "stock" };
+const fwd = selectForCheckpoint([tieA, tieB], { id: "x.stock" }).files.map((f) => f.path);
+const rev = selectForCheckpoint([tieB, tieA], { id: "x.stock" }).files.map((f) => f.path);
+check("equal-score files break ties by path (input order irrelevant)", JSON.stringify(fwd) === JSON.stringify(rev) && fwd[0] === "a.ts", fwd.join(","));
+// perFileCap: one huge file is clipped, never allowed to eat the whole budget.
+const capped = selectForCheckpoint([{ path: "big.ts", content: "stock ".repeat(10) + "x".repeat(40000) }], { id: "x.stock" }, 60000, 24000).files[0];
+check("a file over perFileCap is truncated", capped.content.length <= 24100 && capped.content.includes("truncated for budget"), `len ${capped.content.length}`);
+// Starvation guard (the Juice Shop regression): a huge high-scorer must not evict a smaller relevant file.
+const bigHot = { path: "server.ts", content: "stock ".repeat(50) + "y".repeat(40000) };
+const smallHot = { path: "insecurity.ts", content: "reserve stock hold" };
+const picked = selectForCheckpoint([bigHot, smallHot], { id: "x.stock.reserve" }, 30000, 24000).files.map((f) => f.path);
+check("perFileCap keeps a huge file from starving a smaller relevant one", picked.includes("server.ts") && picked.includes("insecurity.ts"), picked.join(","));
+// Budget discipline: total packed content stays within the character budget.
+const many = Array.from({ length: 20 }, (_, i) => ({ path: `f${String(i).padStart(2, "0")}.ts`, content: "stock ".repeat(100) + "z".repeat(5000) }));
+const packed = selectForCheckpoint(many, { id: "x.stock" }, 20000, 24000);
+check("selection respects the character budget", packed.code.length <= 26000, `packed ${packed.code.length}`);
+// Fallback: nothing scores → smallest files, code never empty.
+const fb = selectForCheckpoint([{ path: "a.ts", content: "zzz" }, { path: "b.ts", content: "yy" }], { id: "nomatch.checkpoint.zzz" });
+check("fallback returns non-empty code when no keyword matches", fb.code.length > 0 && fb.files.length > 0);
+check("scoreFile counts a path hit + caps body matches", scoreFile({ path: "stock.ts", content: "stock stock stock" }, ["stock"]) === 8);
 
 console.log("");
 if (failures > 0) {

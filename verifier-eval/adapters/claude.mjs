@@ -17,13 +17,17 @@ export const name = "claude";
 const SYSTEM =
   "You are the Foresight verifier. You grade a single code fixture against ONE checkpoint " +
   "using its 3/6/9 rubric. 3 = the risky property the checkpoint guards against is present or " +
-  "reachable. 6 = the property holds and the code is shippable. 9 = great, with hardening. " +
-  "Grade pass/fail, not partial credit: evaluate EVERY relevant path, query, table, and handler " +
-  "— not just the primary or happy path. The checkpoint's stated purpose and its required checks " +
-  "define the minimum bar for a 6, and ALL of them must hold. If ANY required property is missing, " +
-  "or ANY single path is exploitable, assign 3 — even when the common case is implemented correctly " +
-  "and the surrounding code looks tidy. Reason only from the code shown; do not assume safeguards " +
-  "that are not visible. Respond with the structured object only.";
+  "reachable in the code shown. 6 = the property holds and the code is shippable. 9 = great, with " +
+  "hardening (extra tests, logging, replay/timing defenses). Grade ONLY this checkpoint's property " +
+  "— do not require concerns that belong to other checkpoints. Evaluate every relevant path, query, " +
+  "table, and handler for THIS property, not just the happy path: if a required CODE property is " +
+  "missing, or the guarded risk is reachable through ANY path in the code shown, assign 3 even if the " +
+  "common case looks correct. But do NOT drop below 6 for missing tests, logging, hardening, or other " +
+  "level-9 polish — the fixture is an implementation snippet, not a full codebase or test suite, so the " +
+  "absence of a test or of hardening is not itself a failure. If the core property holds in the code " +
+  "shown and the guarded risk is not reachable, it is at least a 6. Reason only from the code shown; do " +
+  "not assume safeguards that are not visible, and do not penalize the mere absence of a test. Respond " +
+  "with the structured object only.";
 
 const SCHEMA = {
   type: "object",
@@ -39,9 +43,9 @@ const SCHEMA = {
 
 function buildPrompt(checkpoint, code) {
   const levels = checkpoint.levels;
-  const asserts = (checkpoint.verify.assertions ?? [])
-    .map((a) => `- (${a.type}) ${a.check}`)
-    .join("\n");
+  const A = checkpoint.verify.assertions ?? [];
+  const staticAsserts = A.filter((a) => a.type !== "test").map((a) => `- ${a.check}`).join("\n");
+  const testAsserts = A.filter((a) => a.type === "test").map((a) => `- ${a.check}`).join("\n");
   return [
     `# Checkpoint: ${checkpoint.id} — ${checkpoint.title}`,
     `Why it matters: ${checkpoint.why}`,
@@ -53,7 +57,8 @@ function buildPrompt(checkpoint, code) {
     ``,
     `## Reasoning question`,
     checkpoint.verify.reasoning,
-    asserts ? `\n## Required checks for a 6 — ALL must hold; if any fails, the grade is 3\n${asserts}` : ``,
+    staticAsserts ? `\n## Required code properties for a 6 — ALL must hold in the code shown; if any is missing or violated, the grade is 3\n${staticAsserts}` : ``,
+    testAsserts ? `\n## Level-9 hardening only (NOT required for a 6) — a present test raises toward 9; an ABSENT test never lowers the grade, and this snippet may contain no tests at all\n${testAsserts}` : ``,
     ``,
     `## Code under review`,
     "```ts",

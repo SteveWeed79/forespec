@@ -57,6 +57,11 @@ export function loadRepo(root) {
     }
   };
   walk(root);
+  // Deterministic order: readdirSync order is filesystem-dependent, so a selection
+  // tie (equal keyword score) could pick a different slice on a different machine.
+  // Sort by path so it's "same repo, same slice, every time" — the field-noted
+  // coverage-variance guard that caused a false regression in early dogfooding.
+  files.sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
   return files;
 }
 
@@ -128,12 +133,14 @@ export function selectForCheckpoint(all, cp, budgetChars = 60_000, perFileCap = 
   const ranked = all
     .map((f) => ({ f, score: scoreFile(f, keywords) }))
     .filter((r) => r.score > 0)
-    .sort((a, b) => b.score - a.score)
+    // Score desc, then path asc as a stable tie-break so equal-scoring files pick
+    // the same slice regardless of input order (determinism, not caller-dependent).
+    .sort((a, b) => b.score - a.score || (a.f.path < b.f.path ? -1 : a.f.path > b.f.path ? 1 : 0))
     .map((r) => r.f);
 
   const ordered = ranked.length > 0
     ? ranked
-    : [...all].sort((a, b) => a.content.length - b.content.length);
+    : [...all].sort((a, b) => a.content.length - b.content.length || (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
 
   // Cap any single file's contribution so one huge file (e.g. a monolithic server.ts)
   // can't eat the whole budget and starve out a higher-ranked-but-large vulnerable file.
