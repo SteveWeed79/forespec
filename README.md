@@ -18,7 +18,7 @@ are adapters that drive the engine — never the thing it lives inside.
 ```bash
 foresight init                      # detect your archetype, write foresight.config.json (commit it)
 foresight plan "add checkout flow"  # interrogate the feature BEFORE you build it
-foresight verify                    # grade your backbone against it (mock baseline = $0)
+foresight verify                    # grade your backbone with the reasoning verifier (needs an API key — see below)
 foresight design http://localhost:3000   # measure a live page's design in a headless browser
 foresight gate --help               # wire the PR/CI gate that comments on every pull request
 ```
@@ -30,9 +30,12 @@ shown per domain (from the calibration store, self-facing only) and `plan` adapt
 explains — full where you're learning, terse where you're fluent.
 
 `init` reads only metadata (dependencies, paths, schema model names) to pick the archetype —
-never your code. Set `ANTHROPIC_API_KEY` + `ANTHROPIC_MODEL` for the reasoning verifier; without
-them everything still runs on the deterministic mock baseline. Full walkthrough:
-[`repo-verify/README.md`](./repo-verify/README.md).
+never your code. **Real grading needs the reasoning verifier:** set `ANTHROPIC_API_KEY` +
+`ANTHROPIC_MODEL` and it runs against a validated bar — 0 false-greens on 52 critical bad cases,
+rule-of-three 95% upper bound ≤ 2.9% (see [`VALIDATION-NOTES.md`](./VALIDATION-NOTES.md)). Without a
+key it falls back to a deterministic keyword `mock` baseline that exists only to exercise the harness
+— it is **not a grader to trust** (on the current corpus its own accuracy gate reports NO-GO). Full
+walkthrough: [`repo-verify/README.md`](./repo-verify/README.md).
 
 ## The documents
 

@@ -1,18 +1,11 @@
-import { stripe } from "./stripe";
 import { db } from "./db";
 
-export async function startCheckout(orderId: string, amount: number) {
-  const intent = await stripe.paymentIntents.create({
-    amount,
-    currency: "usd",
-    metadata: { orderId },
-  });
-  return { clientSecret: intent.client_secret };
-}
-
-export async function onPaymentWebhook(event: any) {
-  const orderId = event.data.object.metadata.orderId;
-  if (event.type === "payment_intent.succeeded") {
-    await db.order.update(orderId, { status: "paid" });
-  }
+// BAD: the client reports its own payment result and we trust it. A caller can
+// POST { orderId, status: "paid" } directly and mark any order paid — no
+// server-side provider webhook, no confirmation. The local record is driven by
+// a client claim, so it can diverge from the provider's real payment state.
+export async function confirmPayment(req, res) {
+  const { orderId, status } = req.body;
+  await db.order.update(orderId, { status });
+  res.json({ ok: true });
 }

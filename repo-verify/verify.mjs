@@ -187,28 +187,55 @@ async function main() {
   for (let i = 0; i < checkpoints.length; i++) {
     const cp = checkpoints[i];
     if (!json) process.stderr.write(`  [${i + 1}/${checkpoints.length}] ${cp.id}...\n`);
-    const { files, code } = selectForCheckpoint(allFiles, cp, budget);
+    const { files, code, matched } = selectForCheckpoint(allFiles, cp, budget);
     const fp = fingerprint(code); // join key: hash of the graded slice, not the code itself
-    try {
-      const v = await adapter.verify({ checkpoint: cp, code });
+    // Selection pre-check: nothing in the repo scored on this checkpoint's keywords, so its
+    // subject almost certainly isn't here. Mark N/A without spending an API call (this is the
+    // cheap half of the flag-by-absence fix — a repo with no payments never even asks about them).
+    if (!matched) {
       results.push({
         id: cp.id, domain: cp.domain, severity: cp.severity,
-        level: v.level, confidence: v.confidence, gap: v.gap, rationale: v.rationale,
+        applicable: false, level: null, confidence: null, gap: null,
+        rationale: "no code relevant to this checkpoint was found in the repo",
+        evidence: [], adapter: adapter.name ?? adapterName, fingerprint: fp, error: null,
+      });
+      continue;
+    }
+    try {
+      let v = await adapter.verify({ checkpoint: cp, code });
+      // Challenge an UNPROVEN N/A: the model claimed "subject absent", but selection reached
+      // here only because files matched this checkpoint's keywords (matched === true). Force
+      // it to prove the matched code is unrelated or grade it — only an N/A that SURVIVES the
+      // adversarial re-pass is accepted. (Structural N/A, matched === false, was handled above
+      // without an API call and needs no challenge.)
+      let challenged = false;
+      if (v.applicable === false) {
+        challenged = true;
+        v = await adapter.verify({ checkpoint: cp, code, challenge: true });
+      }
+      const applicable = v.applicable !== false; // mock adapter omits applicable → treat as applicable
+      results.push({
+        id: cp.id, domain: cp.domain, severity: cp.severity,
+        applicable, level: applicable ? v.level : null, challenged,
+        confidence: v.confidence, gap: v.gap, rationale: v.rationale,
         evidence: files.map((f) => f.path), adapter: adapter.name ?? adapterName, fingerprint: fp, error: null,
       });
     } catch (e) {
       results.push({
         id: cp.id, domain: cp.domain, severity: cp.severity,
-        level: null, confidence: null, gap: null, rationale: null,
+        applicable: true, level: null, confidence: null, gap: null, rationale: null,
         evidence: files.map((f) => f.path), adapter: adapter.name ?? adapterName, fingerprint: fp, error: String(e.message ?? e),
       });
     }
   }
 
-  // goal_definition roll-up. shippable = every critical checkpoint graded at >= 6.
-  const critical = results.filter((r) => r.severity === "critical");
-  const others = results.filter((r) => r.severity !== "critical");
-  const ungraded = results.filter((r) => r.level == null);
+  // goal_definition roll-up. N/A checkpoints (subject absent from the repo) don't count
+  // toward the gate — a repo with no payments isn't "unshippable" for payment checkpoints.
+  const assessed = results.filter((r) => r.applicable !== false);
+  const notApplicable = results.filter((r) => r.applicable === false);
+  const critical = assessed.filter((r) => r.severity === "critical");
+  const others = assessed.filter((r) => r.severity !== "critical");
+  const ungraded = assessed.filter((r) => r.level == null); // errored (N/A already excluded)
   const lvl = (r) => (r.level == null ? -1 : r.level);
   const shippable = ungraded.length === 0 && critical.every((r) => lvl(r) >= 6);
   const great = ungraded.length === 0 && critical.every((r) => lvl(r) >= 9) && others.every((r) => lvl(r) >= 6);
@@ -227,7 +254,7 @@ async function main() {
   }
 
   if (json) {
-    console.log(JSON.stringify({ archetype: archetype.archetype, version: archetype.version, adapter: adapter.name ?? adapterName, overrides_applied: appliedOverrides, results, rollup: { shippable, great, blocking: blocking.map((r) => r.id), ungraded: ungraded.map((r) => r.id) }, store: storeInfo }, null, 2));
+    console.log(JSON.stringify({ archetype: archetype.archetype, version: archetype.version, adapter: adapter.name ?? adapterName, overrides_applied: appliedOverrides, results, rollup: { shippable, great, blocking: blocking.map((r) => r.id), ungraded: ungraded.map((r) => r.id), not_applicable: notApplicable.map((r) => r.id) }, store: storeInfo }, null, 2));
     return shippable ? 0 : 1;
   }
 
@@ -239,6 +266,11 @@ async function main() {
     out.push(`${paint(useColor, COLORS.cyan, r.id)}  ${paint(useColor, COLORS.dim, `[${r.domain}/${r.severity}]`)}`);
     if (r.error) {
       out.push(`  ${paint(useColor, COLORS.red, "could not grade")}: ${r.error}`);
+      out.push("");
+      continue;
+    }
+    if (r.applicable === false) {
+      out.push(`  ${paint(useColor, COLORS.dim, "n/a — no code relevant to this checkpoint in the repo")}`);
       out.push("");
       continue;
     }
@@ -256,6 +288,7 @@ async function main() {
     for (const r of blocking) out.push(`    - ${r.id} (${r.level == null ? "ungraded" : "level " + r.level})`);
   }
   if (ungraded.length) out.push(`  ${paint(useColor, COLORS.yellow, "ungraded:")} ${ungraded.map((r) => r.id).join(", ")}`);
+  if (notApplicable.length) out.push(`  ${paint(useColor, COLORS.dim, `not applicable (${notApplicable.length}, no relevant code):`)} ${notApplicable.map((r) => r.id).join(", ")}`);
   console.log(out.join("\n"));
   if (storeInfo) {
     console.error(`\nrecorded ${storeInfo.recorded} prediction(s) → ${storeInfo.dir} (run ${storeInfo.run_id})`);

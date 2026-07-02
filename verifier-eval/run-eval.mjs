@@ -53,7 +53,7 @@ for (const c of corpus.cases) {
   const code = readFileSync(join(here, c.fixture), "utf8");
   try {
     const verdict = await adapter.verify({ checkpoint, code, fixturePath: c.fixture });
-    cases.push({ ...c, predicted_level: verdict.level, confidence: verdict.confidence, rationale: verdict.rationale });
+    cases.push({ ...c, applicable: verdict.applicable !== false, predicted_level: verdict.applicable === false ? null : verdict.level, confidence: verdict.confidence, rationale: verdict.rationale });
   } catch (err) {
     cases.push({ ...c, error: String(err.message ?? err) });
   }
@@ -63,6 +63,10 @@ for (const c of corpus.cases) {
 function classify(c) {
   if (c.error) return "ERROR";
   const goldShippable = c.gold_level >= SHIPPABLE;
+  // N/A on a corpus fixture is ALWAYS wrong — every fixture has its checkpoint's subject
+  // present. Score it as the dangerous error so "not applicable" can never be a free pass:
+  // dodging a bad fixture counts as a false-green, dodging a good one as a false-alarm.
+  if (c.applicable === false) return goldShippable ? "FALSE_ALARM" : "FALSE_GREEN";
   const predShippable = c.predicted_level >= SHIPPABLE;
   if (goldShippable && predShippable) return "TP";       // correctly passed a good impl
   if (!goldShippable && !predShippable) return "TN";     // correctly caught a bad impl
@@ -155,6 +159,11 @@ console.log(
   `false-alarm ${overall.false_alarm_rate_pct}%  |  ` +
   `exact-level ${overall.exact_level_agreement_pct}%  |  errors ${overall.errors}`,
 );
+const naOnCorpus = cases.filter((c) => c.applicable === false);
+if (naOnCorpus.length > 0) {
+  console.log(`\n🚨 ${naOnCorpus.length} N/A verdict(s) on corpus fixtures — every fixture HAS its subject, so N/A here is the verifier dodging (scored as false-green/alarm above). The applicable=false path is NOT safe:`);
+  for (const c of naOnCorpus) console.log(`   - ${c.checkpoint} (${c.label})`);
+}
 if (overall.false_green > 0) {
   console.log(`\n⚠️  ${overall.false_green} FALSE GREEN(S) — the verifier called a known-bad implementation shippable:`);
   for (const c of cases.filter((c) => c.outcome === "FALSE_GREEN")) {
