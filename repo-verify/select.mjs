@@ -159,5 +159,8 @@ export function selectForCheckpoint(all, cp, budgetChars = 60_000, perFileCap = 
   }
 
   const code = chosen.map((f) => `// FILE: ${f.path}\n${f.content}`).join("\n\n");
-  return { files: chosen, code };
+  // `matched` = at least one file scored on this checkpoint's keywords. When false,
+  // the chosen files are the smallest-file fallback (nothing relevant found), so the
+  // repo verifier marks the checkpoint N/A instead of grading irrelevant noise.
+  return { files: chosen, code, matched: ranked.length > 0 };
 }
