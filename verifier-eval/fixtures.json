@@ -272,7 +272,7 @@
       "fixture": "fixtures/payment.state_integrity/bad3.ts",
       "label": "bad",
       "gold_level": 3,
-      "note": "webhook writes paid with no current-state guard, so replayed/out-of-order events regress fulfilled/refunded orders"
+      "note": "client POSTs its own payment status and it is trusted — record driven by a client claim, not a server-side provider webhook"
     },
     {
       "checkpoint": "payment.state_integrity",
@@ -616,6 +616,62 @@
       "label": "good",
       "gold_level": 6,
       "note": "scrypt with a random per-user salt and crypto.timingSafeEqual comparison"
+    },
+    {
+      "checkpoint": "security.injection",
+      "fixture": "fixtures/security.injection/bad5.ts",
+      "label": "bad",
+      "gold_level": 3,
+      "note": "SQL injection: user input string-concatenated into raw SQL"
+    },
+    {
+      "checkpoint": "auth.credential_storage",
+      "fixture": "fixtures/auth.credential_storage/bad5.ts",
+      "label": "bad",
+      "gold_level": 3,
+      "note": "password stored in plaintext — no hashing"
+    },
+    {
+      "checkpoint": "security.secrets_management",
+      "fixture": "fixtures/security.secrets_management/bad5.ts",
+      "label": "bad",
+      "gold_level": 3,
+      "note": "live secret key hardcoded in source / shipped in bundle"
+    },
+    {
+      "checkpoint": "auth.access_control",
+      "fixture": "fixtures/auth.access_control/bad5.ts",
+      "label": "bad",
+      "gold_level": 3,
+      "note": "IDOR: resource fetched by URL id with no ownership check"
+    },
+    {
+      "checkpoint": "payment.idempotency",
+      "fixture": "fixtures/payment.idempotency/bad5.ts",
+      "label": "bad",
+      "gold_level": 3,
+      "note": "no idempotency key on creation and webhook re-processes every delivery"
+    },
+    {
+      "checkpoint": "saas.tenancy.isolation",
+      "fixture": "fixtures/saas.tenancy.isolation/bad5.ts",
+      "label": "bad",
+      "gold_level": 3,
+      "note": "tenant id read from client-controlled request body, not the session"
+    },
+    {
+      "checkpoint": "payment.card_data_handling",
+      "fixture": "fixtures/payment.card_data_handling/bad5.ts",
+      "label": "bad",
+      "gold_level": 3,
+      "note": "raw PAN/CVV POSTed to first-party code and stored (PCI scope)"
+    },
+    {
+      "checkpoint": "ecommerce.checkout.atomic_stock_hold",
+      "fixture": "fixtures/ecommerce.checkout.atomic_stock_hold/bad5.ts",
+      "label": "bad",
+      "gold_level": 3,
+      "note": "check-then-act on stock with no atomicity — race oversells"
     }
   ]
 }
