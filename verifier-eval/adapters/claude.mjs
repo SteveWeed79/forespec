@@ -69,6 +69,25 @@ function buildPrompt(checkpoint, code) {
   ].join("\n");
 }
 
+// Retry transient overload / rate-limit / 5xx (e.g. a 529 "Overloaded" during a
+// long eval run) so a single blip doesn't error a whole fixture. Zero-dep backoff.
+async function postWithRetry(url, opts, tries = 5) {
+  const RETRYABLE = new Set([429, 500, 502, 503, 529]);
+  let res, err;
+  for (let i = 0; i < tries; i++) {
+    try {
+      res = await fetch(url, opts);
+      if (!RETRYABLE.has(res.status)) return res;
+    } catch (e) {
+      err = e;
+      res = null;
+    }
+    if (i < tries - 1) await new Promise((r) => setTimeout(r, Math.min(1500 * 2 ** i, 20000)));
+  }
+  if (res) return res;
+  throw err ?? new Error("request failed after retries");
+}
+
 export async function verify({ checkpoint, code }) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   const model = process.env.ANTHROPIC_MODEL;
@@ -81,7 +100,7 @@ export async function verify({ checkpoint, code }) {
     );
   }
 
-  const res = await fetch(`${baseUrl}/v1/messages`, {
+  const res = await postWithRetry(`${baseUrl}/v1/messages`, {
     method: "POST",
     headers: {
       "content-type": "application/json",
