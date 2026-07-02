@@ -28,14 +28,14 @@
       "why": "Your record of a payment and the provider's actual payment status drifting apart (paid-no-record, record-unpaid) is a top source of silent revenue loss.",
       "levels": {
         "3": "The record is marked paid optimistically on client return, before provider confirmation.",
-        "6": "Record transitions are driven by verified provider webhooks, not client redirects.",
+        "6": "Record transitions are driven by server-side provider webhooks (webhook authenticity is graded separately by payment.webhook_authenticity), not by client redirects.",
         "9": "Explicit state machine, reconciliation job catching divergence, per-record audit trail."
       },
       "verify": {
-        "reasoning": "Is paid set from a verified server-side signal or the client redirect? Can a record be marked paid without confirmation, or money captured without a record? Is there reconciliation?",
+        "reasoning": "Is paid set from a server-side webhook signal or from the client redirect? Can a record be marked paid without a server-side confirmation, or money captured without a record? (Whether that webhook's signature is authenticated is payment.webhook_authenticity's concern, not this one.)",
         "assertions": [
-          {"check": "Paid transition triggered by a verified webhook, not a client success route.", "type": "static"},
-          {"check": "A reconciliation path compares provider state to local state.", "type": "static"}
+          {"check": "Paid transition is set from a provider webhook, not a client success/redirect route.", "type": "static"},
+          {"check": "A reconciliation job/test detects and repairs divergence between provider and local state.", "type": "test"}
         ]
       }
     },

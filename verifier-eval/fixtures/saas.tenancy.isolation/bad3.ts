@@ -1,14 +1,22 @@
 import { db } from "./db";
 
-export async function listOrdersWithCustomers(req, res) {
+// The orders list is correctly scoped by the session tenant...
+export async function listOrders(req, res) {
   const tenantId = req.session.tenantId;
   const rows = await db.query(
-    `SELECT o.*, c.name AS customer_name
-       FROM orders o
-       JOIN customers c ON c.id = o.customer_id
-      WHERE o.tenant_id = $1
-      ORDER BY o.created_at DESC`,
+    `SELECT * FROM orders WHERE tenant_id = $1 ORDER BY created_at DESC`,
     [tenantId],
   );
   res.json(rows);
+}
+
+// ...but this handler fetches a customer by id ALONE, with no tenant filter.
+// Any authenticated tenant can read another tenant's customer by guessing or
+// enumerating the id — a direct cross-tenant data leak.
+export async function getCustomer(req, res) {
+  const customer = await db.query(
+    `SELECT * FROM customers WHERE id = $1`,
+    [req.params.id],
+  );
+  res.json(customer);
 }

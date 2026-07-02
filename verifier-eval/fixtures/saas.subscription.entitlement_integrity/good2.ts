@@ -9,9 +9,15 @@ export async function canUseApi(req) {
 }
 
 export async function onSubscriptionWebhook(event) {
-  await db.subscription.upsert(event.data.customerId, {
-    status: event.data.status,
-    plan: event.data.plan,
-    currentPeriodEnd: event.data.current_period_end,
-  });
+  // Keyed by tenantId — the SAME key the entitlement check reads by — so a
+  // cancel/downgrade webhook updates the exact record access is derived from,
+  // and revocation actually takes effect.
+  await db.subscription.upsert(
+    { tenantId: event.data.tenantId },
+    {
+      status: event.data.status,
+      plan: event.data.plan,
+      currentPeriodEnd: event.data.current_period_end,
+    },
+  );
 }
