@@ -18,13 +18,13 @@
     "backend",
     "correctness"
   ],
-  "homepage": "https://github.com/SteveWeed79/glowing-barnacle#readme",
+  "homepage": "https://github.com/SteveWeed79/foresight-cli#readme",
   "bugs": {
-    "url": "https://github.com/SteveWeed79/glowing-barnacle/issues"
+    "url": "https://github.com/SteveWeed79/foresight-cli/issues"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/SteveWeed79/glowing-barnacle.git"
+    "url": "git+https://github.com/SteveWeed79/foresight-cli.git"
   },
   "author": "Steve Weed",
   "license": "BUSL-1.1",
