@@ -155,8 +155,10 @@ Build (only after Phases 0-5 are real and validated on your work):
   delivered for real, not just architected).
 - Multi-user calibration: turn on the seam - delta aggregation across users, pattern pool
   (pattern only, instance never leaves anyone's machine).
-- Whatever distribution form fits (Cowork-driven), with the honest free/paid line if any:
-  local core free forever, paid only ever for genuine infrastructure cost.
+- Whatever distribution form fits (Cowork-driven), with the honest free/paid line: the local
+  core is free and fully useful forever (never crippled to force an upgrade); paid plans fund
+  the hosting and the ongoing work that keeps the standard trustworthy — priced fairly, no
+  lock-in. Earn the subscription by being worth it, don't trap anyone into it.
 
 Done when: someone who isn't you can use it on their repo, their code never reaching you,
 and their data sharpens the shared standard without violating the wall.
