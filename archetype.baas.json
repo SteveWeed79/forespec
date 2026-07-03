@@ -1,0 +1,33 @@
+{
+  "$schema": "foresight/archetype/v2",
+  "_readme": {
+    "what_this_is": "Archetype MANIFEST for an app built on a Backend-as-a-Service (Supabase, Firebase) — the client talks directly to the database/storage and access control is enforced by row-level security / security rules rather than a traditional server. Resolve with `node library/resolve.mjs archetype.baas.json`.",
+    "reuse": "Three BaaS-specific checkpoints (baas.*) carry the direct-to-database backbone — RLS enforcement, the client trust boundary, and privileged-key exposure. Everything else is COMPOSED from the shared library: a BaaS app still needs the universal spine (secrets, per-user access control, PII, error handling, abuse controls).",
+    "why_these_criticals": "Each baas.* checkpoint is a direct full-database-leak path on this stack — a missing RLS policy, a rule enforced only in the browser, or a service key in the client bundle each exposes every user's data. secrets_management is critical because the whole model hinges on which key the client holds.",
+    "how_scoring_works": "Levels 3/6/9. 3 = crude/risky (the vulnerability is present). 6 = solid, shippable. 9 = great. TRUST THE GAP, NOT THE NUMBER."
+  },
+
+  "archetype": "baas",
+  "version": "1.0.0",
+  "applies_when": "An app built on a Backend-as-a-Service such as Supabase or Firebase, where the client SDK reads and writes the database/storage directly and access control is enforced by row-level security or security rules plus the key the browser holds, rather than by a server the client cannot bypass.",
+  "goal_definition": {
+    "shippable": "all severity:critical at level >= 6",
+    "great": "all severity:critical at 9, all others >= 6",
+    "honest_ceiling": "RLS and policy correctness are graded from the migration/policy code present; a live check that a second user is actually denied needs the running database the static rubric can flag the absence of but cannot itself query."
+  },
+
+  "checkpoints": [
+    { "ref": "baas.rls_enforced",            "severity": "critical" },
+    { "ref": "baas.client_trust_boundary",   "severity": "critical" },
+    { "ref": "baas.privileged_key_exposure", "severity": "critical" },
+    { "ref": "security.secrets_management",  "severity": "critical" },
+
+    { "ref": "auth.access_control",          "severity": "high" },
+    { "ref": "data.pii_protection",          "severity": "high" },
+    { "ref": "reliability.error_handling",   "severity": "high" },
+    { "ref": "security.abuse_controls",      "severity": "high" },
+
+    { "ref": "security.injection",           "severity": "medium" },
+    { "ref": "security.transport_headers",   "severity": "medium" }
+  ]
+}

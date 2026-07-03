@@ -57,6 +57,13 @@ export const RULES = {
     paths: ["prompt", "completion", "chatbot", "assistant", "agent", "llm", "embedding", "rag", "vectorstore", "retriever", "chat"],
     models: ["conversation", "embedding", "prompt", "completion", "chatsession", "chatmessage"],
   },
+  // Backend-as-a-Service (Supabase / Firebase). The client-SDK deps are the strong,
+  // discriminating tell; a `supabase/` dir or RLS/policy paths back them up.
+  baas: {
+    deps: ["supabase", "firebase", "gotrue", "postgrest", "firestore", "@firebase", "@angular/fire"],
+    paths: ["supabase", "rls", "policy", "policies", "firestore", "firebase"],
+    models: [],
+  },
 };
 
 // Deps that imply a real backend / stored state — portfolio is "little or no backend",
@@ -88,6 +95,7 @@ const CONFIG_FILES = [
   ["gatsby-config.ts", "portfolio"], ["gatsby-config.js", "portfolio"],
   ["docusaurus.config.ts", "portfolio"], ["docusaurus.config.js", "portfolio"],
   ["eleventy.config.js", "portfolio"], [".eleventy.js", "portfolio"], ["_config.yml", "portfolio"],
+  [join("supabase", "config.toml"), "baas"], ["firebase.json", "baas"], ["firestore.rules", "baas"], ["storage.rules", "baas"],
 ];
 
 // Placeholder env files only (never .env — that holds real secrets and is gitignored). We
@@ -101,6 +109,8 @@ const ENV_RULES = {
   // Provider API-key names in .env.example are a strong AI tell (OPENAI_API_KEY -> tokens
   // openai/api/key). "groq"/"gemini"/"together" are safe here — they're env-var names, not deps.
   "ai-app": ["openai", "anthropic", "cohere", "mistral", "huggingface", "pinecone", "langchain", "groq", "together", "replicate", "gemini", "ollama"],
+  // Supabase/Firebase env var names (SUPABASE_URL, FIREBASE_API_KEY, …).
+  baas: ["supabase", "firebase", "firestore", "gotrue"],
 };
 
 // Split into whole tokens, breaking on non-alphanumerics AND camelCase, lowercased.

@@ -200,6 +200,12 @@ const ecomPlusAI = scoreArchetypes({ deps: ["stripe", "openai", "prisma"], paths
 check("a bolt-on AI feature does NOT flip an ecommerce app to ai-app", ecomPlusAI[0].archetype === "ecommerce", `got ${ecomPlusAI[0].archetype}`);
 check("'groq-sdk' (AI) is required — Sanity's 'groq' query lang does not score ai-app", scoreArchetypes({ deps: ["groq", "sanity", "next-sanity"], paths: ["src/lib/queries.ts"], schemaModels: [] }).find((r) => r.archetype === "ai-app").score === 0, "bare groq should not mislabel as ai-app");
 
+// baas: Supabase/Firebase client SDKs + RLS/policy signals classify.
+const baas = scoreArchetypes({ deps: ["@supabase/supabase-js"], paths: ["supabase/migrations/001_init.sql", "supabase/policies.sql"], schemaModels: [], envVars: ["supabase_url", "supabase_anon_key"] });
+check("Supabase signals → baas on top", baas[0].archetype === "baas", `got ${baas[0].archetype}`);
+const fbase = scoreArchetypes({ deps: [], paths: [], schemaModels: [], configHits: [{ archetype: "baas", file: "firestore.rules" }] });
+check("firestore.rules config → baas on top", fbase[0].archetype === "baas" && fbase[0].matched.some((m) => m.startsWith("config:")));
+
 // Integration: real signals from the vulnerable fixture → ecommerce, with evidence.
 const fxSignals = collectSignals(fixture);
 const fxRanked = scoreArchetypes(fxSignals);
@@ -209,7 +215,7 @@ check("fixture detection shows its evidence (the 'why')", fxRanked[0].matched.le
 // Manifest discovery finds the base archetypes and excludes the instrumented design layer.
 const manifests = discoverManifests(join(here, ".."));
 const names = manifests.map((m) => m.archetype);
-check("discovers ecommerce/saas/portfolio/ai-app manifests", ["ecommerce", "saas", "portfolio", "ai-app"].every((n) => names.includes(n)), names.join(","));
+check("discovers ecommerce/saas/portfolio/ai-app/baas manifests", ["ecommerce", "saas", "portfolio", "ai-app", "baas"].every((n) => names.includes(n)), names.join(","));
 check("excludes the *.design.json instrumented layer", !manifests.some((m) => m.file.endsWith(".design.json")));
 
 console.log("\n6. Project config + manifest resolution (CLI — brick B):");

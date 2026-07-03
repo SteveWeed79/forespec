@@ -743,6 +743,49 @@
       "label": "good",
       "gold_level": 6,
       "note": "only task-necessary non-PII fields sent to provider; log stores metadata, not prompt/response body"
+    },
+
+    {
+      "checkpoint": "baas.rls_enforced",
+      "fixture": "fixtures/baas.rls_enforced/bad.sql",
+      "label": "bad",
+      "gold_level": 3,
+      "note": "one table with RLS disabled, another 'enabled' with a using(true) policy — anon key reads across users"
+    },
+    {
+      "checkpoint": "baas.rls_enforced",
+      "fixture": "fixtures/baas.rls_enforced/good.sql",
+      "label": "good",
+      "gold_level": 6,
+      "note": "RLS enabled with per-operation policies scoped to auth.uid() = user_id"
+    },
+    {
+      "checkpoint": "baas.client_trust_boundary",
+      "fixture": "fixtures/baas.client_trust_boundary/bad.ts",
+      "label": "bad",
+      "gold_level": 3,
+      "note": "admin gate only in the component; direct client delete; role written from the client on insert"
+    },
+    {
+      "checkpoint": "baas.client_trust_boundary",
+      "fixture": "fixtures/baas.client_trust_boundary/good.ts",
+      "label": "good",
+      "gold_level": 6,
+      "note": "delete via security-definer RPC + RLS; role set by DB default, not client-supplied"
+    },
+    {
+      "checkpoint": "baas.privileged_key_exposure",
+      "fixture": "fixtures/baas.privileged_key_exposure/bad.ts",
+      "label": "bad",
+      "gold_level": 3,
+      "note": "service-role key read from a NEXT_PUBLIC_ env var and used in the browser client — bypasses RLS for everyone"
+    },
+    {
+      "checkpoint": "baas.privileged_key_exposure",
+      "fixture": "fixtures/baas.privileged_key_exposure/good.ts",
+      "label": "good",
+      "gold_level": 6,
+      "note": "client uses the anon key; service-role key is unprefixed and confined to a server-only factory"
     }
   ]
 }
