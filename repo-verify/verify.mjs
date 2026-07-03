@@ -23,13 +23,14 @@
 //   -h, --help
 
 import { resolve as pathResolve, dirname } from "node:path";
-import { existsSync, statSync } from "node:fs";
+import { existsSync, statSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { resolveArchetype } from "../library/resolve.mjs";
 import { loadRepo, selectForCheckpoint } from "./select.mjs";
 import { fingerprint, newRunId, recordPredictions, readOverrides } from "./store.mjs";
 import { readConfig, resolveManifestPath } from "./config.mjs";
 import { selectGaps, adviseGaps } from "./gaps.mjs";
+import { renderReport } from "./report-html.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -53,6 +54,7 @@ Options:
   --store <dir>        Calibration store dir for the prediction log (default: ./.foresight)
   --no-store           Don't record this run to the calibration store
   --json               Machine-readable JSON
+  --html [path]        Also write a visual HTML report (default: foresight-report.html)
   -h, --help           This help
 
 The claude adapter reads ANTHROPIC_API_KEY and ANTHROPIC_MODEL from the environment.
@@ -92,7 +94,7 @@ async function main() {
   const positionals = process.argv.slice(2).filter((a, i, arr) => {
     if (a.startsWith("-")) return false;
     const prev = arr[i - 1];
-    return !["--archetype", "--domain", "--checkpoint", "--adapter", "--budget", "--store"].includes(prev);
+    return !["--archetype", "--domain", "--checkpoint", "--adapter", "--budget", "--store", "--html"].includes(prev);
   });
   const repoArg = positionals[0];
   if (!repoArg) {
@@ -135,6 +137,13 @@ async function main() {
   const budget = Number(arg("--budget", "60000")) || 60_000;
   const json = has("--json");
   const storeDir = pathResolve(process.cwd(), arg("--store", ".foresight"));
+  // --html [path]: also emit the visual report. Guard against `--html` being followed
+  // by another flag (arg() would return that flag as the path) → fall back to default.
+  let htmlOut = null;
+  if (has("--html")) {
+    const p = arg("--html", null);
+    htmlOut = p && !p.startsWith("-") ? p : "foresight-report.html";
+  }
 
   // Apply locally-accepted calibration overrides (brick 3) on top of the archetype.
   // The shared library is untouched; this is earned, reversible, per-project tuning.
@@ -268,6 +277,32 @@ async function main() {
       if (advice) gapReport = { source: advice.source, items: advice.items };
     }
   } catch { /* gaps are advisory — a stumble here must never break a verify run */ }
+
+  // --html: write the visual report from the SAME data. Pure output surface — it
+  // reads the results/rollup/gaps already computed and renders a standalone HTML
+  // file; it never touches a grade or the gate. Sandboxed so a render error can't
+  // fail the run.
+  if (htmlOut) {
+    try {
+      const html = renderReport({
+        project: repoPath.split(/[\\/]/).filter(Boolean).pop(),
+        archetype: archetype.archetype,
+        version: archetype.version,
+        adapter: adapter.name ?? adapterName,
+        model: adapterName === "claude" ? process.env.ANTHROPIC_MODEL ?? null : null,
+        generatedAt: new Date().toISOString().replace("T", " ").slice(0, 16) + " UTC",
+        results,
+        rollup: { shippable, great, blocking: blocking.map((r) => r.id) },
+        gaps: gapReport,
+        checkpoints,
+      });
+      const dest = pathResolve(process.cwd(), htmlOut);
+      writeFileSync(dest, html);
+      if (!json) console.error(`\nwrote HTML report → ${dest}`);
+    } catch (e) {
+      console.error(`note: could not write HTML report: ${e.message ?? e}`);
+    }
+  }
 
   if (json) {
     console.log(JSON.stringify({ archetype: archetype.archetype, version: archetype.version, adapter: adapter.name ?? adapterName, overrides_applied: appliedOverrides, results, rollup: { shippable, great, blocking: blocking.map((r) => r.id), ungraded: ungraded.map((r) => r.id), not_applicable: notApplicable.map((r) => r.id) }, gaps: gapReport, store: storeInfo }, null, 2));
