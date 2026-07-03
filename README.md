@@ -9,8 +9,8 @@ It draws each interrogation from a compounding **pattern library** and keeps the
 **live** through a plan → build → verify → correct loop. AI coding tools (Claude Code first)
 are adapters that drive the engine — never the thing it lives inside.
 
-> **Status: early build.** The specs and the first archetype are here, plus runnable tooling
-> (`schemas/`, `verifier-eval/`, `repo-verify/`). New to this kind of project? Start with
+> **Status: early build.** The specs, **five archetypes**, and runnable tooling
+> (`schemas/`, `verifier-eval/`, `repo-verify/`) are here. New to this kind of project? Start with
 > [`SETUP.md`](./SETUP.md) — it gets you running on Windows step by step.
 
 ## Quickstart
@@ -19,20 +19,25 @@ are adapters that drive the engine — never the thing it lives inside.
 foresight init                      # detect your archetype, write foresight.config.json (commit it)
 foresight plan "add checkout flow"  # interrogate the feature BEFORE you build it
 foresight verify                    # grade your backbone with the reasoning verifier (needs an API key — see below)
+foresight verify --html             # …and drop a visual report (open it in a browser) next to the run
 foresight design http://localhost:3000   # measure a live page's design in a headless browser
 foresight gate --help               # wire the PR/CI gate that comments on every pull request
 ```
 
 That's the loop the engine keeps live: **plan → build → verify → correct.** `plan` emits a
 pre-build spec (the questions to decide first + acceptance criteria); `verify`/`gate` grade
-the same checkpoints after. Over time `foresight proficiency` reads how much judgment you've
-shown per domain (from the calibration store, self-facing only) and `plan` adapts how much it
-explains — full where you're learning, terse where you're fluent.
+the same checkpoints after — marking what's present, flagging what's unsafe, and (the foresight
+half) surfacing a **gaps ahead** section: the archetype-required backbone you *haven't built yet*,
+called out in week one instead of month three. Over time `foresight proficiency` reads how much
+judgment you've shown per domain (from the calibration store, self-facing only) and `plan` adapts
+how much it explains — full where you're learning, terse where you're fluent.
 
 `init` reads only metadata (dependencies, paths, schema model names) to pick the archetype —
 never your code. **Real grading needs the reasoning verifier:** set `ANTHROPIC_API_KEY` +
 `ANTHROPIC_MODEL` and it runs against a validated bar — 0 false-greens on 52 critical bad cases,
-rule-of-three 95% upper bound ≤ 2.9% (see [`VALIDATION-NOTES.md`](./VALIDATION-NOTES.md)). Without a
+rule-of-three 95% upper bound ≤ 2.9% (see [`VALIDATION-NOTES.md`](./VALIDATION-NOTES.md)). That bar
+covers the ecommerce/universal corpus; the newer `ai-app` and `baas` archetypes are **first-pass**
+validated (0 false-greens on their initial fixtures, full rule-of-three pending). Without a
 key it falls back to a deterministic keyword `mock` baseline that exists only to exercise the harness
 — it is **not a grader to trust** (on the current corpus its own accuracy gate reports NO-GO). Full
 walkthrough: [`repo-verify/README.md`](./repo-verify/README.md).
@@ -44,11 +49,13 @@ walkthrough: [`repo-verify/README.md`](./repo-verify/README.md).
 | [`FORESIGHT-2.md`](./FORESIGHT-2.md) | The vision: the full architecture, the moat argument, and *why* the engine exists. **Superseded on build *sequence*** by the build order below (it has banners pointing there). |
 | [`foresight.buildorder-2.md`](./foresight.buildorder-2.md) | **The authoritative roadmap.** Phases 0–7, verifier-first, each phase shippable and standing on its own. When any doc disagrees on *what to build in what order*, this one governs. |
 | [`foresight.calibration-1.md`](./foresight.calibration-1.md) | Layer 3 — the calibration loop that turns invented weights into ones earned on real work, and the seam that lets solo data later join a shared pool without a rewrite. |
-| [`library/`](./library) | The **shared checkpoint library** — every checkpoint definition (auth, payment, data, design, …), authored once and reused across archetypes. `resolve.mjs` composes a manifest + the library into a full archetype. |
+| [`library/`](./library) | The **shared checkpoint library** — every checkpoint definition (auth, payment, data, design, ai, baas, …), authored once and reused across archetypes. `resolve.mjs` composes a manifest + the library into a full archetype. |
 | [`archetype.ecommerce.json`](./archetype.ecommerce.json) | The ecommerce **archetype manifest**: selects 20 backbone + 7 design checkpoints from the library and sets each one's severity for this domain. Resolves to the durable standard a verifier grades against. |
 | [`archetype.ecommerce.design.json`](./archetype.ecommerce.design.json) | The **instrumented** design layer: design checkpoints decomposed into weighted, measurable sub-signals → a computed 0–10 composite. Its `model_scored` signals are deferred experiments until calibration earns them. |
 | [`archetype.saas.json`](./archetype.saas.json) | The SaaS / subscription **archetype manifest** — 26 checkpoints, all but 3 **reused** from the library, 3 SaaS-specific (tenant isolation, entitlement integrity, subscription lifecycle). |
 | [`archetype.portfolio.json`](./archetype.portfolio.json) | The portfolio / content **archetype manifest** — 14 checkpoints, **100% composed** from the shared library (design + web + the universal security/privacy set), zero new authoring. |
+| [`archetype.ai-app.json`](./archetype.ai-app.json) | The **AI / LLM app archetype manifest** — 12 checkpoints, **5 AI-specific** (prompt injection, output handling, tool-use safety, cost controls, data boundary) + 7 reused. A safety standard for the thing the ICP is actually building. |
+| [`archetype.baas.json`](./archetype.baas.json) | The **Backend-as-a-Service (Supabase / Firebase) archetype manifest** — 10 checkpoints, **3 BaaS-specific** (RLS enforced, client trust boundary, privileged-key exposure) + 7 reused. |
 
 ## Reading order
 
@@ -97,8 +104,9 @@ walkthrough: [`repo-verify/README.md`](./repo-verify/README.md).
   repo*. Archetype detection (`foresight init`), the verifier CLI, the calibration store
   (the pattern/instance wall, made physical), and the git-aware **PR gate** + drop-in GitHub
   Action (`action.yml`). Start at [`repo-verify/README.md`](./repo-verify/README.md).
-- [`bin/foresight.mjs`](./bin) — the unified `foresight` CLI (`init` / `verify` / `gate` /
-  `detect` / `feedback` / `calibrate`), exposed for `npx`.
+- [`bin/foresight.mjs`](./bin) — the unified `foresight` CLI (`init` / `detect` / `plan` /
+  `verify` — add `--html` for a visual report — / `design` / `gate` / `feedback` / `calibrate` /
+  `proficiency`), exposed for `npx`.
 
 ## License
 
