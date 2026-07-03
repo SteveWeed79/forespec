@@ -13,6 +13,7 @@
   "files": [
     "bin/",
     "repo-verify/*.mjs",
+    "verifier-eval/adapters/*.mjs",
     "library/",
     "schemas/",
     "archetype.*.json",
