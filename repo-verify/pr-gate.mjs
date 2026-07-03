@@ -70,7 +70,7 @@ function deltaTag(prior, now) {
   return `= ${now}`;
 }
 
-function renderMarkdown({ archetype, results, changed, touched, passive, ok, blockingCrit, regressedCrit, adapterName }) {
+function renderMarkdown({ archetype, results, changed, touched, passive, ok, blockingCrit, regressedCrit, gateTier = "critical", adapterName }) {
   const L = ["<!-- foresight-gate -->", `### 🔭 Foresight — ${archetype.archetype} backbone`, ""];
   if (touched.length === 0) {
     L.push(`No backbone-relevant files changed in this PR (${changed.length} changed file(s) scanned). Nothing to grade.`);
@@ -86,10 +86,10 @@ function renderMarkdown({ archetype, results, changed, touched, passive, ok, blo
   }
   L.push("");
   L.push(ok
-    ? "✅ **Backbone gate: pass** — no touched critical below level 6, no regressions."
+    ? `✅ **Backbone gate: pass** — no touched ${gateTier} below level 6, no regressions.`
     : "🚫 **Backbone gate: needs a look**");
-  if (blockingCrit.length) L.push(`- Critical below shippable (≥6): ${blockingCrit.map((r) => `\`${r.id}\` (${levelStr(r.level)})`).join(", ")}`);
-  if (regressedCrit.length) L.push(`- Critical regressed: ${regressedCrit.map((r) => `\`${r.id}\` (${r.prior}→${r.level})`).join(", ")}`);
+  if (blockingCrit.length) L.push(`- ${gateTier[0].toUpperCase() + gateTier.slice(1)} below shippable (≥6): ${blockingCrit.map((r) => `\`${r.id}\` (${levelStr(r.level)})`).join(", ")}`);
+  if (regressedCrit.length) L.push(`- ${gateTier[0].toUpperCase() + gateTier.slice(1)} regressed: ${regressedCrit.map((r) => `\`${r.id}\` (${r.prior}→${r.level})`).join(", ")}`);
   if (passive.length) L.push("", `_Recorded ${passive.length} passive "flagged→fixed" outcome(s) for calibration: ${passive.map((id) => `\`${id}\``).join(", ")}._`);
   L.push("", "<sub>Levels: 3 present-but-risky · 6 solid · 9 great. A level is property-presence, not blast radius — confirm before acting. Reasoning grades are a first pass; verify critical calls.</sub>");
   return L.join("\n");
@@ -189,14 +189,19 @@ async function main() {
     }
   }
 
-  const crit = results.filter((r) => r.severity === "critical");
+  // Gate on the archetype's TOP severity tier present (critical if it has any, else high),
+  // not always "critical" — so a portfolio (no criticals) gates on its high-severity bar
+  // instead of passing for free. Mirrors the verify.mjs roll-up fix.
+  const SEV_ORDER = ["critical", "high", "medium", "low"];
+  const gateTier = SEV_ORDER.find((s) => archetype.checkpoints.some((c) => c.severity === s)) ?? "critical";
+  const gated = results.filter((r) => r.severity === gateTier);
   const ungraded = results.filter((r) => r.level == null);
   const lvl = (r) => (r.level == null ? -1 : r.level);
-  const blockingCrit = crit.filter((r) => lvl(r) < 6);
-  const regressedCrit = crit.filter((r) => r.prior != null && r.level != null && r.level < r.prior);
+  const blockingCrit = gated.filter((r) => lvl(r) < 6);
+  const regressedCrit = gated.filter((r) => r.prior != null && r.level != null && r.level < r.prior);
   const ok = blockingCrit.length === 0 && regressedCrit.length === 0 && ungraded.length === 0;
 
-  const md = renderMarkdown({ archetype, results, changed, touched, passive, ok, blockingCrit, regressedCrit, adapterName });
+  const md = renderMarkdown({ archetype, results, changed, touched, passive, ok, blockingCrit, regressedCrit, gateTier, adapterName });
 
   if (has("--json")) console.log(JSON.stringify({ ok, changed, touched: touched.map((c) => c.id), results, passive }, null, 2));
   else if (has("--comment") && !has("--dry-run")) await postComment(md);

@@ -243,13 +243,19 @@ async function main() {
   // toward the gate — a repo with no payments isn't "unshippable" for payment checkpoints.
   const assessed = results.filter((r) => r.applicable !== false);
   const notApplicable = results.filter((r) => r.applicable === false);
-  const critical = assessed.filter((r) => r.severity === "critical");
-  const others = assessed.filter((r) => r.severity !== "critical");
+  // The gate is the archetype's TOP severity tier PRESENT, not always "critical":
+  // ecommerce/saas/ai/baas gate on criticals; portfolio (which has no criticals by design)
+  // gates on its high-severity design/web bar. Hardcoding "critical" let a no-criticals
+  // archetype pass the gate for free — a real bug found battle-testing a real portfolio.
+  const SEV_ORDER = ["critical", "high", "medium", "low"];
+  const gateTier = SEV_ORDER.find((s) => assessed.some((r) => r.severity === s)) ?? "critical";
+  const gated = assessed.filter((r) => r.severity === gateTier);
+  const others = assessed.filter((r) => r.severity !== gateTier);
   const ungraded = assessed.filter((r) => r.level == null); // errored (N/A already excluded)
   const lvl = (r) => (r.level == null ? -1 : r.level);
-  const shippable = ungraded.length === 0 && critical.every((r) => lvl(r) >= 6);
-  const great = ungraded.length === 0 && critical.every((r) => lvl(r) >= 9) && others.every((r) => lvl(r) >= 6);
-  const blocking = critical.filter((r) => lvl(r) < 6);
+  const shippable = ungraded.length === 0 && gated.every((r) => lvl(r) >= 6);
+  const great = ungraded.length === 0 && gated.every((r) => lvl(r) >= 9) && others.every((r) => lvl(r) >= 6);
+  const blocking = gated.filter((r) => lvl(r) < 6);
 
   // Brick 1 — log this run as training data (pattern/instance split), unless disabled.
   let storeInfo = null;
@@ -305,7 +311,7 @@ async function main() {
   }
 
   if (json) {
-    console.log(JSON.stringify({ archetype: archetype.archetype, version: archetype.version, adapter: adapter.name ?? adapterName, overrides_applied: appliedOverrides, results, rollup: { shippable, great, blocking: blocking.map((r) => r.id), ungraded: ungraded.map((r) => r.id), not_applicable: notApplicable.map((r) => r.id) }, gaps: gapReport, store: storeInfo }, null, 2));
+    console.log(JSON.stringify({ archetype: archetype.archetype, version: archetype.version, adapter: adapter.name ?? adapterName, overrides_applied: appliedOverrides, results, rollup: { shippable, great, gate_tier: gateTier, blocking: blocking.map((r) => r.id), ungraded: ungraded.map((r) => r.id), not_applicable: notApplicable.map((r) => r.id) }, gaps: gapReport, store: storeInfo }, null, 2));
     return shippable ? 0 : 1;
   }
 
@@ -332,10 +338,10 @@ async function main() {
     out.push("");
   }
   out.push(paint(useColor, COLORS.bold, "── goal_definition roll-up ──"));
-  out.push(`  shippable (all critical ≥ 6): ${shippable ? paint(useColor, COLORS.green, "YES") : paint(useColor, COLORS.red, "NO")}`);
-  out.push(`  great (all critical 9, rest ≥ 6): ${great ? paint(useColor, COLORS.green, "YES") : paint(useColor, COLORS.dim, "no")}`);
+  out.push(`  shippable (all ${gateTier} ≥ 6): ${shippable ? paint(useColor, COLORS.green, "YES") : paint(useColor, COLORS.red, "NO")}`);
+  out.push(`  great (all ${gateTier} 9, rest ≥ 6): ${great ? paint(useColor, COLORS.green, "YES") : paint(useColor, COLORS.dim, "no")}`);
   if (blocking.length) {
-    out.push(`  ${paint(useColor, COLORS.red, "blocking critical:")}`);
+    out.push(`  ${paint(useColor, COLORS.red, `blocking ${gateTier}:`)}`);
     for (const r of blocking) out.push(`    - ${r.id} (${r.level == null ? "ungraded" : "level " + r.level})`);
   }
   if (ungraded.length) out.push(`  ${paint(useColor, COLORS.yellow, "ungraded:")} ${ungraded.map((r) => r.id).join(", ")}`);
