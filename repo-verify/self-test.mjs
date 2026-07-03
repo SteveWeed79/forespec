@@ -19,6 +19,7 @@ import { tmpdir } from "node:os";
 import { resolveArchetype } from "../library/resolve.mjs";
 import * as mock from "../verifier-eval/adapters/mock.mjs";
 import { loadRepo, selectForCheckpoint, scoreFile } from "./select.mjs";
+import { measureRecall } from "./selection-eval.mjs";
 import { fingerprint, recordPredictions, latestPrediction, recordOutcome, readOverrides, writeOverrides, FILES } from "./store.mjs";
 import { aggregate, propose } from "./calibrate.mjs";
 import { scoreArchetypes, collectSignals, discoverManifests, isAmbiguous, classifyWithAI } from "./detect.mjs";
@@ -369,6 +370,17 @@ check("selection respects the character budget", packed.code.length <= 26000, `p
 const fb = selectForCheckpoint([{ path: "a.ts", content: "zzz" }, { path: "b.ts", content: "yy" }], { id: "nomatch.checkpoint.zzz" });
 check("fallback returns non-empty code when no keyword matches", fb.code.length > 0 && fb.files.length > 0);
 check("scoreFile counts a path hit + caps body matches", scoreFile({ path: "stock.ts", content: "stock stock stock" }, ["stock"]) === 8);
+
+console.log("\n13. Selection recall (the OTHER half of trust — does selection surface the vulnerable file?):");
+// The corpus proves the grader; this proves selection hands it the right file. A miss here
+// is a false-green the corpus never sees. Run at a tight budget so ranking/budget bite.
+for (const budget of [9000, 5000]) {
+  const rows = measureRecall({ budget, perFile: 3000 });
+  const misses = rows.filter((r) => !r.missing && !r.inSlice);
+  const total = rows.filter((r) => !r.missing).length;
+  check(`every known-vulnerable file is surfaced at budget ${budget} (${total - misses.length}/${total})`, misses.length === 0,
+    misses.map((m) => `${m.repo}/${m.cpId}→${m.target}`).join(", "));
+}
 
 console.log("");
 if (failures > 0) {

@@ -115,8 +115,14 @@ const KEYWORDS = {
 
 export function keywordsFor(cp) {
   const curated = KEYWORDS[cp.id] ?? [];
-  const fromId = cp.id.split(/[.\-_]/).filter((t) => t.length > 2).map((t) => t.toLowerCase());
-  return Array.from(new Set([...curated, ...fromId]));
+  // Curated keywords are authored to be both sufficient AND discriminating. When they
+  // exist, don't dilute them with generic tokens split from the id ("security", "data",
+  // "auth", "payment") — those match unrelated files (a securityQuestions.ts decoy, a
+  // config monolith) and can out-rank the real target, the exact false-green-by-selection
+  // risk the selection-recall harness guards. The id-token split is the FALLBACK, used
+  // only for checkpoints that have no curated set.
+  if (curated.length) return curated;
+  return cp.id.split(/[.\-_]/).filter((t) => t.length > 2).map((t) => t.toLowerCase());
 }
 
 export function scoreFile(file, keywords) {

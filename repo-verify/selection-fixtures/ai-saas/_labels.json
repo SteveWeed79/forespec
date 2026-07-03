@@ -1,0 +1,10 @@
+{
+  "_note": "Synthetic AI-app-on-Supabase repo for selection recall. Each checkpoint's issue lives in one file among decoys (Sidebar.tsx, analytics.ts). Tests that selection finds LLM and BaaS code, and that the shared 'supabase' keyword doesn't confuse the RLS file with the client-key file.",
+  "labels": {
+    "ai.prompt_injection": ["app/api/chat/route.ts"],
+    "ai.output_handling": ["lib/answer.tsx"],
+    "ai.tool_use_safety": ["agent/tools.ts"],
+    "baas.rls_enforced": ["supabase/migrations/0001_init.sql"],
+    "baas.privileged_key_exposure": ["lib/supabaseClient.ts"]
+  }
+}

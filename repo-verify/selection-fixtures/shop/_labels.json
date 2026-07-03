@@ -1,0 +1,9 @@
+{
+  "_note": "Synthetic repo for the selection-recall gate. For each checkpoint, `labels` lists the file(s) selection MUST surface (the file that actually holds the issue). Traps on purpose: lib/securityQuestions.ts baits the generic 'security' token, and server.ts is a large monolith that name-drops env keys — either could crowd out the real target if selection isn't discriminating + budget-safe.",
+  "labels": {
+    "security.injection": ["routes/login.ts"],
+    "security.secrets_management": ["lib/insecurity.ts"],
+    "auth.credential_storage": ["lib/insecurity.ts"],
+    "ecommerce.checkout.atomic_stock_hold": ["app/checkout/actions.ts"]
+  }
+}
