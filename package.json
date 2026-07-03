@@ -3,6 +3,30 @@
   "version": "0.1.0",
   "type": "module",
   "description": "Foresight — forces domain foresight before a feature, then verifies what got built against it.",
+  "keywords": [
+    "foresight",
+    "verifier",
+    "code-review",
+    "security",
+    "ci",
+    "pr-gate",
+    "github-action",
+    "archetype",
+    "checkpoints",
+    "ai",
+    "llm-safety",
+    "backend",
+    "correctness"
+  ],
+  "homepage": "https://github.com/SteveWeed79/glowing-barnacle#readme",
+  "bugs": {
+    "url": "https://github.com/SteveWeed79/glowing-barnacle/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/SteveWeed79/glowing-barnacle.git"
+  },
+  "author": "Steve Weed",
   "license": "BUSL-1.1",
   "engines": {
     "node": ">=18"
