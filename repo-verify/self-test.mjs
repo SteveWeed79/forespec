@@ -323,8 +323,13 @@ const allExist = corpus.cases.every((c) => existsSync(join(evalDir, c.fixture)))
 check("every corpus fixture file exists", allExist, `${corpus.cases.filter((c) => !existsSync(join(evalDir, c.fixture))).map((c) => c.fixture).join(", ")}`);
 check("labels/levels valid (bad→3, good→≥6)", corpus.cases.every((c) => (c.label === "bad" && c.gold_level === 3) || (c.label === "good" && c.gold_level >= 6)));
 // Criticality from the manifests; each critical checkpoint needs enough bad cases for power.
+// Union EVERY discovered archetype's criticals so no archetype — present or future — can
+// ship a critical checkpoint with thin bad-case coverage. The floor applies to all, and a
+// new archetype.*.json is enforced automatically the moment it's added.
 const criticalIds = new Set();
-for (const cp of archetype.checkpoints) if (cp.severity === "critical") criticalIds.add(cp.id);
+for (const m of discoverManifests(join(here, "..")))
+  for (const cp of resolveArchetype(join(here, "..", m.file)).checkpoints)
+    if (cp.severity === "critical") criticalIds.add(cp.id);
 const badPerCritical = {};
 for (const c of corpus.cases) if (c.label === "bad" && criticalIds.has(c.checkpoint)) badPerCritical[c.checkpoint] = (badPerCritical[c.checkpoint] || 0) + 1;
 const thinCriticals = [...criticalIds].filter((id) => corpus.cases.some((c) => c.checkpoint === id) && (badPerCritical[id] || 0) < 4);

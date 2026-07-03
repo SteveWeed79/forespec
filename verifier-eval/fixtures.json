@@ -786,6 +786,29 @@
       "label": "good",
       "gold_level": 6,
       "note": "client uses the anon key; service-role key is unprefixed and confined to a server-only factory"
-    }
+    },
+
+    { "checkpoint": "ai.prompt_injection", "fixture": "fixtures/ai.prompt_injection/bad2.ts", "label": "bad", "gold_level": 3, "note": "the SYSTEM message is built from user-controlled profile text — client rewrites the instructions" },
+    { "checkpoint": "ai.prompt_injection", "fixture": "fixtures/ai.prompt_injection/bad3.ts", "label": "bad", "gold_level": 3, "note": "indirect injection: a retrieved RAG document is placed in the instruction block verbatim" },
+    { "checkpoint": "ai.prompt_injection", "fixture": "fixtures/ai.prompt_injection/bad4.ts", "label": "bad", "gold_level": 3, "note": "a consequential tool (delete_account) gated only by the model being asked to refuse" },
+    { "checkpoint": "ai.prompt_injection", "fixture": "fixtures/ai.prompt_injection/good2.ts", "label": "good", "gold_level": 6, "note": "fixed system prompt, user text as data role, constrained to a JSON label via structured output" },
+    { "checkpoint": "ai.output_handling", "fixture": "fixtures/ai.output_handling/bad2.ts", "label": "bad", "gold_level": 3, "note": "model output eval()'d as a JS expression — arbitrary code execution" },
+    { "checkpoint": "ai.output_handling", "fixture": "fixtures/ai.output_handling/bad3.ts", "label": "bad", "gold_level": 3, "note": "model output run as a shell command via child_process.exec" },
+    { "checkpoint": "ai.output_handling", "fixture": "fixtures/ai.output_handling/bad4.tsx", "label": "bad", "gold_level": 3, "note": "model HTML injected via React dangerouslySetInnerHTML, unsanitized" },
+    { "checkpoint": "ai.output_handling", "fixture": "fixtures/ai.output_handling/good2.ts", "label": "good", "gold_level": 6, "note": "structured JSON output validated against a schema and consumed as typed data, never HTML/eval/query" },
+    { "checkpoint": "ai.tool_use_safety", "fixture": "fixtures/ai.tool_use_safety/bad2.ts", "label": "bad", "gold_level": 3, "note": "a single execute_python tool runs arbitrary model-emitted code at full privilege" },
+    { "checkpoint": "ai.tool_use_safety", "fixture": "fixtures/ai.tool_use_safety/bad3.ts", "label": "bad", "gold_level": 3, "note": "file read/write tools take the model's path arg unvalidated — path traversal" },
+    { "checkpoint": "ai.tool_use_safety", "fixture": "fixtures/ai.tool_use_safety/bad4.ts", "label": "bad", "gold_level": 3, "note": "refund tool trusts model-supplied intent+amount with no per-user authz and no cap" },
+    { "checkpoint": "baas.rls_enforced", "fixture": "fixtures/baas.rls_enforced/bad2.sql", "label": "bad", "gold_level": 3, "note": "RLS on, but the policy scopes by a client-forgeable request header instead of auth.uid()" },
+    { "checkpoint": "baas.rls_enforced", "fixture": "fixtures/baas.rls_enforced/bad3.rules", "label": "bad", "gold_level": 3, "note": "Firestore rules: allow read, write: if true — world-readable/writable" },
+    { "checkpoint": "baas.rls_enforced", "fixture": "fixtures/baas.rls_enforced/bad4.sql", "label": "bad", "gold_level": 3, "note": "SELECT scoped to the owner but an ALL policy authorizes every write — partial coverage" },
+    { "checkpoint": "baas.rls_enforced", "fixture": "fixtures/baas.rls_enforced/good2.sql", "label": "good", "gold_level": 6, "note": "team-scoped access via a membership join, still anchored to auth.uid(), enforced per operation" },
+    { "checkpoint": "baas.client_trust_boundary", "fixture": "fixtures/baas.client_trust_boundary/bad2.ts", "label": "bad", "gold_level": 3, "note": "order total computed in the browser and inserted directly — client sets the price" },
+    { "checkpoint": "baas.client_trust_boundary", "fixture": "fixtures/baas.client_trust_boundary/bad3.ts", "label": "bad", "gold_level": 3, "note": "ownership enforced only by a client-added .eq() filter with no RLS behind it" },
+    { "checkpoint": "baas.client_trust_boundary", "fixture": "fixtures/baas.client_trust_boundary/bad4.ts", "label": "bad", "gold_level": 3, "note": "Firestore write validated only in client JS; rules allow any authenticated write" },
+    { "checkpoint": "baas.privileged_key_exposure", "fixture": "fixtures/baas.privileged_key_exposure/bad2.ts", "label": "bad", "gold_level": 3, "note": "service-role key hard-coded as a string literal in a client-bundled module" },
+    { "checkpoint": "baas.privileged_key_exposure", "fixture": "fixtures/baas.privileged_key_exposure/bad3.ts", "label": "bad", "gold_level": 3, "note": "service-role key behind a VITE_ prefix — inlined into the client bundle" },
+    { "checkpoint": "baas.privileged_key_exposure", "fixture": "fixtures/baas.privileged_key_exposure/bad4.ts", "label": "bad", "gold_level": 3, "note": "firebase-admin service account imported into a client-bundled module" },
+    { "checkpoint": "baas.privileged_key_exposure", "fixture": "fixtures/baas.privileged_key_exposure/good2.ts", "label": "good", "gold_level": 6, "note": "service key used only in a server route handler reading an unprefixed env var" }
   ]
 }
