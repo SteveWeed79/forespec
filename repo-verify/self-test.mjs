@@ -19,6 +19,7 @@ import { tmpdir } from "node:os";
 import { resolveArchetype } from "../library/resolve.mjs";
 import * as mock from "../verifier-eval/adapters/mock.mjs";
 import { loadRepo, selectForCheckpoint, scoreFile } from "./select.mjs";
+import { measureRecall } from "./selection-eval.mjs";
 import { fingerprint, recordPredictions, latestPrediction, recordOutcome, readOverrides, writeOverrides, FILES } from "./store.mjs";
 import { aggregate, propose } from "./calibrate.mjs";
 import { scoreArchetypes, collectSignals, discoverManifests, isAmbiguous, classifyWithAI } from "./detect.mjs";
@@ -200,6 +201,12 @@ const ecomPlusAI = scoreArchetypes({ deps: ["stripe", "openai", "prisma"], paths
 check("a bolt-on AI feature does NOT flip an ecommerce app to ai-app", ecomPlusAI[0].archetype === "ecommerce", `got ${ecomPlusAI[0].archetype}`);
 check("'groq-sdk' (AI) is required — Sanity's 'groq' query lang does not score ai-app", scoreArchetypes({ deps: ["groq", "sanity", "next-sanity"], paths: ["src/lib/queries.ts"], schemaModels: [] }).find((r) => r.archetype === "ai-app").score === 0, "bare groq should not mislabel as ai-app");
 
+// baas: Supabase/Firebase client SDKs + RLS/policy signals classify.
+const baas = scoreArchetypes({ deps: ["@supabase/supabase-js"], paths: ["supabase/migrations/001_init.sql", "supabase/policies.sql"], schemaModels: [], envVars: ["supabase_url", "supabase_anon_key"] });
+check("Supabase signals → baas on top", baas[0].archetype === "baas", `got ${baas[0].archetype}`);
+const fbase = scoreArchetypes({ deps: [], paths: [], schemaModels: [], configHits: [{ archetype: "baas", file: "firestore.rules" }] });
+check("firestore.rules config → baas on top", fbase[0].archetype === "baas" && fbase[0].matched.some((m) => m.startsWith("config:")));
+
 // Integration: real signals from the vulnerable fixture → ecommerce, with evidence.
 const fxSignals = collectSignals(fixture);
 const fxRanked = scoreArchetypes(fxSignals);
@@ -209,7 +216,7 @@ check("fixture detection shows its evidence (the 'why')", fxRanked[0].matched.le
 // Manifest discovery finds the base archetypes and excludes the instrumented design layer.
 const manifests = discoverManifests(join(here, ".."));
 const names = manifests.map((m) => m.archetype);
-check("discovers ecommerce/saas/portfolio/ai-app manifests", ["ecommerce", "saas", "portfolio", "ai-app"].every((n) => names.includes(n)), names.join(","));
+check("discovers ecommerce/saas/portfolio/ai-app/baas manifests", ["ecommerce", "saas", "portfolio", "ai-app", "baas"].every((n) => names.includes(n)), names.join(","));
 check("excludes the *.design.json instrumented layer", !manifests.some((m) => m.file.endsWith(".design.json")));
 
 console.log("\n6. Project config + manifest resolution (CLI — brick B):");
@@ -317,8 +324,13 @@ const allExist = corpus.cases.every((c) => existsSync(join(evalDir, c.fixture)))
 check("every corpus fixture file exists", allExist, `${corpus.cases.filter((c) => !existsSync(join(evalDir, c.fixture))).map((c) => c.fixture).join(", ")}`);
 check("labels/levels valid (bad→3, good→≥6)", corpus.cases.every((c) => (c.label === "bad" && c.gold_level === 3) || (c.label === "good" && c.gold_level >= 6)));
 // Criticality from the manifests; each critical checkpoint needs enough bad cases for power.
+// Union EVERY discovered archetype's criticals so no archetype — present or future — can
+// ship a critical checkpoint with thin bad-case coverage. The floor applies to all, and a
+// new archetype.*.json is enforced automatically the moment it's added.
 const criticalIds = new Set();
-for (const cp of archetype.checkpoints) if (cp.severity === "critical") criticalIds.add(cp.id);
+for (const m of discoverManifests(join(here, "..")))
+  for (const cp of resolveArchetype(join(here, "..", m.file)).checkpoints)
+    if (cp.severity === "critical") criticalIds.add(cp.id);
 const badPerCritical = {};
 for (const c of corpus.cases) if (c.label === "bad" && criticalIds.has(c.checkpoint)) badPerCritical[c.checkpoint] = (badPerCritical[c.checkpoint] || 0) + 1;
 const thinCriticals = [...criticalIds].filter((id) => corpus.cases.some((c) => c.checkpoint === id) && (badPerCritical[id] || 0) < 4);
@@ -358,6 +370,17 @@ check("selection respects the character budget", packed.code.length <= 26000, `p
 const fb = selectForCheckpoint([{ path: "a.ts", content: "zzz" }, { path: "b.ts", content: "yy" }], { id: "nomatch.checkpoint.zzz" });
 check("fallback returns non-empty code when no keyword matches", fb.code.length > 0 && fb.files.length > 0);
 check("scoreFile counts a path hit + caps body matches", scoreFile({ path: "stock.ts", content: "stock stock stock" }, ["stock"]) === 8);
+
+console.log("\n13. Selection recall (the OTHER half of trust — does selection surface the vulnerable file?):");
+// The corpus proves the grader; this proves selection hands it the right file. A miss here
+// is a false-green the corpus never sees. Run at a tight budget so ranking/budget bite.
+for (const budget of [9000, 5000]) {
+  const rows = measureRecall({ budget, perFile: 3000 });
+  const misses = rows.filter((r) => !r.missing && !r.inSlice);
+  const total = rows.filter((r) => !r.missing).length;
+  check(`every known-vulnerable file is surfaced at budget ${budget} (${total - misses.length}/${total})`, misses.length === 0,
+    misses.map((m) => `${m.repo}/${m.cpId}→${m.target}`).join(", "));
+}
 
 console.log("");
 if (failures > 0) {

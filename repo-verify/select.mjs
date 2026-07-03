@@ -100,6 +100,9 @@ const KEYWORDS = {
   "ai.tool_use_safety": ["tool", "tools", "toolcall", "tool_call", "function_call", "functioncall", "functions", "agent", "invoke", "arguments", "parameters", "action", "execute", "openai", "anthropic"],
   "ai.cost_controls": ["max_tokens", "maxtokens", "ratelimit", "throttle", "token", "budget", "quota", "iteration", "maxsteps", "max_steps", "loop", "timeout", "usage", "openai", "anthropic", "llm"],
   "ai.data_boundary": ["prompt", "log", "logger", "pii", "redact", "context", "history", "conversation", "messages", "embedding", "openai", "anthropic", "provider", "retention"],
+  "baas.rls_enforced": ["rls", "policy", "create policy", "auth.uid", "row level security", "enable row level", "with check", "using", "supabase", "alter table", "firestore.rules", "allow read"],
+  "baas.client_trust_boundary": ["supabase", "createclient", "anon", "rpc", "security definer", "edge function", "firestore", "firebase", "policy", "rls", ".from(", ".insert", ".update"],
+  "baas.privileged_key_exposure": ["service_role", "servicerole", "service role", "supabase_service", "next_public", "vite_", "supabase", "createclient", "serviceaccount", "firebase-admin", "credential", "admin"],
   "security.injection": ["injection", "sql", "query", "select", "sequelize", "raw", "concat", "exec", "eval", "innerhtml", "dangerouslysetinnerhtml", "sanitize", "escape", "xss"],
   "security.secrets_management": ["secret", "apikey", "api_key", "privatekey", "private_key", "credential", "token", "password", "process.env", "dotenv", "key"],
   "auth.credential_storage": ["password", "hash", "bcrypt", "argon", "scrypt", "pbkdf2", "md5", "sha1", "sha256", "salt", "credential", "insecurity"],
@@ -112,8 +115,14 @@ const KEYWORDS = {
 
 export function keywordsFor(cp) {
   const curated = KEYWORDS[cp.id] ?? [];
-  const fromId = cp.id.split(/[.\-_]/).filter((t) => t.length > 2).map((t) => t.toLowerCase());
-  return Array.from(new Set([...curated, ...fromId]));
+  // Curated keywords are authored to be both sufficient AND discriminating. When they
+  // exist, don't dilute them with generic tokens split from the id ("security", "data",
+  // "auth", "payment") — those match unrelated files (a securityQuestions.ts decoy, a
+  // config monolith) and can out-rank the real target, the exact false-green-by-selection
+  // risk the selection-recall harness guards. The id-token split is the FALLBACK, used
+  // only for checkpoints that have no curated set.
+  if (curated.length) return curated;
+  return cp.id.split(/[.\-_]/).filter((t) => t.length > 2).map((t) => t.toLowerCase());
 }
 
 export function scoreFile(file, keywords) {
