@@ -37,6 +37,7 @@
     "proficiency": "node repo-verify/proficiency.mjs",
     "gate": "node repo-verify/pr-gate.mjs",
     "license:bump": "node scripts/bump-change-date.mjs",
-    "version": "node scripts/bump-change-date.mjs && git add LICENSE"
+    "version": "node scripts/bump-change-date.mjs && git add LICENSE",
+    "prepublishOnly": "node repo-verify/self-test.mjs"
   }
 }
