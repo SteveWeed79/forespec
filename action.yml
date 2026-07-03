@@ -18,7 +18,7 @@ branding:
 #       steps:
 #         - uses: actions/checkout@v4
 #           with: { fetch-depth: 0 }   # full history so it can diff the base branch
-#         - uses: SteveWeed79/glowing-barnacle@v1
+#         - uses: SteveWeed79/foresight-cli@v1
 #           with:
 #             # optional — omit both for the deterministic mock baseline at $0:
 #             anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
