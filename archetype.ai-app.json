@@ -1,0 +1,35 @@
+{
+  "$schema": "foresight/archetype/v2",
+  "_readme": {
+    "what_this_is": "Archetype MANIFEST for an AI/LLM application — chatbots, RAG, assistants, agents, or an AI feature inside a larger product. Resolve with `node library/resolve.mjs archetype.ai-app.json`.",
+    "reuse": "Five AI-specific checkpoints (ai.*) carry the LLM backbone — prompt injection, output handling, tool-use safety, cost controls, data boundary. Everything else is COMPOSED from the shared library: an AI app still needs the universal security spine (secrets for provider keys, error handling for streaming/provider failures, PII, abuse controls, access control), so those are reused, not re-authored.",
+    "why_these_criticals": "prompt_injection and output_handling apply to every LLM app (input -> model -> output). tool_use_safety is critical wherever the model can act; on a pure chatbot with no tools it correctly reads as not-applicable (and surfaces as a gap to build if you add tools). secrets_management is critical because an AI app is defined by holding a provider key.",
+    "how_scoring_works": "Levels 3/6/9. 3 = crude/risky (the vulnerability is present). 6 = solid, shippable (the property holds). 9 = great. TRUST THE GAP, NOT THE NUMBER."
+  },
+
+  "archetype": "ai-app",
+  "version": "1.0.0",
+  "applies_when": "An app whose core is calling an LLM: a chatbot, RAG/assistant, agent, or an AI feature in a larger product. Untrusted user (and often retrieved or tool) input reaches a model, the model's output is used, and the model may be able to call tools. A provider API key and often user data cross to a third party.",
+  "goal_definition": {
+    "shippable": "all severity:critical at level >= 6",
+    "great": "all severity:critical at 9, all others >= 6",
+    "honest_ceiling": "The ai.* checkpoints grade the code paths that reach the model; a full red-team of prompt injection needs adversarial testing the static rubric can flag the absence of but cannot itself perform."
+  },
+
+  "checkpoints": [
+    { "ref": "ai.prompt_injection",         "severity": "critical" },
+    { "ref": "ai.output_handling",          "severity": "critical" },
+    { "ref": "ai.tool_use_safety",          "severity": "critical" },
+    { "ref": "security.secrets_management", "severity": "critical" },
+
+    { "ref": "ai.cost_controls",            "severity": "high" },
+    { "ref": "ai.data_boundary",            "severity": "high" },
+    { "ref": "reliability.error_handling",  "severity": "high" },
+    { "ref": "data.pii_protection",         "severity": "high" },
+    { "ref": "security.abuse_controls",     "severity": "high" },
+    { "ref": "auth.access_control",         "severity": "high" },
+
+    { "ref": "security.injection",          "severity": "medium" },
+    { "ref": "security.transport_headers",  "severity": "medium" }
+  ]
+}

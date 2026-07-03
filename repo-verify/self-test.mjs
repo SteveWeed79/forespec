@@ -193,6 +193,13 @@ const docOnly = scoreArchetypes({ deps: [], paths: [], schemaModels: [], selfDes
 check("CLAUDE.md-style self-description nudges toward saas", docOnly[0].archetype === "saas" && docOnly[0].matched.some((m) => m.startsWith("doc:")));
 check("doc signal stays low-weight (capped, can't beat a config)", scoreArchetypes({ deps: [], paths: [], schemaModels: [], configHits: [{ archetype: "ecommerce", file: "medusa-config.ts" }], selfDescription: "blog blog post writing gallery essay author portfolio" })[0].archetype === "ecommerce");
 
+// ai-app: provider SDKs + LLM paths classify; a bolt-on AI feature must NOT flip a primary archetype.
+const aiApp = scoreArchetypes({ deps: ["openai", "@pinecone-database/pinecone"], paths: ["app/api/chat/route.ts", "lib/prompts.ts", "lib/embeddings.ts"], schemaModels: ["conversation"], envVars: ["openai_api_key"] });
+check("AI-app signals (openai/pinecone + chat/prompt/embedding) → ai-app on top", aiApp[0].archetype === "ai-app", `got ${aiApp[0].archetype}`);
+const ecomPlusAI = scoreArchetypes({ deps: ["stripe", "openai", "prisma"], paths: ["app/checkout/page.tsx", "app/cart/page.tsx", "lib/ai/describe.ts"], schemaModels: ["order", "product"] });
+check("a bolt-on AI feature does NOT flip an ecommerce app to ai-app", ecomPlusAI[0].archetype === "ecommerce", `got ${ecomPlusAI[0].archetype}`);
+check("'groq-sdk' (AI) is required — Sanity's 'groq' query lang does not score ai-app", scoreArchetypes({ deps: ["groq", "sanity", "next-sanity"], paths: ["src/lib/queries.ts"], schemaModels: [] }).find((r) => r.archetype === "ai-app").score === 0, "bare groq should not mislabel as ai-app");
+
 // Integration: real signals from the vulnerable fixture → ecommerce, with evidence.
 const fxSignals = collectSignals(fixture);
 const fxRanked = scoreArchetypes(fxSignals);
@@ -202,7 +209,7 @@ check("fixture detection shows its evidence (the 'why')", fxRanked[0].matched.le
 // Manifest discovery finds the base archetypes and excludes the instrumented design layer.
 const manifests = discoverManifests(join(here, ".."));
 const names = manifests.map((m) => m.archetype);
-check("discovers ecommerce/saas/portfolio manifests", ["ecommerce", "saas", "portfolio"].every((n) => names.includes(n)), names.join(","));
+check("discovers ecommerce/saas/portfolio/ai-app manifests", ["ecommerce", "saas", "portfolio", "ai-app"].every((n) => names.includes(n)), names.join(","));
 check("excludes the *.design.json instrumented layer", !manifests.some((m) => m.file.endsWith(".design.json")));
 
 console.log("\n6. Project config + manifest resolution (CLI — brick B):");

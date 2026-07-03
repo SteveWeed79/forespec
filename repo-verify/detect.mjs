@@ -43,6 +43,20 @@ export const RULES = {
     paths: ["blog", "post", "portfolio", "essay", "writing", "gallery", "article", "author"],
     models: [],
   },
+  // An AI/LLM app. deps are the strong, discriminating signal — provider SDKs and
+  // vector stores that a non-AI app won't carry. "groq-sdk"/"together-ai" (not bare
+  // "groq"/"together") so Sanity's GROQ query language and generic words don't match.
+  // A normal app with a bolt-on AI feature will hit a few of these but be outscored by
+  // its primary archetype's deps/paths/models — which is the correct call.
+  "ai-app": {
+    deps: [
+      "openai", "anthropic", "ai-sdk", "langchain", "langgraph", "llamaindex", "llama-index",
+      "cohere", "mistral", "ollama", "pinecone", "weaviate", "qdrant", "chromadb",
+      "genai", "generative-ai", "huggingface", "replicate", "litellm", "groq-sdk", "together-ai", "transformers",
+    ],
+    paths: ["prompt", "completion", "chatbot", "assistant", "agent", "llm", "embedding", "rag", "vectorstore", "retriever", "chat"],
+    models: ["conversation", "embedding", "prompt", "completion", "chatsession", "chatmessage"],
+  },
 };
 
 // Deps that imply a real backend / stored state — portfolio is "little or no backend",
@@ -84,6 +98,9 @@ const ENV_RULES = {
   ecommerce: ["shopify", "medusa", "snipcart", "swell", "vendure", "printful", "bigcommerce"],
   saas: ["tenant", "workspace", "subscription", "billing", "paddle", "lemonsqueezy", "seat", "entitlement"],
   portfolio: ["sanity", "contentful", "storyblok", "ghost", "hygraph", "datocms", "prismic"],
+  // Provider API-key names in .env.example are a strong AI tell (OPENAI_API_KEY -> tokens
+  // openai/api/key). "groq"/"gemini"/"together" are safe here — they're env-var names, not deps.
+  "ai-app": ["openai", "anthropic", "cohere", "mistral", "huggingface", "pinecone", "langchain", "groq", "together", "replicate", "gemini", "ollama"],
 };
 
 // Split into whole tokens, breaking on non-alphanumerics AND camelCase, lowercased.

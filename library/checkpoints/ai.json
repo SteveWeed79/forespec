@@ -1,0 +1,102 @@
+{
+  "$schema": "foresight/checkpoint-library/v1",
+  "concern": "ai",
+  "_note": "AI/LLM application backbone — the failure modes specific to apps whose core is calling a model (chatbots, RAG, assistants, agents). Untrusted input reaches a model, the model's output is used, and the model may call tools. These are the OWASP-LLM-shaped risks AI-generated AI apps most often ship without. Referenced by the ai-app archetype; authored once here for reuse.",
+  "checkpoints": [
+    {
+      "id": "ai.prompt_injection",
+      "domain": "backbone", "confidence": "established",
+      "title": "Untrusted input can't override the model's instructions",
+      "why": "The defining LLM vulnerability. AI-built apps concatenate the user's message (and retrieved/tool content) straight into the prompt, so a user — or a poisoned document in a RAG pipeline — can say 'ignore previous instructions' and steer the model: leaking the system prompt, reaching another user's data, or driving tool calls. The model deciding to refuse is not a security control.",
+      "levels": {
+        "3": "User (or retrieved/tool) content is concatenated directly into the instruction text; the model is free to treat untrusted text as new instructions, and the system prompt is built from or overridable by client input.",
+        "6": "Untrusted content is passed as data — a separate message/role or clearly delimited — not as instructions; the system prompt is fixed server-side and not client-settable; and no consequential action depends only on the model choosing to refuse.",
+        "9": "Defense in depth: untrusted content isolated, privileged actions gated behind deterministic checks rather than model discretion, and known injection attempts tested (a canary/attack corpus) and monitored."
+      },
+      "verify": {
+        "reasoning": "Where does user (or retrieved/tool) content enter the prompt — as a separate data message/role, or concatenated into the instruction text as if trusted? Can a user read or overwrite the system prompt? Does any consequential action rely solely on the model choosing to refuse a malicious instruction?",
+        "assertions": [
+          {"check": "Untrusted input is passed as data (separate message/role or clearly delimited), not concatenated into the instruction text.", "type": "static"},
+          {"check": "The system prompt / instructions are fixed server-side and not settable from client input.", "type": "static"},
+          {"check": "No consequential action depends solely on the model refusing a malicious instruction.", "type": "static"},
+          {"check": "A known prompt-injection attempt is tested and does not succeed.", "type": "test"}
+        ]
+      }
+    },
+    {
+      "id": "ai.output_handling",
+      "domain": "backbone", "confidence": "established",
+      "title": "Model output is treated as untrusted before it is rendered, executed, or queried",
+      "why": "The other half of injection. Model output is non-deterministic and attacker-influenceable, yet AI code pipes it straight into innerHTML (XSS), eval/exec (RCE), a shell, or a raw SQL string ('let the model write the query'). Rendering model-authored markdown as HTML is a routine XSS vector. Output is trusted only because 'it came from our model'.",
+      "levels": {
+        "3": "Model output is rendered as HTML/markdown without sanitization, or passed to eval/exec/a shell, or concatenated into a raw query.",
+        "6": "Model output is treated as untrusted at the sink — escaped or sanitized before render, never eval'd or shelled, and any query/command built from it is parameterized or validated against an allowlist.",
+        "9": "Constrained at the source too (structured/JSON-schema output, allowlisted actions) AND sanitized at the sink, with tests for malicious-output handling."
+      },
+      "verify": {
+        "reasoning": "What happens to the model's output — is it rendered as HTML/markdown, executed, shelled out, or turned into a query? Is it escaped/validated first, or trusted because it came from the model? Could a crafted model response cause XSS, code execution, or injection?",
+        "assertions": [
+          {"check": "Model output rendered to a page is escaped or sanitized (no raw innerHTML / unsanitized markdown-to-HTML).", "type": "static"},
+          {"check": "Model output is never passed to eval/exec/a shell.", "type": "static"},
+          {"check": "Queries or commands derived from model output are parameterized or allowlist-validated.", "type": "static"}
+        ]
+      }
+    },
+    {
+      "id": "ai.tool_use_safety",
+      "domain": "backbone", "confidence": "established",
+      "title": "Tools exposed to the model are scoped, validated, and independently authorized",
+      "why": "Agentic apps hand the model tools — run code, call APIs, read/write data, spend money. AI-built agents commonly expose broad tools with unvalidated arguments running at full app privilege, so a prompt-injected or hallucinating model can delete data, run up spend, or reach another user's records. The model's choice to call a tool must never stand in for authorization.",
+      "levels": {
+        "3": "Tools take model-supplied arguments with no validation, run at full privilege, and reach side effects directly; the model can call any tool and destructive/costly actions are unbounded.",
+        "6": "Tool arguments are validated (schema/allowlist), each tool runs with least privilege and enforces the real caller's authorization independently of the model's choice, and destructive or costly actions are bounded.",
+        "9": "Tools are capability-scoped per request, high-impact actions require an out-of-band confirmation or deterministic policy check, and tool calls are logged and rate-limited, with tests for over-privileged calls."
+      },
+      "verify": {
+        "reasoning": "What tools can the model invoke? Are their arguments validated before hitting a side effect? Does each tool re-check the actual user's authorization, or does the model's decision to call it stand in for authz? Can a tool delete, spend, or exfiltrate without a bound or confirmation?",
+        "assertions": [
+          {"check": "Tool arguments are validated (schema/allowlist) before any side effect.", "type": "static"},
+          {"check": "Each tool enforces the actual user's authorization independently of the model's choice to call it.", "type": "static"},
+          {"check": "Destructive or costly tool actions are bounded (confirmation, quota, or deterministic policy).", "type": "static"}
+        ]
+      }
+    },
+    {
+      "id": "ai.cost_controls",
+      "domain": "backbone", "confidence": "established",
+      "title": "Token, request, and loop usage are bounded per user",
+      "why": "An LLM endpoint is a direct line to your provider bill. AI-built apps ship without per-user rate limits, max-token caps, or agent-loop bounds, so one abuser — or one runaway agent loop — can run up thousands of dollars or take the app down. Unlike ordinary rate limiting, the exposure here is unbounded and denominated in real money.",
+      "levels": {
+        "3": "No per-user rate limit, no max-token/output cap, and no bound on agent iterations; a single client can call the model freely.",
+        "6": "A per-user (or per-key) rate limit guards the model endpoint, model calls set an explicit max-token/output cap, and agent/tool loops have a hard iteration bound.",
+        "9": "Budget enforced end to end — per-user token/spend quotas, request timeouts, loop caps, and alerting on spend spikes — with tests for the limits."
+      },
+      "verify": {
+        "reasoning": "What stops one user from calling the model endpoint in a loop? Is there a per-user rate limit, an explicit max-token cap on model calls, and a bound on agent iterations? Could a runaway loop or a scripted abuser run up an unbounded provider bill?",
+        "assertions": [
+          {"check": "A per-user (or per-key) rate limit guards the model endpoint.", "type": "static"},
+          {"check": "An explicit max-token / output-length cap is set on model calls.", "type": "static"},
+          {"check": "Agent/tool loops have a hard iteration bound.", "type": "static"}
+        ]
+      }
+    },
+    {
+      "id": "ai.data_boundary",
+      "domain": "backbone", "confidence": "reasoned",
+      "title": "What crosses to the model provider is controlled, and prompts aren't logged unsafely",
+      "why": "AI apps send user data — often PII, sometimes secrets or another user's content — to a third-party model provider, and frequently log full prompts and responses. AI-generated code rarely reasons about what is crossing that boundary or landing in logs: leaking PII to a subprocessor, storing secrets in prompt logs, or placing one tenant's data into another's context. The principle is established; exact retention/redaction policy is a reasoned default.",
+      "levels": {
+        "3": "Whatever is at hand is stuffed into the prompt and full prompts/responses are logged verbatim, with no thought to secrets or PII crossing to the provider or persisting in logs.",
+        "6": "Only the data needed for the task is sent to the provider, obvious secrets/PII are excluded or redacted, and prompt/response logging does not persist secrets or another user's data.",
+        "9": "A deliberate data-minimization/redaction boundary before the provider call, retention limits and access controls on any prompt logging, and the provider's data-use terms accounted for."
+      },
+      "verify": {
+        "reasoning": "What user data gets placed into the prompt, and is any of it PII or secrets that shouldn't leave for a third-party provider? Are full prompts/responses logged, and could those logs hold secrets or one user's data readable by others?",
+        "assertions": [
+          {"check": "Only task-necessary data is sent to the provider; obvious secrets/PII are excluded or redacted.", "type": "static"},
+          {"check": "Prompt/response logging, if any, does not persist secrets or cross-user data.", "type": "static"}
+        ]
+      }
+    }
+  ]
+}

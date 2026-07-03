@@ -672,6 +672,77 @@
       "label": "bad",
       "gold_level": 3,
       "note": "check-then-act on stock with no atomicity — race oversells"
+    },
+
+    {
+      "checkpoint": "ai.prompt_injection",
+      "fixture": "fixtures/ai.prompt_injection/bad.ts",
+      "label": "bad",
+      "gold_level": 3,
+      "note": "user message + retrieved KB doc concatenated into the instruction text; no separation of instructions from untrusted data"
+    },
+    {
+      "checkpoint": "ai.prompt_injection",
+      "fixture": "fixtures/ai.prompt_injection/good.ts",
+      "label": "good",
+      "gold_level": 6,
+      "note": "fixed server-side system prompt; untrusted content passed as delimited data in a separate user message"
+    },
+    {
+      "checkpoint": "ai.output_handling",
+      "fixture": "fixtures/ai.output_handling/bad.ts",
+      "label": "bad",
+      "gold_level": 3,
+      "note": "model output rendered via innerHTML (XSS) and run as raw SQL (injection)"
+    },
+    {
+      "checkpoint": "ai.output_handling",
+      "fixture": "fixtures/ai.output_handling/good.ts",
+      "label": "good",
+      "gold_level": 6,
+      "note": "output sanitized before render (DOMPurify), allowlisted action, parameterized query"
+    },
+    {
+      "checkpoint": "ai.tool_use_safety",
+      "fixture": "fixtures/ai.tool_use_safety/bad.ts",
+      "label": "bad",
+      "gold_level": 3,
+      "note": "broad tools take model args unvalidated at full privilege — arbitrary SQL, destructive delete with no authz, SSRF"
+    },
+    {
+      "checkpoint": "ai.tool_use_safety",
+      "fixture": "fixtures/ai.tool_use_safety/good.ts",
+      "label": "good",
+      "gold_level": 6,
+      "note": "allowlisted tools, schema-validated args, per-user authz from ctx (not the model), bounded loop"
+    },
+    {
+      "checkpoint": "ai.cost_controls",
+      "fixture": "fixtures/ai.cost_controls/bad.ts",
+      "label": "bad",
+      "gold_level": 3,
+      "note": "no per-user rate limit, no max_tokens, unbounded while(true) agent loop"
+    },
+    {
+      "checkpoint": "ai.cost_controls",
+      "fixture": "fixtures/ai.cost_controls/good.ts",
+      "label": "good",
+      "gold_level": 6,
+      "note": "per-user rate limit, explicit max_tokens cap, hard MAX_STEPS loop bound"
+    },
+    {
+      "checkpoint": "ai.data_boundary",
+      "fixture": "fixtures/ai.data_boundary/bad.ts",
+      "label": "bad",
+      "gold_level": 3,
+      "note": "full user record (SSN/card/address) sent to provider; full prompt+response logged verbatim"
+    },
+    {
+      "checkpoint": "ai.data_boundary",
+      "fixture": "fixtures/ai.data_boundary/good.ts",
+      "label": "good",
+      "gold_level": 6,
+      "note": "only task-necessary non-PII fields sent to provider; log stores metadata, not prompt/response body"
     }
   ]
 }
