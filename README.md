@@ -110,7 +110,11 @@ walkthrough: [`repo-verify/README.md`](./repo-verify/README.md).
 
 ## License
 
-Not chosen yet. The values docs commit to a *local core that is free and fully useful
-forever, with paid only ever covering genuine infrastructure cost* — which points toward a
-source-available or custom license rather than a default permissive one. **This is a
-deliberate open decision**, left to the project owner; nothing here is licensed until it lands.
+Not finalized yet (it lands with the package name). The commitment it must encode: **the
+local core is free and fully useful forever** — never crippled to force an upgrade, no dark
+patterns — while **paid plans fund the hosting and the ongoing work that keeps the standard
+trustworthy**, priced fairly and transparently, without lock-in. That's an **open-core /
+source-available** shape — the leading candidate is the **Business Source License 1.1** (free
+to use and self-host for any purpose; only offering Foresight as a competing *hosted service*
+is reserved; converts to a fully open license on a change date). Nothing here is licensed
+until it lands.

@@ -1,9 +1,9 @@
 {
-  "name": "foresight",
+  "name": "foresight-cli",
   "version": "0.1.0",
-  "private": true,
   "type": "module",
   "description": "Foresight — forces domain foresight before a feature, then verifies what got built against it.",
+  "license": "BUSL-1.1",
   "engines": {
     "node": ">=18"
   },
@@ -13,6 +13,7 @@
   "files": [
     "bin/",
     "repo-verify/*.mjs",
+    "verifier-eval/adapters/*.mjs",
     "library/",
     "schemas/",
     "archetype.*.json",
@@ -34,6 +35,9 @@
     "feedback": "node repo-verify/feedback.mjs",
     "calibrate": "node repo-verify/calibrate.mjs",
     "proficiency": "node repo-verify/proficiency.mjs",
-    "gate": "node repo-verify/pr-gate.mjs"
+    "gate": "node repo-verify/pr-gate.mjs",
+    "license:bump": "node scripts/bump-change-date.mjs",
+    "version": "node scripts/bump-change-date.mjs && git add LICENSE",
+    "prepublishOnly": "node repo-verify/self-test.mjs"
   }
 }

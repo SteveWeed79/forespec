@@ -38,6 +38,47 @@ the flag-by-absence gap that drove the N/A verdict (below).
 
 ---
 
+## Archetypes 2–5: corpus + real-repo validation (corpus-v3)
+
+The newer archetypes (`saas`, `ai-app`, `baas`, `portfolio`) were brought toward the ecommerce
+standard in two layers: a rule-of-three corpus pass, then a real-repo battle-test (the ecommerce
+M2–M5 discipline — catch what's real, hallucinate nothing on the safe parts).
+
+**Corpus (rule-of-three).** Each new critical checkpoint carries ≥4 *diverse* bad variants
+(distinct mechanisms, not one vuln reskinned) plus good variants guarding the false-alarm rate;
+the self-test enforces the ≥4 floor across every *discovered* archetype manifest. A paid run of
+2 trials per critical bad case — 66 critical-bad trials across ai.* (3) + baas.* (3) + saas-specific
+(2) criticals — returned **0 false-greens → ≤4.5% (95%)**, under the ≤6% launch bar. (Ecommerce
+stays tighter at ≤2.9% on more trials; the gap is trial count, not method.)
+
+**Real repos (the ecommerce M5 discipline), reasoning verifier:**
+- **ai-app — `vercel/ai-chatbot`:** graded all 12 checkpoints on a 154-file real repo; no
+  hallucinated criticals on the safe parts (prompt-injection / output-handling / secrets all 6);
+  plausible flags on tool-use-safety and cost-controls (human-verify, by design).
+- **baas — `vercel/nextjs-subscription-payments`:** the three `baas.*` criticals all graded 6 at
+  high confidence (RLS 0.90, privileged-key-exposure 0.90) — correctly reading a well-built app's
+  row-level security and server-only service key. No phantom flags.
+- **saas — `vercel/nextjs-subscription-payments`:** `tenancy.isolation` correctly N/A (per-user,
+  not multi-org), `entitlement_integrity` 6, `subscription.lifecycle` 3 (partial dunning), one
+  blocking critical (`payment.idempotency` 3) worth a human check.
+- **portfolio — a real personal Next.js site:** correct N/A on every backend checkpoint (no phantom
+  flags), `web.seo_metadata` 9, performance/transport 6. Design checkpoints graded low *from source*
+  — the known static-design weak spot; a trustworthy design read needs the instrumented browser probe.
+
+**Two gaps these runs surfaced and closed:**
+1. **Selection recall** — the corpus proves the grader, not that selection hands it the right file.
+   Added a synthetic-repo recall harness + a self-test gate (100% recall at tight budgets), and fixed
+   a keyword-dilution bug that let a `security`-named decoy out-rank a real SQL-injection file.
+2. **The shippable gate hardcoded "critical"** — so `portfolio` (no criticals by design) passed its
+   gate for free. Fixed (`verify.mjs` + `pr-gate.mjs`) to gate on the archetype's *top severity tier
+   present* (critical if any, else high).
+
+**Honest launch tiering.** ecommerce: battle-tested, ≤2.9%. saas / ai-app / baas: corpus ≤4.5% + one
+real-repo pass each. portfolio: security/content code-validated; its design gate is `taste_limited`
+(honest ~level-7 ceiling) and needs the browser probe, not the false-green corpus.
+
+---
+
 ## What worked
 
 - **Accuracy harness** (`verifier-eval`, claude adapter): the reasoning verifier's
