@@ -29,6 +29,7 @@ import { resolveArchetype } from "../library/resolve.mjs";
 import { loadRepo, selectForCheckpoint } from "./select.mjs";
 import { fingerprint, newRunId, recordPredictions, readOverrides } from "./store.mjs";
 import { readConfig, resolveManifestPath } from "./config.mjs";
+import { selectGaps, adviseGaps } from "./gaps.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -253,8 +254,23 @@ async function main() {
     storeInfo = { dir: storeDir, run_id: runId, recorded: count };
   }
 
+  // ── foresight: gaps ahead ──
+  // Pure downstream consumer of the results already computed above: surfaces the
+  // archetype-required checkpoints the repo has no code for yet (the flag-by-absence
+  // set) as forward-looking gaps, ordered by severity. It NEVER changes a grade or
+  // the shippable gate — the gate math above is final. Fully sandboxed: any failure
+  // here leaves the classic output exactly as it was.
+  let gapReport = null;
+  try {
+    const gaps = selectGaps(results, checkpoints);
+    if (gaps.length > 0) {
+      const advice = await adviseGaps({ gaps, archetype: archetype.archetype });
+      if (advice) gapReport = { source: advice.source, items: advice.items };
+    }
+  } catch { /* gaps are advisory — a stumble here must never break a verify run */ }
+
   if (json) {
-    console.log(JSON.stringify({ archetype: archetype.archetype, version: archetype.version, adapter: adapter.name ?? adapterName, overrides_applied: appliedOverrides, results, rollup: { shippable, great, blocking: blocking.map((r) => r.id), ungraded: ungraded.map((r) => r.id), not_applicable: notApplicable.map((r) => r.id) }, store: storeInfo }, null, 2));
+    console.log(JSON.stringify({ archetype: archetype.archetype, version: archetype.version, adapter: adapter.name ?? adapterName, overrides_applied: appliedOverrides, results, rollup: { shippable, great, blocking: blocking.map((r) => r.id), ungraded: ungraded.map((r) => r.id), not_applicable: notApplicable.map((r) => r.id) }, gaps: gapReport, store: storeInfo }, null, 2));
     return shippable ? 0 : 1;
   }
 
@@ -289,6 +305,18 @@ async function main() {
   }
   if (ungraded.length) out.push(`  ${paint(useColor, COLORS.yellow, "ungraded:")} ${ungraded.map((r) => r.id).join(", ")}`);
   if (notApplicable.length) out.push(`  ${paint(useColor, COLORS.dim, `not applicable (${notApplicable.length}, no relevant code):`)} ${notApplicable.map((r) => r.id).join(", ")}`);
+  if (gapReport && gapReport.items.length) {
+    out.push("");
+    out.push(paint(useColor, COLORS.bold, "── foresight: gaps ahead ──"));
+    out.push(`  ${paint(useColor, COLORS.dim, "required by this archetype, no code for it yet — surface early, fill deliberately:")}`);
+    for (const it of gapReport.items) {
+      const tag = it.urgency === "now" ? paint(useColor, COLORS.yellow, "[now] ") : paint(useColor, COLORS.cyan, "[soon]");
+      out.push("");
+      out.push(`  ${tag} ${paint(useColor, COLORS.bold, it.headline)}  ${paint(useColor, COLORS.dim, `(${it.id}, ${it.severity})`)}`);
+      if (it.why_your_archetype) out.push(`       ${paint(useColor, COLORS.dim, "why:")} ${it.why_your_archetype}`);
+      if (it.what_good_looks_like) out.push(`       ${paint(useColor, COLORS.dim, "built right:")} ${it.what_good_looks_like}`);
+    }
+  }
   console.log(out.join("\n"));
   if (storeInfo) {
     console.error(`\nrecorded ${storeInfo.recorded} prediction(s) → ${storeInfo.dir} (run ${storeInfo.run_id})`);
