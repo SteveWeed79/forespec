@@ -1,9 +1,10 @@
 {
-  "name": "foresight",
+  "name": "foresight-cli",
   "version": "0.1.0",
   "private": true,
   "type": "module",
   "description": "Foresight — forces domain foresight before a feature, then verifies what got built against it.",
+  "license": "BUSL-1.1",
   "engines": {
     "node": ">=18"
   },
