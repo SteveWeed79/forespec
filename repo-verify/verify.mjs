@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Foresight repo verifier — grade a WHOLE real repo against an archetype.
+// Forespec repo verifier — grade a WHOLE real repo against an archetype.
 //
 // Where verifier-eval/ measures whether the verifier is accurate (single labeled
 // fixtures, false-green rate), THIS points the verifier at your actual repo: it
@@ -18,7 +18,7 @@
 //   --checkpoint <id>    Grade a single checkpoint by id
 //   --adapter <name>     mock | claude (default: claude if ANTHROPIC_API_KEY+MODEL set, else mock)
 //   --budget <chars>     Per-checkpoint context budget (default: 60000)
-//   --store <dir>        Calibration store dir (default: ./.foresight); --no-store to skip
+//   --store <dir>        Calibration store dir (default: ./.forespec); --no-store to skip
 //   --json               Emit machine-readable JSON
 //   -h, --help
 
@@ -40,7 +40,7 @@ function arg(flag, fallback) {
 }
 const has = (flag) => process.argv.includes(flag);
 
-const HELP = `Foresight repo verifier — grade a whole repo against an archetype.
+const HELP = `Forespec repo verifier — grade a whole repo against an archetype.
 
 Usage:
   node repo-verify/verify.mjs <repo-path> [options]
@@ -51,10 +51,10 @@ Options:
   --checkpoint <id>    Grade a single checkpoint by id
   --adapter <name>     mock | claude (default: claude if ANTHROPIC_API_KEY+ANTHROPIC_MODEL set, else mock)
   --budget <chars>     Per-checkpoint context budget (default: 60000)
-  --store <dir>        Calibration store dir for the prediction log (default: ./.foresight)
+  --store <dir>        Calibration store dir for the prediction log (default: ./.forespec)
   --no-store           Don't record this run to the calibration store
   --json               Machine-readable JSON
-  --html [path]        Also write a visual HTML report (default: foresight-report.html)
+  --html [path]        Also write a visual HTML report (default: forespec-report.html)
   -h, --help           This help
 
 The claude adapter reads ANTHROPIC_API_KEY and ANTHROPIC_MODEL from the environment.
@@ -109,7 +109,7 @@ async function main() {
     return 2;
   }
 
-  // Archetype precedence: explicit --archetype > foresight.config.json in the repo > default.
+  // Archetype precedence: explicit --archetype > forespec.config.json in the repo > default.
   const archetypeArg = arg("--archetype", null);
   const config = readConfig(repoPath);
   let archetypePath, archetypeSource;
@@ -136,13 +136,13 @@ async function main() {
   const onlyId = arg("--checkpoint", null);
   const budget = Number(arg("--budget", "60000")) || 60_000;
   const json = has("--json");
-  const storeDir = pathResolve(process.cwd(), arg("--store", ".foresight"));
+  const storeDir = pathResolve(process.cwd(), arg("--store", ".forespec"));
   // --html [path]: also emit the visual report. Guard against `--html` being followed
   // by another flag (arg() would return that flag as the path) → fall back to default.
   let htmlOut = null;
   if (has("--html")) {
     const p = arg("--html", null);
-    htmlOut = p && !p.startsWith("-") ? p : "foresight-report.html";
+    htmlOut = p && !p.startsWith("-") ? p : "forespec-report.html";
   }
 
   // Apply locally-accepted calibration overrides (brick 3) on top of the archetype.
@@ -181,7 +181,7 @@ async function main() {
   if (!json) {
     if (note) console.error(`note: ${note}\n`);
     console.error(`Verifying ${repoPath}`);
-    const srcNote = archetypeSource === "config" ? " (from foresight.config.json)" : archetypeSource === "default" ? " (default — run `foresight init` to detect)" : "";
+    const srcNote = archetypeSource === "config" ? " (from forespec.config.json)" : archetypeSource === "default" ? " (default — run `forespec init` to detect)" : "";
     console.error(`  ${archetype.archetype} v${archetype.version}${srcNote} | adapter: ${adapter.name ?? adapterName} | ${checkpoints.length} checkpoint(s)`);
     if (appliedOverrides.length) console.error(`  calibration overrides applied: ${appliedOverrides.map((o) => `${o.id} ${o.from}→${o.to}`).join(", ")}`);
     console.error("");
@@ -317,7 +317,7 @@ async function main() {
 
   const out = [];
   out.push("");
-  out.push(paint(useColor, COLORS.bold, `Foresight — ${archetype.archetype} v${archetype.version}`));
+  out.push(paint(useColor, COLORS.bold, `Forespec — ${archetype.archetype} v${archetype.version}`));
   out.push("");
   for (const r of results) {
     out.push(`${paint(useColor, COLORS.cyan, r.id)}  ${paint(useColor, COLORS.dim, `[${r.domain}/${r.severity}]`)}`);

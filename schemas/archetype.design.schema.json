@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "foresight/archetype-design/v2",
-  "title": "Foresight instrumented design archetype",
+  "$id": "forespec/archetype-design/v2",
+  "title": "Forespec instrumented design archetype",
   "description": "Validates an instrumented design archetype (e.g. archetype.ecommerce.design.json): design checkpoints decomposed into weighted sub-signals that compute a 0-10 composite. Note: structure only. Per-checkpoint signal weights summing to 1.0 and id uniqueness are checked by schemas/validate.mjs.",
   "type": "object",
   "required": ["archetype", "dimension", "version", "checkpoints"],

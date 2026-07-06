@@ -1,6 +1,6 @@
 # Checkpoint library
 
-The shared, transferable checkpoint definitions Foresight grades against.
+The shared, transferable checkpoint definitions Forespec grades against.
 Archetypes don't redefine checkpoints — they **compose** from this library.
 
 ## Why this exists
@@ -34,7 +34,7 @@ node library/resolve.mjs archetype.ecommerce.json   # prints the resolved archet
 ## ID scheme (permanent contracts)
 
 Ids are stable, namespaced, and never silently renamed (calibration history keys
-to them — see `../foresight.calibration-1.md`). Two namespaces:
+to them — see `../forespec.calibration-1.md`). Two namespaces:
 
 - **Cross-domain / shared** → domain-neutral: `auth.access_control`,
   `data.money_precision`, `payment.webhook_authenticity`, `security.abuse_controls`,

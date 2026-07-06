@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// foresight plan — the interrogator. The OTHER half of the name: "forces domain
+// forespec plan — the interrogator. The OTHER half of the name: "forces domain
 // foresight BEFORE a feature." Where verify/gate grade what already got built, this
 // runs first — it turns the archetype's checkpoints into questions you must answer
 // before you write the feature, and emits a spec your AI coder builds against. The
@@ -11,10 +11,10 @@
 // shippable bar, and its assertions become acceptance criteria. Static and $0 — the
 // reasoning adapter (claude) only sharpens the phrasing, it isn't required.
 //
-//   foresight plan "add checkout flow"            # spec for the relevant checkpoints
-//   foresight plan "subscription billing" --archetype saas
-//   foresight plan "add login" --out foresight-plan.md
-//   foresight plan "checkout" --json
+//   forespec plan "add checkout flow"            # spec for the relevant checkpoints
+//   forespec plan "subscription billing" --archetype saas
+//   forespec plan "add login" --out forespec-plan.md
+//   forespec plan "checkout" --json
 
 import { resolve as pathResolve, dirname } from "node:path";
 import { writeFileSync } from "node:fs";
@@ -29,13 +29,13 @@ const here = dirname(fileURLToPath(import.meta.url));
 const arg = (f, fb) => { const i = process.argv.indexOf(f); return i !== -1 && process.argv[i + 1] ? process.argv[i + 1] : fb; };
 const has = (f) => process.argv.includes(f);
 
-const HELP = `foresight plan — interrogate a feature BEFORE you build it.
+const HELP = `forespec plan — interrogate a feature BEFORE you build it.
 
 Usage:
-  foresight plan "<feature description>" [options]
+  forespec plan "<feature description>" [options]
 
 Options:
-  --repo <path>        repo to read foresight.config.json from (default: .)
+  --repo <path>        repo to read forespec.config.json from (default: .)
   --archetype <ref>    archetype name/manifest (overrides config; e.g. saas)
   --domain <d>         backbone | design | all (default: backbone)
   --checkpoint <id>    interrogate a single checkpoint by id
@@ -45,7 +45,7 @@ Options:
 
 Emits, per relevant checkpoint: the question to decide first, what "shippable"
 (level 6) requires, and acceptance criteria your AI coder must satisfy. Then run
-\`foresight verify\` (or open a PR — the gate grades these same checkpoints).`;
+\`forespec verify\` (or open a PR — the gate grades these same checkpoints).`;
 
 /** How relevant is a checkpoint to a feature description? Keyword + title-token hits. */
 export function relevanceScore(feature, cp) {
@@ -144,7 +144,7 @@ export function renderPlan({ archetype, feature, relevant, mustHold, verbosity }
   L.push(ordered.map((o, i) => renderCheckpoint(o.cp, { brief: briefFor(o.cp), ordinal: i + 1, matched: o.matched })).join("\n\n"));
   L.push("");
   L.push("---");
-  L.push("**For your AI coder:** build the feature so every acceptance box above can be checked, then run `foresight verify` (or open a PR — the gate grades these same checkpoints). Levels: 3 present-but-risky · 6 solid/shippable · 9 great. Aim for 9 on critical, 6+ elsewhere — never infinite polish.");
+  L.push("**For your AI coder:** build the feature so every acceptance box above can be checked, then run `forespec verify` (or open a PR — the gate grades these same checkpoints). Levels: 3 present-but-risky · 6 solid/shippable · 9 great. Aim for 9 on critical, 6+ elsewhere — never infinite polish.");
   return L.join("\n");
 }
 
@@ -210,10 +210,10 @@ function main() {
   // Auto when a calibration store exists; --no-adapt to force full detail.
   let verbosity = null, adaptNote = "";
   if (!has("--no-adapt")) {
-    const profile = estimateProficiency({ storeDir: pathResolve(repo, arg("--store", ".foresight")) });
+    const profile = estimateProficiency({ storeDir: pathResolve(repo, arg("--store", ".forespec")) });
     verbosity = (cp) => verbosityFor(cp.domain, profile);
     const brief = [...relevant, ...mustHold].filter((cp) => verbosity(cp) === "brief").length;
-    if (brief > 0) adaptNote = `\n_Adapted to your proficiency: trimmed the "why" on ${brief} checkpoint(s) in domains you're fluent in (\`foresight proficiency\` to see, \`--no-adapt\` to show all)._`;
+    if (brief > 0) adaptNote = `\n_Adapted to your proficiency: trimmed the "why" on ${brief} checkpoint(s) in domains you're fluent in (\`forespec proficiency\` to see, \`--no-adapt\` to show all)._`;
   }
 
   const md = renderPlan({ archetype, feature, relevant, mustHold, verbosity }) + adaptNote;

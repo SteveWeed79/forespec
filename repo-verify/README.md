@@ -1,7 +1,7 @@
 # repo-verify — grade a whole repo against an archetype
 
 `verifier-eval/` answers *"is the verifier accurate?"* (single labeled fixtures,
-false-green rate). `repo-verify/` answers the product question: *"point Foresight
+false-green rate). `repo-verify/` answers the product question: *"point Forespec
 at my actual repo and tell me where it stands."* It's the P0→P1 use from the build
 order — run the verifier on real code (e.g. KTXZ) and get an honest backbone read.
 
@@ -12,22 +12,22 @@ Zero dependencies. It reuses the rest of the project rather than duplicating it:
 - `repo-verify/select.mjs` → the new piece: walks a target repo and packs the most
   relevant files per checkpoint into the `code` string the adapters expect.
 
-## Onboarding — `foresight init` (start here)
+## Onboarding — `forespec init` (start here)
 
 You don't have to know which archetype fits, and you don't retype it every run. The
-unified CLI (`bin/forespec.mjs`, exposed as `foresight` via `npx`) detects the archetype
+unified CLI (`bin/forespec.mjs`, exposed as `forespec` via `npx`) detects the archetype
 from cheap signals — declared dependencies, file paths, schema model names — and writes
-the choice once to `foresight.config.json`, which `verify` and the PR gate then read.
+the choice once to `forespec.config.json`, which `verify` and the PR gate then read.
 
 ```bash
-foresight init            # detect the archetype, write foresight.config.json (commit it)
-foresight detect          # show the ranking + evidence without writing anything
-foresight verify          # grade the backbone against the configured archetype
-foresight gate --help     # the PR/CI gate
+forespec init            # detect the archetype, write forespec.config.json (commit it)
+forespec detect          # show the ranking + evidence without writing anything
+forespec verify          # grade the backbone against the configured archetype
+forespec gate --help     # the PR/CI gate
 ```
 
-`foresight.config.json` (committed) is the per-project archetype decision — distinct from
-`.foresight/` (the gitignored calibration store). Detection reads only metadata, never your
+`forespec.config.json` (committed) is the per-project archetype decision — distinct from
+`.forespec/` (the gitignored calibration store). Detection reads only metadata, never your
 code's contents.
 
 Matching is **token-based** (whole words + simple plurals), so "product" no longer matches
@@ -62,7 +62,7 @@ node repo-verify/verify.mjs /path/to/repo --checkpoint payment.idempotency
 node repo-verify/verify.mjs /path/to/repo --json
 ```
 
-Archetype precedence: explicit `--archetype` > `foresight.config.json` in the repo > the
+Archetype precedence: explicit `--archetype` > `forespec.config.json` in the repo > the
 ecommerce default. A bare name (`--archetype saas`) or a manifest filename both resolve
 against the bundled archetypes, so it works when run from inside another repo.
 
@@ -71,7 +71,7 @@ set (or `--adapter claude`); otherwise the `mock` baseline, with a note. The pro
 exits `0` when the repo is "shippable" by the archetype's rule (all critical
 checkpoints ≥ 6) and `1` otherwise — so it works as a CI gate.
 
-## Plan — interrogate before you build (`foresight plan`)
+## Plan — interrogate before you build (`forespec plan`)
 
 `verify`/`gate` grade what got built. `plan.mjs` runs *first* — the other half the name
 promises ("foresight **before** a feature"). It turns the archetype's checkpoints into the
@@ -79,10 +79,10 @@ questions you must answer before writing the feature, and emits a spec your AI c
 against, so the expensive discoveries surface at plan time (~10× cheaper than at PR time).
 
 ```bash
-foresight plan "add checkout flow"                      # spec for the relevant checkpoints
-foresight plan "subscription billing" --archetype saas
-foresight plan "add login" --out foresight-plan.md      # write the spec to a file
-foresight plan "checkout" --json
+forespec plan "add checkout flow"                      # spec for the relevant checkpoints
+forespec plan "subscription billing" --archetype saas
+forespec plan "add login" --out forespec-plan.md      # write the spec to a file
+forespec plan "checkout" --json
 ```
 
 It reuses the same library: the checkpoint's stored **reasoning question** becomes "decide
@@ -95,7 +95,7 @@ $0; the reasoning adapter only sharpens phrasing, it isn't required.
 ## Calibration store (bricks 1–2)
 
 Every run is logged so the tool can eventually *earn* its weights instead of using
-invented ones (build-order P2). Records go to `./.foresight/` (override with `--store`,
+invented ones (build-order P2). Records go to `./.forespec/` (override with `--store`,
 disable with `--no-store`), and the **pattern/instance wall is physical** — two files,
 from the first write:
 
@@ -131,12 +131,12 @@ node repo-verify/calibrate.mjs reset  data.money_precision  # undo
 It aggregates recorded outcomes per checkpoint and proposes a severity delta with the
 evidence behind it (e.g. *"3 over-severe vs 0 hit → lower critical → high"*), never on
 thin evidence (default: needs ≥ 3 outcomes). Accepted deltas land in
-`.foresight/overrides.json`, which `verify` applies on top of the archetype — the shared
+`.forespec/overrides.json`, which `verify` applies on top of the archetype — the shared
 library stays pristine; the tuning is earned and reversible.
 
-`.foresight/` is gitignored (it holds local instance data).
+`.forespec/` is gitignored (it holds local instance data).
 
-## Proficiency — the tool adapts to you (`foresight proficiency`)
+## Proficiency — the tool adapts to you (`forespec proficiency`)
 
 Build-order Phase 5, the differentiator. From the outcomes you already recorded (no new
 data collection), it estimates per domain — **backbone** vs **design** — how much
@@ -144,7 +144,7 @@ demonstrated engagement + judgment you've shown, and dials explanation depth acc
 carry you where you're learning, get out of the way where you're fluent.
 
 ```bash
-foresight proficiency        # your self-facing read (learning | steady | fluent per domain)
+forespec proficiency        # your self-facing read (learning | steady | fluent per domain)
 ```
 
 Three rules it holds to:
@@ -156,7 +156,7 @@ Three rules it holds to:
 - **Honest framing.** It's "demonstrated engagement + judgment," not a competence grade;
   it only tunes how much the tool explains.
 
-`foresight plan` uses it automatically: in a domain you're fluent in it trims the teaching
+`forespec plan` uses it automatically: in a domain you're fluent in it trims the teaching
 "why" lines (you know why); where you're still learning it keeps the full detail. Pass
 `--no-adapt` to force full detail.
 
@@ -178,7 +178,7 @@ passive `hit` outcome (`source: passive_git`) — auto-feeding brick 3.
 # Local dry run (no GitHub, no API key) — see the comment it would post:
 node repo-verify/pr-gate.mjs --repo /path/to/repo --changed app/checkout/actions.ts --adapter mock --dry-run
 
-# In CI: wired in .github/workflows/foresight.yml (runs on pull_request).
+# In CI: wired in .github/workflows/forespec.yml (runs on pull_request).
 ```
 
 ### Drop it into another repo (one line)
@@ -186,14 +186,14 @@ node repo-verify/pr-gate.mjs --repo /path/to/repo --changed app/checkout/actions
 `action.yml` is a composite GitHub Action so any repo adds the gate without copying files:
 
 ```yaml
-# .github/workflows/foresight.yml in YOUR repo
-name: Foresight
+# .github/workflows/forespec.yml in YOUR repo
+name: Forespec
 on: pull_request
 permissions:
   contents: read
   pull-requests: write          # required so the gate can upsert its comment
 jobs:
-  foresight:
+  forespec:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -205,7 +205,7 @@ jobs:
           # fail: "true"         # block the PR instead of just commenting
 ```
 
-Run `foresight init` in that repo first and commit `foresight.config.json` so the gate
+Run `forespec init` in that repo first and commit `forespec.config.json` so the gate
 grades against the right archetype (or pass `archetype: ecommerce` to the action).
 
 Advisory by default (comments, never blocks). Pass `fail: "true"` to the action (or
@@ -222,7 +222,7 @@ backbone hole with the mock baseline. To finish the real gate, point it at KTXZ 
 a key + model set; if it doesn't surface a real gotcha, the pearl isn't real and
 you've found out cheaply.
 
-## Design layer (instrumented) — `foresight design <url>`
+## Design layer (instrumented) — `forespec design <url>`
 
 `verify` reads source; `design` renders the *live* page in a headless browser (Playwright)
 and **measures** it — the build-order Phase 3 layer. It grades the established, defensible
@@ -234,9 +234,9 @@ design checkpoints:
 - `design.spacing_system` — how consistently spacing lands on a 4/8 scale
 
 ```bash
-foresight design http://localhost:3000      # a running dev server
-foresight design ./dist/index.html          # a built file
-foresight design <url> --json
+forespec design http://localhost:3000      # a running dev server
+forespec design ./dist/index.html          # a built file
+forespec design <url> --json
 ```
 
 The scoring lives in `design-metrics.mjs` (pure WCAG math, unit-tested, zero-dep); only the
@@ -264,7 +264,7 @@ Learned from the first real-repo run — see `../VALIDATION-NOTES.md` for the fu
   exports of the same project can report a phantom "regression" that's really just the
   file selector surfacing different code in each. Real regression detection needs a
   git-grounded diff with consistent selection (a PR/CI gate), not two arbitrary dumps.
-- **Design: instrumented for the measurable parts, silent on taste.** `foresight design`
+- **Design: instrumented for the measurable parts, silent on taste.** `forespec design`
   now measures contrast, type scale, responsive, and spacing in a real browser (P3) — trust
   those. But saliency, aesthetic coherence, and "does the hierarchy read" are *not* scored;
   a high design grade means "the measurable fundamentals hold," not "it looks great."

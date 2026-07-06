@@ -2,7 +2,7 @@
 // forespec — one entrypoint for the whole tool, so a non-CLI user types one word.
 //
 //   npx forespec start "<what you're building>"  new/empty repo: declare it → archetype + plan
-//   npx forespec init [repo]      existing repo: detect the archetype and write foresight.config.json
+//   npx forespec init [repo]      existing repo: detect the archetype and write forespec.config.json
 //   npx forespec plan "<feature>" interrogate a feature BEFORE building it; emit a spec
 //   npx forespec verify [repo]    grade the repo's backbone against its archetype
 //   npx forespec gate [options]   the PR/CI gate (grade the diff, comment, calibrate)
@@ -125,7 +125,7 @@ async function start(args) {
   // Declare the archetype — the config every later command reads.
   const existing = readConfig(repoRoot);
   const cfgPath = writeConfig(repoRoot, {
-    schema: "foresight/config/v1",
+    schema: "forespec/config/v1",
     archetype: manifest.file,
     declared: { archetype: archetypeName, via, description },
     created: new Date().toISOString(),
@@ -194,7 +194,7 @@ async function init(args) {
 
   const existing = readConfig(repoRoot);
   const config = {
-    schema: "foresight/config/v1",
+    schema: "forespec/config/v1",
     archetype: top.manifest,
     detected: { archetype: top.archetype, confidence: top.confidence, score: top.score, via: top.source === "ai" ? "ai" : "heuristic" },
     created: new Date().toISOString(),

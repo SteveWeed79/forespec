@@ -1,6 +1,6 @@
 # Security Policy
 
-Foresight is a tool for finding security and correctness problems, so it holds itself
+Forespec is a tool for finding security and correctness problems, so it holds itself
 to the same standard it grades others against.
 
 ## Reporting a vulnerability

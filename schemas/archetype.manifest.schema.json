@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "foresight/archetype/v2",
-  "title": "Foresight archetype manifest",
+  "$id": "forespec/archetype/v2",
+  "title": "Forespec archetype manifest",
   "description": "Validates an archetype manifest (e.g. archetype.ecommerce.json): a selection of library checkpoints by ref + the severity each carries in this domain. Resolve to the full archetype with library/resolve.mjs; the resolved output is validated by archetype.schema.json.",
   "type": "object",
   "required": ["archetype", "version", "applies_when", "goal_definition", "checkpoints"],

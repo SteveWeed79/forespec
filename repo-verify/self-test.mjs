@@ -74,7 +74,7 @@ for (const tc of cases) {
 }
 
 console.log("\n3. Calibration store — pattern/instance wall (bricks 1–2):");
-const store = mkdtempSync(join(tmpdir(), "foresight-store-"));
+const store = mkdtempSync(join(tmpdir(), "forespec-store-"));
 try {
   const fakeResults = [{
     id: "payment.idempotency", domain: "backbone", severity: "critical",
@@ -115,7 +115,7 @@ try {
 }
 
 console.log("\n4. Calibration — propose & accept a delta (brick 3):");
-const store4 = mkdtempSync(join(tmpdir(), "foresight-cal-"));
+const store4 = mkdtempSync(join(tmpdir(), "forespec-cal-"));
 try {
   recordPredictions({
     storeDir: store4, runId: "run_cal", archetype: "ecommerce", archetypeVersion: "2.0.0",
@@ -143,7 +143,7 @@ try {
   check("applying the override lowers severity critical→high", cp.severity === "high");
 
   // thin evidence must NOT propose a change
-  const store5 = mkdtempSync(join(tmpdir(), "foresight-thin-"));
+  const store5 = mkdtempSync(join(tmpdir(), "forespec-thin-"));
   try {
     recordPredictions({ storeDir: store5, runId: "r", archetype: "ecommerce", archetypeVersion: "2.0.0", project: "p", results: [{ id: "auth.access_control", domain: "backbone", severity: "critical", level: 3, confidence: 0.9, gap: "x", rationale: "y", evidence: ["a.ts"], adapter: "mock", fingerprint: fingerprint("a") }] });
     const p2 = latestPrediction({ storeDir: store5, checkpointId: "auth.access_control" });
@@ -226,11 +226,11 @@ check("resolves a bare archetype name to the bundled manifest", typeof byName ==
 const byFile = resolveManifestPath("archetype.saas.json", { cwd: "/nonexistent" });
 check("resolves a manifest filename to the bundled manifest", byFile.endsWith("archetype.saas.json"));
 // config round-trips and the readers pick it up.
-const cfgDir = mkdtempSync(join(tmpdir(), "foresight-cfg-"));
+const cfgDir = mkdtempSync(join(tmpdir(), "forespec-cfg-"));
 try {
   check("readConfig returns null when absent", readConfig(cfgDir) === null);
-  const written = writeConfig(cfgDir, { schema: "foresight/config/v1", archetype: "archetype.saas.json" });
-  check("writeConfig creates foresight.config.json", written.endsWith(CONFIG_FILE));
+  const written = writeConfig(cfgDir, { schema: "forespec/config/v1", archetype: "archetype.saas.json" });
+  check("writeConfig creates forespec.config.json", written.endsWith(CONFIG_FILE));
   check("readConfig round-trips the archetype", readConfig(cfgDir).archetype === "archetype.saas.json");
 } finally { rmSync(cfgDir, { recursive: true, force: true }); }
 

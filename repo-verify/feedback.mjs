@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// foresight feedback — record a human verdict on a prior prediction (calibration brick 2).
+// forespec feedback — record a human verdict on a prior prediction (calibration brick 2).
 //
 // Turns the manual "is this flag real / false / over-severe?" judgment (the thing a
 // human did by hand during the first real-repo validation) into a first-class, stored
@@ -21,7 +21,7 @@
 //                     (default: self_observed)
 //   --note "<text>"   Free-text note (stays in the LOCAL instance store only)
 //   --project <name>  Project label for the instance record
-//   --store <dir>     Calibration store dir (default: ./.foresight)
+//   --store <dir>     Calibration store dir (default: ./.forespec)
 //   -h, --help
 
 import { resolve } from "node:path";
@@ -33,7 +33,7 @@ function arg(flag, fallback) {
 }
 const has = (f) => process.argv.includes(f);
 
-const HELP = `foresight feedback — record a human verdict on a prediction.
+const HELP = `forespec feedback — record a human verdict on a prediction.
 
 Usage:
   node repo-verify/feedback.mjs <checkpoint-id> <outcome> [options]
@@ -49,7 +49,7 @@ Options:
   --source <s>     ${Object.keys(SOURCE_TIERS).join(" | ")} (default: self_observed)
   --note "<text>"  note (stays in the LOCAL instance store only)
   --project <name> project label for the instance record
-  --store <dir>    store dir (default: ./.foresight)
+  --store <dir>    store dir (default: ./.forespec)
   -h, --help`;
 
 function main() {
@@ -80,7 +80,7 @@ function main() {
     return 2;
   }
 
-  const storeDir = resolve(process.cwd(), arg("--store", ".foresight"));
+  const storeDir = resolve(process.cwd(), arg("--store", ".forespec"));
   const runId = arg("--run", null);
   const prediction = latestPrediction({ storeDir, checkpointId, runId });
   if (!prediction) {

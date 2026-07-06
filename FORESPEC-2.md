@@ -1,13 +1,13 @@
-# Foresight — Build Companion for the Interrupted Solo Developer
+# Forespec — Build Companion for the Interrupted Solo Developer
 
 *A planning + progress-tracking layer that sits on top of Claude Code. It forces
 domain foresight before each feature, then verifies what actually got built against
-that foresight — so the expensive discoveries (atomic checkout, data-model shape,
+that forespec — so the expensive discoveries (atomic checkout, data-model shape,
 auth boundaries) surface BEFORE you build on top of them, not three months after.*
 
 > **📍 Status — vision doc, superseded on sequencing.** This file holds the
 > original architecture and a Claude-Code-centric v1 cut. The **authoritative,
-> current build order is [`foresight.buildorder-2.md`](./foresight.buildorder-2.md)**,
+> current build order is [`forespec.buildorder-2.md`](./forespec.buildorder-2.md)**,
 > which supersedes **Part 2** and **Part 4** below. Two things changed and the
 > later doc wins:
 >
@@ -42,7 +42,7 @@ interrogate the non-obvious requirements of a feature. Depth is *available* but 
 *automatic* — and under time pressure (or on cheaper/faster paths) it biases even
 harder toward "just answer it."
 
-Foresight's job is **not** more horsepower. It's two things the model alone doesn't
+Forespec's job is **not** more horsepower. It's two things the model alone doesn't
 reliably provide:
 
 1. **A forced foresight ritual** — every feature gets interrogated before it's built,
@@ -63,7 +63,7 @@ And the backbone that makes it real rather than a dead document:
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│  FORESIGHT                                                    │
+│  FORESPEC                                                     │
 │                                                               │
 │  ┌──────────────┐   ┌──────────────┐   ┌──────────────────┐  │
 │  │ INTERROGATOR │──▶│  PLAN ENGINE │──▶│  CHECKPOINTS      │  │
@@ -138,7 +138,7 @@ pattern/instance separation from day one so that future is clean and not creepy.
 
 # PART 2 — THE v1 CUT LINE (what you build THIS week)
 
-> ⚠️ **Superseded by [`foresight.buildorder-2.md`](./foresight.buildorder-2.md)** for
+> ⚠️ **Superseded by [`forespec.buildorder-2.md`](./forespec.buildorder-2.md)** for
 > what ships first. This section's v1 starts with the Interrogator; the current
 > plan ships the **Verifier** first (build-order-2 Phases 0–1). The "ship small,
 > don't stall in the messy 60%" principle below still holds — only the first
@@ -146,7 +146,7 @@ pattern/instance separation from day one so that future is clean and not creepy.
 
 > The architecture above is the destination. The first thing you ship is ruthlessly
 > small — because the failure mode for a no-sleep solo builder with a giant spec is
-> abandoning it in the messy 60% middle. Foresight exists to prevent exactly that, so
+> abandoning it in the messy 60% middle. Forespec exists to prevent exactly that, so
 > we will not scaffold it the way it warns against.
 
 ### v1 includes
@@ -199,7 +199,7 @@ Matches what you already run, so nothing new to learn under time pressure.
 
 # PART 4 — BUILD ORDER (so it ships, doesn't stall)
 
-> ⚠️ **Superseded by [`foresight.buildorder-2.md`](./foresight.buildorder-2.md).**
+> ⚠️ **Superseded by [`forespec.buildorder-2.md`](./forespec.buildorder-2.md).**
 > The order below is planning-first (Verifier last). The current plan inverts
 > this: Verifier first, calibration as the spine, foresight ritual at Phase 4.
 > Keep this list for the rationale of each component; take the *sequence* from
@@ -237,7 +237,7 @@ Why this isn't "just a prompt to plan carefully":
   what actually got built and warns before you build on top of a missing foundation.
 
 The wrapper objection only holds if foresight stays occasional, unstructured, and
-abandoned-after-planning. Foresight makes it constant, structured, and live. That's the
+abandoned-after-planning. Forespec makes it constant, structured, and live. That's the
 difference.
 
 ---

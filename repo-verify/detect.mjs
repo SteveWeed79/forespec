@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// foresight detect — inspect a repo and propose which archetype fits.
+// forespec detect — inspect a repo and propose which archetype fits.
 //
 // Why this exists: until now you had to KNOW to pass `--archetype archetype.ecommerce.json`.
 // That's the onboarding wall — step one already assumes you understand the tool. This
@@ -548,7 +548,7 @@ const has = (f) => process.argv.includes(f);
 
 async function main() {
   if (has("-h") || has("--help")) {
-    console.log(`foresight detect — propose which archetype fits a repo.
+    console.log(`forespec detect — propose which archetype fits a repo.
 
 Usage:
   node repo-verify/detect.mjs [repo]   (default: .)
@@ -578,7 +578,7 @@ are set, it spends one model call to break the tie; --no-ai disables that.`);
     return 1;
   }
 
-  console.log(`\n🔭 Foresight archetype detection — ${repoRoot}\n`);
+  console.log(`\n🔭 Forespec archetype detection — ${repoRoot}\n`);
   for (let i = 0; i < ranked.length; i++) {
     const r = ranked[i];
     const mark = i === 0 ? "→" : " ";

@@ -7,7 +7,7 @@ All notable changes to this project are documented here. Format follows
 ## [Unreleased]
 
 ### Added
-- `foresight -v` / `--version` prints the installed version.
+- `forespec -v` / `--version` prints the installed version.
 - CI workflow: self-test + schema validation on Node 18/20/22 for every push to `main`
   and every PR.
 - Release workflow: publish to npm with provenance on a `v*` tag.
@@ -20,7 +20,7 @@ All notable changes to this project are documented here. Format follows
 The verifier-first core, validated end to end.
 
 ### Added
-- **CLI** (`foresight`): `init` (archetype detection), `plan` (interrogate a feature before
+- **CLI** (`forespec`): `init` (archetype detection), `plan` (interrogate a feature before
   building), `verify` (grade the backbone; `--html` for a visual report), `design` (live-page
   design probe), `gate` (PR/CI gate), plus `detect` / `feedback` / `calibrate` / `proficiency`.
 - **Five archetypes** composed from a shared checkpoint library: `ecommerce`, `saas`,

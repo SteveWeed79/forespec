@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// foresight design — the instrumented design layer (build-order Phase 3). Where verify
+// forespec design — the instrumented design layer (build-order Phase 3). Where verify
 // reads source, THIS renders the live page in a headless browser (Playwright) and
 // MEASURES it: contrast ratios, tap-target sizes, the type scale, mobile overflow, the
 // spacing scale. It covers the design blind spot with standards you don't have to author
@@ -9,12 +9,12 @@
 // The scoring lives in design-metrics.mjs (pure, unit-tested, zero-dep). This file is the
 // I/O: launch the browser, collect raw DOM metrics, hand them to the scorer.
 //
-//   foresight design http://localhost:3000
-//   foresight design ./dist/index.html
-//   foresight design <url> --json
+//   forespec design http://localhost:3000
+//   forespec design ./dist/index.html
+//   forespec design <url> --json
 //
 // Requires playwright-core (an OPTIONAL dependency — the rest of the tool stays zero-dep).
-// A browser must be available; set FORESIGHT_CHROMIUM or PLAYWRIGHT_BROWSERS_PATH if it
+// A browser must be available; set FORESPEC_CHROMIUM or PLAYWRIGHT_BROWSERS_PATH if it
 // isn't auto-found.
 
 import { existsSync, readdirSync } from "node:fs";
@@ -29,26 +29,26 @@ const here = dirname(fileURLToPath(import.meta.url));
 const arg = (f, fb) => { const i = process.argv.indexOf(f); return i !== -1 && process.argv[i + 1] ? process.argv[i + 1] : fb; };
 const has = (f) => process.argv.includes(f);
 
-const HELP = `foresight design — grade a live page's design in a headless browser.
+const HELP = `forespec design — grade a live page's design in a headless browser.
 
 Usage:
-  foresight design <url-or-html-file> [options]
+  forespec design <url-or-html-file> [options]
 
 Options:
   --desktop <px>   desktop viewport width (default: 1280)
   --mobile <px>    mobile viewport width (default: 375)
-  --repo <path>    repo to read foresight.config.json from (for severities; default: .)
+  --repo <path>    repo to read forespec.config.json from (for severities; default: .)
   --archetype <r>  archetype name/manifest (for severities; overrides config)
-  --store <dir>    calibration store (default: ./.foresight); --no-store to skip
+  --store <dir>    calibration store (default: ./.forespec); --no-store to skip
   --json           machine-readable
   -h, --help
 
 Grades the established design checkpoints: ${INSTRUMENTED.join(", ")}.
-Needs playwright-core + a browser; set FORESIGHT_CHROMIUM if it isn't auto-found.`;
+Needs playwright-core + a browser; set FORESPEC_CHROMIUM if it isn't auto-found.`;
 
 /** Locate a Chromium executable: explicit env → newest under PLAYWRIGHT_BROWSERS_PATH → let Playwright try. */
 export function resolveChromium() {
-  if (process.env.FORESIGHT_CHROMIUM && existsSync(process.env.FORESIGHT_CHROMIUM)) return process.env.FORESIGHT_CHROMIUM;
+  if (process.env.FORESPEC_CHROMIUM && existsSync(process.env.FORESPEC_CHROMIUM)) return process.env.FORESPEC_CHROMIUM;
   const base = process.env.PLAYWRIGHT_BROWSERS_PATH;
   if (base && existsSync(base)) {
     const dirs = readdirSync(base).filter((d) => d.startsWith("chromium-")).sort().reverse();
@@ -210,7 +210,7 @@ async function main() {
   if (has("--json")) {
     console.log(JSON.stringify({ url: graded.url, archetype, results }, null, 2));
   } else {
-    console.log(`\n🔭 Foresight design — ${graded.url}`);
+    console.log(`\n🔭 Forespec design — ${graded.url}`);
     console.log(`  ${archetype} v${version} | instrumented (established signals only)\n`);
     for (const r of results) {
       const tag = r.level == null ? "—" : `level ${r.level}`;
@@ -226,7 +226,7 @@ async function main() {
 
   // Record to the calibration store (domain=design). Fingerprint = hash of the metric summary.
   if (!has("--no-store")) {
-    const storeDir = pathResolve(process.cwd(), arg("--store", ".foresight"));
+    const storeDir = pathResolve(process.cwd(), arg("--store", ".forespec"));
     const fp = fingerprint(`${graded.url}|${results.map((r) => `${r.id}:${r.composite}`).join(",")}`);
     const recRes = results.filter((r) => r.level != null).map((r) => ({
       id: r.id, domain: "design", severity: r.severity, level: r.level, confidence: r.confidence,

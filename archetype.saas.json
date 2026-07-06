@@ -1,5 +1,5 @@
 {
-  "$schema": "foresight/archetype/v2",
+  "$schema": "forespec/archetype/v2",
   "_readme": {
     "what_this_is": "Archetype MANIFEST for a multi-tenant SaaS / subscription app. Composes from the shared library (library/checkpoints/). Resolve with `node library/resolve.mjs archetype.saas.json`.",
     "reuse": "Only 3 checkpoints are SaaS-specific (saas.tenancy.isolation, saas.subscription.entitlement_integrity, saas.subscription.lifecycle); every other checkpoint — all of payment.*, auth.*, the universal security.*/data.*/reliability.* set, and the design.* set — is shared with other archetypes. This is the library paying off: archetype #2 is almost entirely reuse, and a new universal checkpoint added to the library lifts every archetype at once.",

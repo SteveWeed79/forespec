@@ -1,4 +1,4 @@
-# Setup — running Foresight on your machine (Windows)
+# Setup — running Forespec on your machine (Windows)
 
 First time with a tool like this? Good — this is written for that. Copy/paste in
 order; nothing here is advanced. The free steps (1–4) need no API key.

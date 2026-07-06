@@ -1,5 +1,5 @@
 {
-  "$schema": "foresight/checkpoint-library/v1",
+  "$schema": "forespec/checkpoint-library/v1",
   "concern": "data",
   "_note": "Data-modeling checkpoints that are not domain-specific.",
   "checkpoints": [

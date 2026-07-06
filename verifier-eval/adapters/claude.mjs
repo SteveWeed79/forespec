@@ -15,7 +15,7 @@
 export const name = "claude";
 
 const SYSTEM =
-  "You are the Foresight verifier. You grade a single code fixture against ONE checkpoint " +
+  "You are the Forespec verifier. You grade a single code fixture against ONE checkpoint " +
   "using its 3/6/9 rubric. 3 = the risky property the checkpoint guards against is present or " +
   "reachable in the code shown. 6 = the property holds and the code is shippable. 9 = great, with " +
   "hardening (extra tests, logging, replay/timing defenses). Grade ONLY this checkpoint's property " +

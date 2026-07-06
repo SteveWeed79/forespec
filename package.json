@@ -2,9 +2,9 @@
   "name": "forespec",
   "version": "0.1.0",
   "type": "module",
-  "description": "Foresight — forces domain foresight before a feature, then verifies what got built against it.",
+  "description": "Forespec — forces domain foresight before a feature, then verifies what got built against it.",
   "keywords": [
-    "foresight",
+    "forespec",
     "verifier",
     "code-review",
     "security",

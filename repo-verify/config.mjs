@@ -1,9 +1,9 @@
-// foresight.config.json — the per-PROJECT decision (committed): which archetype this
-// repo is graded against. Deliberately separate from `.foresight/` (the gitignored
+// forespec.config.json — the per-PROJECT decision (committed): which archetype this
+// repo is graded against. Deliberately separate from `.forespec/` (the gitignored
 // calibration store, which holds local instance data). The config is a project fact,
 // safe to commit, so CI grades against the right archetype too.
 //
-// `foresight init` writes it from detection; `verify` and the PR gate read it as the
+// `forespec init` writes it from detection; `verify` and the PR gate read it as the
 // default archetype when --archetype isn't passed — so onboarding is a one-time step,
 // not a flag you retype on every run.
 
@@ -13,9 +13,9 @@ import { fileURLToPath } from "node:url";
 
 const here = dirname(fileURLToPath(import.meta.url));
 
-// Where the bundled archetype manifests + library/ live (ships with foresight).
+// Where the bundled archetype manifests + library/ live (ships with forespec).
 export const PACKAGE_DIR = pathResolve(here, "..");
-export const CONFIG_FILE = "foresight.config.json";
+export const CONFIG_FILE = "forespec.config.json";
 
 export function readConfig(repoDir) {
   const p = join(repoDir, CONFIG_FILE);
@@ -34,7 +34,7 @@ export function writeConfig(repoDir, config) {
  *   - a bundled manifest filename ("archetype.saas.json")
  *   - a bare archetype name ("saas")                       → archetype.saas.json
  * Bundled manifests resolve against the foresight package, NOT the user's cwd, so this
- * works when foresight runs from inside someone else's repo (npx). On no match it
+ * works when forespec runs from inside someone else's repo (npx). On no match it
  * returns the direct path so the caller's resolveArchetype throws a clear error.
  */
 export function resolveManifestPath(ref, { cwd = process.cwd(), packageDir = PACKAGE_DIR } = {}) {

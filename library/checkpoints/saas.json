@@ -1,5 +1,5 @@
 {
-  "$schema": "foresight/checkpoint-library/v1",
+  "$schema": "forespec/checkpoint-library/v1",
   "concern": "saas",
   "_note": "Domain-specific checkpoints for multi-tenant subscription apps. In the library for uniform format; today only the SaaS archetype references them.",
   "checkpoints": [

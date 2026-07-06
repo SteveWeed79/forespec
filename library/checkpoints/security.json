@@ -1,5 +1,5 @@
 {
-  "$schema": "foresight/checkpoint-library/v1",
+  "$schema": "forespec/checkpoint-library/v1",
   "concern": "security",
   "_note": "Abuse / hardening checkpoints. Cross-domain — any app with auth or payment endpoints reuses these.",
   "checkpoints": [

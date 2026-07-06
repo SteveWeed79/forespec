@@ -1,5 +1,5 @@
 {
-  "$schema": "foresight/checkpoint-library/v1",
+  "$schema": "forespec/checkpoint-library/v1",
   "concern": "ai",
   "_note": "AI/LLM application backbone — the failure modes specific to apps whose core is calling a model (chatbots, RAG, assistants, agents). Untrusted input reaches a model, the model's output is used, and the model may call tools. These are the OWASP-LLM-shaped risks AI-generated AI apps most often ship without. Referenced by the ai-app archetype; authored once here for reuse.",
   "checkpoints": [

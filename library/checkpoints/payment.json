@@ -1,5 +1,5 @@
 {
-  "$schema": "foresight/checkpoint-library/v1",
+  "$schema": "forespec/checkpoint-library/v1",
   "concern": "payment",
   "_note": "Taking-money checkpoints. Cross-domain — ecommerce, SaaS subscriptions, marketplaces, and booking all reuse these.",
   "checkpoints": [

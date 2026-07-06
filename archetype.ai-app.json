@@ -1,5 +1,5 @@
 {
-  "$schema": "foresight/archetype/v2",
+  "$schema": "forespec/archetype/v2",
   "_readme": {
     "what_this_is": "Archetype MANIFEST for an AI/LLM application — chatbots, RAG, assistants, agents, or an AI feature inside a larger product. Resolve with `node library/resolve.mjs archetype.ai-app.json`.",
     "reuse": "Five AI-specific checkpoints (ai.*) carry the LLM backbone — prompt injection, output handling, tool-use safety, cost controls, data boundary. Everything else is COMPOSED from the shared library: an AI app still needs the universal security spine (secrets for provider keys, error handling for streaming/provider failures, PII, abuse controls, access control), so those are reused, not re-authored.",

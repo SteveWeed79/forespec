@@ -82,9 +82,9 @@ leave your machine.
 
 | File | What it is |
 |---|---|
-| [`FORESIGHT-2.md`](./FORESIGHT-2.md) | The vision: the full architecture and the moat argument. **Superseded on build *sequence*** by the build order below. |
-| [`foresight.buildorder-2.md`](./foresight.buildorder-2.md) | **The authoritative roadmap.** Phases 0–7, verifier-first, each phase shippable on its own. When any doc disagrees on *what to build in what order*, this one governs. |
-| [`foresight.calibration-1.md`](./foresight.calibration-1.md) | The calibration loop that turns invented weights into ones earned on real work, and the seam that lets solo data later join a shared pool without a rewrite. |
+| [`FORESPEC-2.md`](./FORESPEC-2.md) | The vision: the full architecture and the moat argument. **Superseded on build *sequence*** by the build order below. |
+| [`forespec.buildorder-2.md`](./forespec.buildorder-2.md) | **The authoritative roadmap.** Phases 0–7, verifier-first, each phase shippable on its own. When any doc disagrees on *what to build in what order*, this one governs. |
+| [`forespec.calibration-1.md`](./forespec.calibration-1.md) | The calibration loop that turns invented weights into ones earned on real work, and the seam that lets solo data later join a shared pool without a rewrite. |
 | [`library/`](./library) | The **shared checkpoint library** — every checkpoint definition (auth, payment, data, design, ai, baas, …), authored once and reused across archetypes. `resolve.mjs` composes a manifest + the library into a full archetype. |
 | [`archetype.ecommerce.json`](./archetype.ecommerce.json) | The ecommerce **archetype manifest**: 20 backbone + 7 design checkpoints from the library, each with its severity for this domain. Resolves to the durable standard a verifier grades against. |
 | [`archetype.ecommerce.design.json`](./archetype.ecommerce.design.json) | The **instrumented** design layer: design checkpoints decomposed into weighted, measurable sub-signals → a computed 0–10 composite. Its `model_scored` signals are deferred experiments until calibration earns them. |
@@ -93,8 +93,8 @@ leave your machine.
 | [`archetype.ai-app.json`](./archetype.ai-app.json) | The **AI / LLM app** manifest — 12 checkpoints, **5 AI-specific** (prompt injection, output handling, tool-use safety, cost controls, data boundary) + 7 reused. |
 | [`archetype.baas.json`](./archetype.baas.json) | The **Backend-as-a-Service (Supabase / Firebase)** manifest — 10 checkpoints, **3 BaaS-specific** (RLS enforced, client trust boundary, privileged-key exposure) + 7 reused. |
 
-Reading order: `FORESIGHT-2.md` (the why) → `foresight.buildorder-2.md` (the how and the order,
-the plan of record) → `foresight.calibration-1.md` (the layer that keeps every score honest over
+Reading order: `FORESPEC-2.md` (the why) → `forespec.buildorder-2.md` (the how and the order,
+the plan of record) → `forespec.calibration-1.md` (the layer that keeps every score honest over
 time) → [`library/`](./library) + `archetype.ecommerce.json` (the standard itself).
 
 ## Core principles (load-bearing, true from commit #1)
@@ -113,13 +113,13 @@ time) → [`library/`](./library) + `archetype.ecommerce.json` (the standard its
 
 ## Conventions
 
-- **Doc naming.** Prose specs are `foresight.<topic>-<n>.md`; `FORESIGHT-2.md` is the top-level
+- **Doc naming.** Prose specs are `forespec.<topic>-<n>.md`; `FORESPEC-2.md` is the top-level
   vision. The trailing `-1` / `-2` are iteration numbers (higher = later).
 - **Archetype versioning.** Each manifest and library file carries a semver `version` / format
   tag. Checkpoint *ids* are permanent contracts — bump the version when a definition changes,
   never rename an id.
-- **`$schema`.** Files declare a `foresight/…` format tag (`foresight/archetype/v2`,
-  `foresight/checkpoint-library/v1`, …) — the engine's internal contract, stable across the
+- **`$schema`.** Files declare a `forespec/…` format tag (`forespec/archetype/v2`,
+  `forespec/checkpoint-library/v1`, …) — the engine's internal contract, stable across the
   brand. JSON Schemas that validate them live in [`schemas/`](./schemas).
 
 ## Tooling

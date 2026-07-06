@@ -1,4 +1,4 @@
-// Foresight "gaps ahead" layer — the foresight half of the promise.
+// Forespec "gaps ahead" layer — the foresight half of the promise.
 //
 // A pure DOWNSTREAM consumer of the verifier's already-computed results. It takes
 // the checkpoints the archetype REQUIRES but for which the repo has no code yet
@@ -38,7 +38,7 @@ export function selectGaps(results, checkpoints) {
 const urgencyFor = (severity) => (severity === "critical" ? "now" : "soon");
 
 const SYSTEM =
-  "You are Foresight's gap advisor. The checkpoints below are ones this project's archetype REQUIRES but that " +
+  "You are Forespec's gap advisor. The checkpoints below are ones this project's archetype REQUIRES but that " +
   "have NO implementing code in the repo yet. Nothing is broken — something is ABSENT. The grade is not in " +
   "question; there is simply nothing here to grade. For each gap, tell the builder what the safeguard is, why " +
   "THEIR archetype needs it, and what 'built right' looks like when they add it. NEVER frame an absence as a live " +

@@ -1,5 +1,5 @@
 {
-  "$schema": "foresight/checkpoint-library/v1",
+  "$schema": "forespec/checkpoint-library/v1",
   "concern": "web",
   "_note": "Cross-domain web-quality checkpoints (performance, discoverability, forms). Reusable by content, marketing, portfolio, and blog archetypes — anything public-facing.",
   "checkpoints": [

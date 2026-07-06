@@ -1,6 +1,6 @@
 name: CI
 
-# The trust badge. Foresight's whole pitch is "a verifier you can trust," so its own
+# The trust badge. Forespec's whole pitch is "a verifier you can trust," so its own
 # suite must be visibly green. Runs the deterministic self-test (no API key needed) and
 # the schema validator across supported Node versions on every push to main and every PR.
 

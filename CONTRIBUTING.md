@@ -1,11 +1,11 @@
-# Contributing to Foresight
+# Contributing to Forespec
 
-Thanks for looking. Foresight is open-core (BSL 1.1) — the local engine is free and fully
+Thanks for looking. Forespec is open-core (BSL 1.1) — the local engine is free and fully
 useful forever, and contributions to it are welcome.
 
 ## Ground rules (the ones that are load-bearing)
 
-Foresight's whole value is that its verdicts can be trusted, so the bar for changes is
+Forespec's whole value is that its verdicts can be trusted, so the bar for changes is
 higher than the usual "tests pass":
 
 - **No half measures, no stubs.** Every phase and every checkpoint ships real. If it can't

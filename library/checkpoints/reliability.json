@@ -1,5 +1,5 @@
 {
-  "$schema": "foresight/checkpoint-library/v1",
+  "$schema": "forespec/checkpoint-library/v1",
   "concern": "reliability",
   "_note": "Runtime-robustness checkpoints. Cross-domain — any app with a backend reuses these.",
   "checkpoints": [

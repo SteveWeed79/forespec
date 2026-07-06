@@ -1,8 +1,8 @@
-# Foresight — Field Notes: First Real-Repo Validation
+# Forespec — Field Notes: First Real-Repo Validation
 
 Empirical learnings from running the reasoning verifier (`repo-verify/` + the
 `verifier-eval` claude adapter) against a real, production-bound ecommerce app
-(Next.js + MongoDB + Stripe). These feed `foresight.calibration-1.md` and the
+(Next.js + MongoDB + Stripe). These feed `forespec.calibration-1.md` and the
 verifier design. **Pattern-level only** — per the pattern/instance wall, no target
 code, file paths, or project specifics live here; the real code was graded in a
 scratch area outside this repo and never committed.
@@ -129,7 +129,7 @@ it *"worth tightening,"* not *"something broke."*
 **Requirement:** a verdict needs a **reachability / blast-radius dimension** distinct
 from the 3/6/9 property grade, so "technically risky but contained" reads differently
 from "live exploit." This is exactly the calibration four-outcome signal from
-`foresight.calibration-1.md` (*acted on flag → little/no improvement → "too strict,
+`forespec.calibration-1.md` (*acted on flag → little/no improvement → "too strict,
 lower weight/severity"*) — real-world proof that the calibration layer (build-order P2)
 is load-bearing, not optional.
 
