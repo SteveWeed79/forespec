@@ -1,4 +1,4 @@
-# Foresight — Layer 3: The Calibration Loop
+# Forespec — Layer 3: The Calibration Loop
 
 *The layer that makes every score honest over time. The archetype defines the standard;
 the verifier scores against it; THIS layer checks those scores against reality and tunes

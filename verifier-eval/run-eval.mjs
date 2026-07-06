@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Foresight verifier-accuracy harness.
+// Forespec verifier-accuracy harness.
 //
 // Runs a verifier adapter over the labeled fixture corpus and measures how well
 // it matches the gold labels — with emphasis on the FALSE-GREEN rate (calling a
@@ -146,7 +146,7 @@ const report = {
 
 // ---- print ----
 const pad = (s, n) => String(s ?? "").padEnd(n);
-console.log(`\nForesight verifier eval — adapter: ${report.adapter}${report.model ? ` (${report.model})` : ""}`);
+console.log(`\nForespec verifier eval — adapter: ${report.adapter}${report.model ? ` (${report.model})` : ""}`);
 console.log("-".repeat(78));
 console.log(`${pad("checkpoint", 34)} ${pad("case", 5)} ${pad("gold", 5)} ${pad("pred", 5)} outcome`);
 for (const c of cases) {

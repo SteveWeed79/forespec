@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// foresight plan — the interrogator. The OTHER half of the name: "forces domain
+// forespec plan — the interrogator. The OTHER half of the name: "forces domain
 // foresight BEFORE a feature." Where verify/gate grade what already got built, this
 // runs first — it turns the archetype's checkpoints into questions you must answer
 // before you write the feature, and emits a spec your AI coder builds against. The
@@ -11,30 +11,31 @@
 // shippable bar, and its assertions become acceptance criteria. Static and $0 — the
 // reasoning adapter (claude) only sharpens the phrasing, it isn't required.
 //
-//   foresight plan "add checkout flow"            # spec for the relevant checkpoints
-//   foresight plan "subscription billing" --archetype saas
-//   foresight plan "add login" --out foresight-plan.md
-//   foresight plan "checkout" --json
+//   forespec plan "add checkout flow"            # spec for the relevant checkpoints
+//   forespec plan "subscription billing" --archetype saas
+//   forespec plan "add login" --out forespec-plan.md
+//   forespec plan "checkout" --json
 
 import { resolve as pathResolve, dirname } from "node:path";
 import { writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { resolveArchetype } from "../library/resolve.mjs";
 import { keywordsFor } from "./select.mjs";
-import { readConfig, resolveManifestPath } from "./config.mjs";
+import { readConfig, resolveManifestPath, CONFIG_FILE } from "./config.mjs";
+import { archetypeFromIntent, discoverManifests } from "./detect.mjs";
 import { estimateProficiency, verbosityFor } from "./proficiency.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const arg = (f, fb) => { const i = process.argv.indexOf(f); return i !== -1 && process.argv[i + 1] ? process.argv[i + 1] : fb; };
 const has = (f) => process.argv.includes(f);
 
-const HELP = `foresight plan — interrogate a feature BEFORE you build it.
+const HELP = `forespec plan — interrogate a feature BEFORE you build it.
 
 Usage:
-  foresight plan "<feature description>" [options]
+  forespec plan "<feature description>" [options]
 
 Options:
-  --repo <path>        repo to read foresight.config.json from (default: .)
+  --repo <path>        repo to read forespec.config.json from (default: .)
   --archetype <ref>    archetype name/manifest (overrides config; e.g. saas)
   --domain <d>         backbone | design | all (default: backbone)
   --checkpoint <id>    interrogate a single checkpoint by id
@@ -44,7 +45,7 @@ Options:
 
 Emits, per relevant checkpoint: the question to decide first, what "shippable"
 (level 6) requires, and acceptance criteria your AI coder must satisfy. Then run
-\`foresight verify\` (or open a PR — the gate grades these same checkpoints).`;
+\`forespec verify\` (or open a PR — the gate grades these same checkpoints).`;
 
 /** How relevant is a checkpoint to a feature description? Keyword + title-token hits. */
 export function relevanceScore(feature, cp) {
@@ -74,9 +75,39 @@ export function selectForFeature(checkpoints, feature, { domain = "backbone", on
   return { relevant, mustHold };
 }
 
-function renderCheckpoint(cp, brief = false) {
+const SEV_RANK = { critical: 0, high: 1, medium: 2, low: 3 };
+
+/**
+ * Sequence the plan the way the thesis demands: dangerous/foundational pieces first.
+ * Merges the feature-matched checkpoints and the must-hold backbone into ONE ordered
+ * build list — so the criticals a feature depends on (payment/idempotency/webhook for a
+ * checkout) sit right up with it instead of being exiled to a "regardless" section.
+ * Order: severity (critical→low), then feature-matched first, then relevance, then the
+ * archetype's own manifest order as the stable tiebreak. Each item carries whether the
+ * feature text matched it, so the renderer can mark it.
+ */
+export function orderForBuild(relevant, mustHold, feature, checkpoints = []) {
+  const matched = new Set(relevant.map((c) => c.id));
+  const idx = new Map(checkpoints.map((c, i) => [c.id, i]));
+  return [...relevant, ...mustHold]
+    .slice()
+    .sort((a, b) => {
+      const s = (SEV_RANK[a.severity] ?? 9) - (SEV_RANK[b.severity] ?? 9);
+      if (s) return s;
+      const m = (matched.has(b.id) ? 1 : 0) - (matched.has(a.id) ? 1 : 0);
+      if (m) return m;
+      const sc = relevanceScore(feature, b) - relevanceScore(feature, a);
+      if (sc) return sc;
+      return (idx.get(a.id) ?? 0) - (idx.get(b.id) ?? 0);
+    })
+    .map((cp) => ({ cp, matched: matched.has(cp.id) }));
+}
+
+function renderCheckpoint(cp, { brief = false, ordinal = null, matched = false } = {}) {
   const L = [];
-  L.push(`### ${cp.title}  ·  \`${cp.id}\`  ·  ${cp.severity}`);
+  const n = ordinal != null ? `${ordinal}. ` : "";
+  const tag = matched ? "  ·  ↳ matches your feature" : "";
+  L.push(`### ${n}${cp.title}  ·  \`${cp.id}\`  ·  ${cp.severity}${tag}`);
   if (cp.verify?.reasoning) L.push(`**Decide first:** ${cp.verify.reasoning}`);
   if (cp.levels?.["6"]) L.push(`**Shippable (level 6):** ${cp.levels["6"]}`);
   const assertions = cp.verify?.assertions ?? [];
@@ -92,28 +123,28 @@ function renderCheckpoint(cp, brief = false) {
 
 export function renderPlan({ archetype, feature, relevant, mustHold, verbosity }) {
   const briefFor = (cp) => (verbosity ? verbosity(cp) === "brief" : false);
-  const total = relevant.length + mustHold.length;
+  const ordered = orderForBuild(relevant, mustHold, feature, archetype.checkpoints || []);
+  const total = ordered.length;
+  const matchedCount = ordered.filter((o) => o.matched).length;
   const L = [];
-  L.push(`# 🔭 Foresight plan — ${feature}`);
+  L.push(`# 🔭 Forespec plan — ${feature}`);
   L.push("");
   L.push(`Archetype: **${archetype.archetype}** v${archetype.version} · **${total}** checkpoint(s) to clear before you build.`);
-  L.push("");
   if (total === 0) {
+    L.push("");
     L.push("No backbone checkpoints matched this feature. Re-run with `--domain all` or a clearer description.");
     return L.join("\n");
   }
-  if (relevant.length) {
-    L.push(`## Directly relevant to "${feature}"`, "");
-    L.push(relevant.map((cp) => renderCheckpoint(cp, briefFor(cp))).join("\n\n"));
-    L.push("");
-  }
-  if (mustHold.length) {
-    L.push(`## Backbone guarantees — critical, must hold regardless`, "");
-    L.push(mustHold.map((cp) => renderCheckpoint(cp, briefFor(cp))).join("\n\n"));
-    L.push("");
-  }
+  L.push(
+    matchedCount
+      ? `**${matchedCount}** match your description directly; the rest are the critical backbone any feature here must hold. Ordered **most-critical / most-foundational first** — build them in this order.`
+      : `These are the critical backbone any feature here must hold, ordered **most-critical / most-foundational first** — build them in this order.`
+  );
+  L.push("");
+  L.push(ordered.map((o, i) => renderCheckpoint(o.cp, { brief: briefFor(o.cp), ordinal: i + 1, matched: o.matched })).join("\n\n"));
+  L.push("");
   L.push("---");
-  L.push("**For your AI coder:** build the feature so every acceptance box above can be checked, then run `foresight verify` (or open a PR — the gate grades these same checkpoints). Levels: 3 present-but-risky · 6 solid/shippable · 9 great. Aim for 9 on critical, 6+ elsewhere — never infinite polish.");
+  L.push("**For your AI coder:** build the feature so every acceptance box above can be checked, then run `forespec verify` (or open a PR — the gate grades these same checkpoints). Levels: 3 present-but-risky · 6 solid/shippable · 9 great. Aim for 9 on critical, 6+ elsewhere — never infinite polish.");
   return L.join("\n");
 }
 
@@ -129,15 +160,31 @@ function main() {
   const repo = pathResolve(process.cwd(), arg("--repo", "."));
   const archetypeArg = arg("--archetype", null);
   const cfg = readConfig(repo);
-  const archetypePath = archetypeArg
-    ? resolveManifestPath(archetypeArg, { cwd: process.cwd() })
-    : cfg?.archetype
-      ? resolveManifestPath(cfg.archetype, { cwd: repo })
-      : pathResolve(here, "..", "archetype.ecommerce.json");
+  let archetypePath, inferredNote = "";
+  if (archetypeArg) {
+    archetypePath = resolveManifestPath(archetypeArg, { cwd: process.cwd() });
+  } else if (cfg?.archetype) {
+    archetypePath = resolveManifestPath(cfg.archetype, { cwd: repo });
+  } else {
+    // No --archetype and no config (a new/empty repo): DECLARE from the feature text rather
+    // than silently grading against ecommerce. Infer, and say so; only fall back to ecommerce
+    // when the text gives nothing to go on.
+    const manifests = discoverManifests(pathResolve(here, ".."));
+    const top = archetypeFromIntent(feature, manifests.map((m) => m.archetype))[0];
+    const picked = top && (top.confidence === "high" || top.confidence === "medium") ? manifests.find((m) => m.archetype === top.archetype) : null;
+    if (picked) {
+      archetypePath = pathResolve(here, "..", picked.file);
+      inferredNote = `no ${CONFIG_FILE} — inferred archetype '${top.archetype}' from "${feature}" (pass --archetype to override, or run \`forespec start\`)`;
+    } else {
+      archetypePath = pathResolve(here, "..", "archetype.ecommerce.json");
+      inferredNote = `no ${CONFIG_FILE} and couldn't infer the archetype from "${feature}" — defaulting to ecommerce (pass --archetype)`;
+    }
+  }
 
   let archetype;
   try { archetype = resolveArchetype(archetypePath); }
   catch (e) { console.error(`error: ${e.message}`); return 2; }
+  if (inferredNote) console.error(inferredNote);
 
   const onlyId = arg("--checkpoint", null);
   if (onlyId && !archetype.checkpoints.some((c) => c.id === onlyId)) {
@@ -148,7 +195,14 @@ function main() {
 
   if (has("--json")) {
     const pick = (c) => ({ id: c.id, domain: c.domain, severity: c.severity, title: c.title, reasoning: c.verify?.reasoning, level6: c.levels?.["6"], acceptance: (c.verify?.assertions ?? []).map((a) => a.check) });
-    console.log(JSON.stringify({ archetype: archetype.archetype, feature, relevant: relevant.map(pick), mustHold: mustHold.map(pick) }, null, 2));
+    const ordered = orderForBuild(relevant, mustHold, feature, archetype.checkpoints);
+    console.log(JSON.stringify({
+      archetype: archetype.archetype,
+      feature,
+      plan: ordered.map((o) => ({ ...pick(o.cp), matched: o.matched })),
+      relevant: relevant.map(pick),
+      mustHold: mustHold.map(pick),
+    }, null, 2));
     return 0;
   }
 
@@ -156,10 +210,10 @@ function main() {
   // Auto when a calibration store exists; --no-adapt to force full detail.
   let verbosity = null, adaptNote = "";
   if (!has("--no-adapt")) {
-    const profile = estimateProficiency({ storeDir: pathResolve(repo, arg("--store", ".foresight")) });
+    const profile = estimateProficiency({ storeDir: pathResolve(repo, arg("--store", ".forespec")) });
     verbosity = (cp) => verbosityFor(cp.domain, profile);
     const brief = [...relevant, ...mustHold].filter((cp) => verbosity(cp) === "brief").length;
-    if (brief > 0) adaptNote = `\n_Adapted to your proficiency: trimmed the "why" on ${brief} checkpoint(s) in domains you're fluent in (\`foresight proficiency\` to see, \`--no-adapt\` to show all)._`;
+    if (brief > 0) adaptNote = `\n_Adapted to your proficiency: trimmed the "why" on ${brief} checkpoint(s) in domains you're fluent in (\`forespec proficiency\` to see, \`--no-adapt\` to show all)._`;
   }
 
   const md = renderPlan({ archetype, feature, relevant, mustHold, verbosity }) + adaptNote;

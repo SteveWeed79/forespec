@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "foresight/checkpoint-library/v1",
-  "title": "Foresight checkpoint library file",
+  "$id": "forespec/checkpoint-library/v1",
+  "title": "Forespec checkpoint library file",
   "description": "Validates a shared-library checkpoint file (library/checkpoints/*.json). A library checkpoint defines WHAT to check and carries NO severity — severity is assigned per archetype in the manifest.",
   "type": "object",
   "required": ["concern", "checkpoints"],

@@ -1,7 +1,7 @@
 {
-  "$schema": "foresight/verifier-eval/v1",
+  "$schema": "forespec/verifier-eval/v1",
   "_readme": {
-    "what_this_is": "A labeled corpus for measuring the Foresight reasoning verifier. Each case is a minimal known-good or known-bad implementation of one checkpoint, with a gold level a competent reviewer would assign. The harness (run-eval.mjs) runs a verifier against these and reports precision/recall — especially the false-green rate (calling a bad implementation shippable), the dangerous error.",
+    "what_this_is": "A labeled corpus for measuring the Forespec reasoning verifier. Each case is a minimal known-good or known-bad implementation of one checkpoint, with a gold level a competent reviewer would assign. The harness (run-eval.mjs) runs a verifier against these and reports precision/recall — especially the false-green rate (calling a bad implementation shippable), the dangerous error.",
     "labels": "gold_level uses the 3/6/9 scale. 3 = crude/risky (the vulnerability is present). 6 = solid/shippable (the property holds). shippable = level >= 6.",
     "ids": "checkpoint ids are library ids. The corpus is ARCHETYPE-AGNOSTIC — it grades checkpoint definitions (loaded from library/checkpoints/), so one corpus covers checkpoints used by ecommerce, SaaS, portfolio, and any future archetype. Fixture directory names mirror the id.",
     "wall": "Fixtures are synthetic and contain no real project code — PATTERN-level and fully shareable. Point the verifier at a real repo separately.",

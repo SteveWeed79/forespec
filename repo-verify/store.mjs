@@ -23,7 +23,7 @@ export const FILES = {
   outInstance: "outcomes.instances.jsonl",
 };
 
-// Reliability tiers (from foresight.calibration-1.md): a pool must never blend these blindly.
+// Reliability tiers (from forespec.calibration-1.md): a pool must never blend these blindly.
 export const SOURCE_TIERS = {
   objective_outcome: "highest", // reality graded it (oversell happened, override held up)
   expert_rating: "high", // someone with real judgment scored it
@@ -63,7 +63,7 @@ export function recordPredictions({ storeDir, runId, archetype, archetypeVersion
     if (r.level == null) continue;
     // PATTERN — shareable. Deliberately omits gap/rationale/evidence/paths.
     appendJsonl(storeDir, FILES.predPattern, {
-      schema: "foresight/prediction/pattern/v1",
+      schema: "forespec/prediction/pattern/v1",
       run_id: runId, ts: stamp,
       archetype, archetype_version: archetypeVersion,
       checkpoint_id: r.id, domain: r.domain, severity: r.severity,
@@ -73,7 +73,7 @@ export function recordPredictions({ storeDir, runId, archetype, archetypeVersion
     });
     // INSTANCE — local only. The code-specific detail lives here, never in the pattern file.
     appendJsonl(storeDir, FILES.predInstance, {
-      schema: "foresight/prediction/instance/v1",
+      schema: "forespec/prediction/instance/v1",
       run_id: runId, ts: stamp,
       project, checkpoint_id: r.id, fingerprint: r.fingerprint,
       level: r.level, confidence: r.confidence,
@@ -103,13 +103,13 @@ export function recordOutcome({ storeDir, prediction, outcome, source = "self_ob
   const stamp = ts ?? new Date().toISOString();
   const reliability = SOURCE_TIERS[source] ?? "unknown";
   appendJsonl(storeDir, FILES.outPattern, {
-    schema: "foresight/outcome/pattern/v1", ts: stamp,
+    schema: "forespec/outcome/pattern/v1", ts: stamp,
     run_id: prediction.run_id, checkpoint_id: prediction.checkpoint_id, fingerprint: prediction.fingerprint,
     predicted_level: prediction.level, predicted_confidence: prediction.confidence,
     outcome, source, reliability,
   });
   appendJsonl(storeDir, FILES.outInstance, {
-    schema: "foresight/outcome/instance/v1", ts: stamp,
+    schema: "forespec/outcome/instance/v1", ts: stamp,
     run_id: prediction.run_id, checkpoint_id: prediction.checkpoint_id, fingerprint: prediction.fingerprint,
     project: project ?? null, outcome, source, note: note ?? null,
   });
@@ -134,7 +134,7 @@ export const OVERRIDES_FILE = "overrides.json";
  */
 export function readOverrides({ storeDir }) {
   const p = join(storeDir, OVERRIDES_FILE);
-  if (!existsSync(p)) return { schema: "foresight/overrides/v1", severity: {}, log: [] };
+  if (!existsSync(p)) return { schema: "forespec/overrides/v1", severity: {}, log: [] };
   return JSON.parse(readFileSync(p, "utf8"));
 }
 

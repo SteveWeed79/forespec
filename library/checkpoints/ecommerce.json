@@ -1,5 +1,5 @@
 {
-  "$schema": "foresight/checkpoint-library/v1",
+  "$schema": "forespec/checkpoint-library/v1",
   "concern": "ecommerce",
   "_note": "Domain-specific checkpoints for ecommerce. Live in the library so the format is uniform and another archetype (e.g. booking) could reference them, but today only the ecommerce archetype does.",
   "checkpoints": [

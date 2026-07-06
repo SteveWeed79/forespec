@@ -1,5 +1,5 @@
 {
-  "$schema": "foresight/checkpoint-library/v1",
+  "$schema": "forespec/checkpoint-library/v1",
   "concern": "baas",
   "_note": "Backend-as-a-Service backbone (Supabase, Firebase). The defining property of this stack is that the CLIENT talks directly to the database and storage, so access control is enforced by row-level security / security rules and by what key the browser holds — not by a traditional server the client can't reach. These are the data-leak patterns AI-generated BaaS apps most often ship. Referenced by the baas archetype.",
   "checkpoints": [

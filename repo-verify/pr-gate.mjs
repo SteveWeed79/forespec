@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// foresight pr-gate — grade a PR's diff against the archetype, post a sticky PR
+// forespec gate — grade a PR's diff against the archetype, post a sticky PR
 // comment, and passively capture "flagged → fixed" outcomes. The git-aware surface.
 //
 // Why this exists: it's the trustworthy home for "what changed." It grades only the
@@ -13,7 +13,7 @@
 // Local dry run (no GitHub, no API key):
 //   node repo-verify/pr-gate.mjs --repo <path> --changed a.ts,b.ts --adapter mock --dry-run
 //
-// In CI: see .github/workflows/foresight.yml — runs on pull_request, diffs the base
+// In CI: see .github/workflows/forespec.yml — runs on pull_request, diffs the base
 // branch, and upserts a comment via GITHUB_TOKEN. Advisory by default; --fail blocks.
 
 import { execFileSync } from "node:child_process";
@@ -29,20 +29,20 @@ const here = dirname(fileURLToPath(import.meta.url));
 const arg = (f, fb) => { const i = process.argv.indexOf(f); return i !== -1 && process.argv[i + 1] ? process.argv[i + 1] : fb; };
 const has = (f) => process.argv.includes(f);
 
-const HELP = `foresight pr-gate — grade a PR's diff, comment, and feed calibration.
+const HELP = `forespec gate — grade a PR's diff, comment, and feed calibration.
 
 Usage:
   node repo-verify/pr-gate.mjs [options]
 
 Options:
   --repo <path>        repo to grade (default: .)
-  --base <ref>         base to diff against (default: origin/main or $FORESIGHT_BASE)
+  --base <ref>         base to diff against (default: origin/main or $FORESPEC_BASE)
   --head <ref>         head ref (default: HEAD)
   --changed a,b,c      explicit changed-file list (skips git diff; for local testing)
   --archetype <file>   archetype manifest (default: archetype.ecommerce.json)
   --adapter <name>     mock | claude (default: claude if key+model set, else mock)
   --all-domains        also grade design checkpoints (default: backbone only)
-  --store <dir>        calibration store (default: ./.foresight)
+  --store <dir>        calibration store (default: ./.forespec)
   --no-store           don't record predictions/outcomes
   --comment            upsert a PR comment (needs GITHUB_TOKEN + event payload)
   --fail               exit non-zero on a touched-critical regression / below-6 (gate)
@@ -71,7 +71,7 @@ function deltaTag(prior, now) {
 }
 
 function renderMarkdown({ archetype, results, changed, touched, passive, ok, blockingCrit, regressedCrit, gateTier = "critical", adapterName }) {
-  const L = ["<!-- foresight-gate -->", `### 🔭 Foresight — ${archetype.archetype} backbone`, ""];
+  const L = ["<!-- forespec-gate -->", `### 🔭 Forespec — ${archetype.archetype} backbone`, ""];
   if (touched.length === 0) {
     L.push(`No backbone-relevant files changed in this PR (${changed.length} changed file(s) scanned). Nothing to grade.`);
     return L.join("\n");
@@ -108,31 +108,31 @@ async function postComment(body) {
   const num = ev.pull_request?.number ?? ev.number;
   if (!num) { console.error("note: no PR number in event — printing comment:\n"); console.log(body); return; }
   const api = process.env.GITHUB_API_URL || "https://api.github.com";
-  const h = { authorization: `Bearer ${token}`, accept: "application/vnd.github+json", "content-type": "application/json", "user-agent": "foresight-gate" };
+  const h = { authorization: `Bearer ${token}`, accept: "application/vnd.github+json", "content-type": "application/json", "user-agent": "forespec-gate" };
   const list = await fetch(`${api}/repos/${repoFull}/issues/${num}/comments?per_page=100`, { headers: h }).then((r) => r.json());
-  const existing = Array.isArray(list) ? list.find((c) => typeof c.body === "string" && c.body.includes("<!-- foresight-gate -->")) : null;
+  const existing = Array.isArray(list) ? list.find((c) => typeof c.body === "string" && c.body.includes("<!-- forespec-gate -->")) : null;
   if (existing) {
     await fetch(`${api}/repos/${repoFull}/issues/comments/${existing.id}`, { method: "PATCH", headers: h, body: JSON.stringify({ body }) });
-    console.error(`updated Foresight comment on PR #${num}`);
+    console.error(`updated Forespec comment on PR #${num}`);
   } else {
     await fetch(`${api}/repos/${repoFull}/issues/${num}/comments`, { method: "POST", headers: h, body: JSON.stringify({ body }) });
-    console.error(`posted Foresight comment on PR #${num}`);
+    console.error(`posted Forespec comment on PR #${num}`);
   }
 }
 
 async function main() {
   if (has("-h") || has("--help")) { console.log(HELP); return 0; }
   const repo = pathResolve(process.cwd(), arg("--repo", "."));
-  // Archetype precedence: --archetype > foresight.config.json in the repo > default.
+  // Archetype precedence: --archetype > forespec.config.json in the repo > default.
   const cfg = readConfig(repo);
   const archetypePath = arg("--archetype", null)
     ? resolveManifestPath(arg("--archetype"), { cwd: process.cwd() })
     : cfg?.archetype
       ? resolveManifestPath(cfg.archetype, { cwd: repo })
       : pathResolve(here, "..", "archetype.ecommerce.json");
-  const base = arg("--base", process.env.FORESIGHT_BASE || "origin/main");
+  const base = arg("--base", process.env.FORESPEC_BASE || "origin/main");
   const head = arg("--head", "HEAD");
-  const storeDir = pathResolve(process.cwd(), arg("--store", ".foresight"));
+  const storeDir = pathResolve(process.cwd(), arg("--store", ".forespec"));
 
   const archetype = resolveArchetype(archetypePath);
   const overrides = readOverrides({ storeDir });

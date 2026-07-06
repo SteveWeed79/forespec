@@ -1,5 +1,5 @@
 {
-  "$schema": "foresight/checkpoint-library/v1",
+  "$schema": "forespec/checkpoint-library/v1",
   "concern": "design",
   "_note": "Design-dimension checkpoints (domain:design SUPPLIES judgment the builder lacks). Cross-domain — every site type reuses these. Some have a richer instrumented form in a *.design.json layer.",
   "checkpoints": [

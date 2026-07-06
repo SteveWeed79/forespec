@@ -1,7 +1,7 @@
 // Repo-source adapter: reads a target repo from a local path and, per checkpoint,
 // selects the most relevant source files to hand the verifier. Zero dependencies.
 //
-// This is the seam that lets Foresight grade a WHOLE real repo (not a single
+// This is the seam that lets Forespec grade a WHOLE real repo (not a single
 // labeled fixture): for each checkpoint it keyword-ranks the repo's files and
 // packs the most relevant ones into a `code` string within a character budget,
 // which is exactly the shape the verifier-eval adapters already consume.

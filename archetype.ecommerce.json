@@ -1,5 +1,5 @@
 {
-  "$schema": "foresight/archetype/v2",
+  "$schema": "forespec/archetype/v2",
   "_readme": {
     "what_this_is": "An archetype MANIFEST: the durable standard for a class of website, expressed as a selection of checkpoints from the shared library (library/checkpoints/) plus the severity each carries in THIS domain. The library defines WHAT each checkpoint checks (transferable); the manifest assigns HOW MUCH it matters here. Resolve to the full archetype with `node library/resolve.mjs archetype.ecommerce.json`.",
     "why_a_manifest": "Checkpoints recur across site types (auth, money precision, payment webhooks, contrast). Authoring them once in the library and composing per archetype means archetype #2 reuses instead of copies — the moat compounds and a fix to a shared checkpoint improves every archetype at once.",

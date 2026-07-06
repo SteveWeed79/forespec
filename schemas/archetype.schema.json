@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "foresight/archetype-resolved/v2",
-  "title": "Foresight resolved archetype",
+  "$id": "forespec/archetype-resolved/v2",
+  "title": "Forespec resolved archetype",
   "description": "Validates the RESOLVED archetype — the output of library/resolve.mjs (full checkpoints with severity), not the manifest. The manifest is validated by archetype.manifest.schema.json; library files by library.checkpoint.schema.json. Structure only; id-uniqueness and ref-resolution are checked by schemas/validate.mjs.",
   "type": "object",
   "required": ["archetype", "version", "applies_when", "goal_definition", "checkpoints"],

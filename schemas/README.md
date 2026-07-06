@@ -1,14 +1,14 @@
 # Schemas
 
-Formal validation for the Foresight library + archetype files. Each file declares a Foresight
+Formal validation for the Forespec library + archetype files. Each file declares a Forespec
 format tag in its `$schema` field; the schemas here give that tag something to validate against.
 
 | Schema | Validates | `$id` |
 |---|---|---|
-| [`library.checkpoint.schema.json`](./library.checkpoint.schema.json) | `../library/checkpoints/*.json` (shared checkpoint definitions — no severity) | `foresight/checkpoint-library/v1` |
-| [`archetype.manifest.schema.json`](./archetype.manifest.schema.json) | `../archetype.*.json` (archetype manifests — `{ ref, severity }` lists) | `foresight/archetype/v2` |
-| [`archetype.schema.json`](./archetype.schema.json) | the **resolved** archetype (output of `library/resolve.mjs`) | `foresight/archetype-resolved/v2` |
-| [`archetype.design.schema.json`](./archetype.design.schema.json) | `../archetype.ecommerce.design.json` (instrumented design layer) | `foresight/archetype-design/v2` |
+| [`library.checkpoint.schema.json`](./library.checkpoint.schema.json) | `../library/checkpoints/*.json` (shared checkpoint definitions — no severity) | `forespec/checkpoint-library/v1` |
+| [`archetype.manifest.schema.json`](./archetype.manifest.schema.json) | `../archetype.*.json` (archetype manifests — `{ ref, severity }` lists) | `forespec/archetype/v2` |
+| [`archetype.schema.json`](./archetype.schema.json) | the **resolved** archetype (output of `library/resolve.mjs`) | `forespec/archetype-resolved/v2` |
+| [`archetype.design.schema.json`](./archetype.design.schema.json) | `../archetype.ecommerce.design.json` (instrumented design layer) | `forespec/archetype-design/v2` |
 
 ## Quick check (no dependencies)
 
@@ -22,7 +22,7 @@ node schemas/validate.mjs      # or: npm run check
 
 ## Full structural validation
 
-The `$schema` field is a Foresight *format tag*, not a resolvable URL, so point a validator at
+The `$schema` field is a Forespec *format tag*, not a resolvable URL, so point a validator at
 the schema file explicitly.
 
 **Python (jsonschema):**
@@ -56,5 +56,5 @@ PY
 - Schemas validate **structure** (required fields, enums, id shape). Ref-resolution, id
   uniqueness, and the weight-sum invariant live in `validate.mjs` because JSON Schema can't
   express them cleanly.
-- Checkpoint ids are **permanent contracts** (see `../foresight.calibration-1.md`). Bump the
+- Checkpoint ids are **permanent contracts** (see `../forespec.calibration-1.md`). Bump the
   `version` when a definition changes; never silently rename an id.

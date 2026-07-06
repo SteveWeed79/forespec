@@ -1,4 +1,4 @@
-# Foresight — Build Order
+# Forespec — Build Order
 
 *Standalone, tool-agnostic engine. NOT a plugin. The engine owns its core; AI tools
 (Claude Code included) are adapters that drive it, never the thing it lives inside.
@@ -109,7 +109,7 @@ Build:
 - Plan engine: ordered, gotcha-aware, dangerous/foundational pieces first, each step small.
 - Output shaped to hand directly to whatever agent builds (Claude Code as first consumer).
 
-Done when: you can ask Foresight what a feature needs before writing it, and it tells you the
+Done when: you can ask Forespec what a feature needs before writing it, and it tells you the
 thing you didn't know to ask. This is the piece that makes it a PARTNER, not a checker.
 
 ---
@@ -151,7 +151,7 @@ earned trust or been honestly cut.
 gateway / distribution. This is the OpenClaw-shaped shell, built LAST, around a proven pearl.*
 
 Build (only after Phases 0-5 are real and validated on your work):
-- Driving Foresight from other environments / other AI tools (the tool-agnostic promise
+- Driving Forespec from other environments / other AI tools (the tool-agnostic promise
   delivered for real, not just architected).
 - Multi-user calibration: turn on the seam - delta aggregation across users, pattern pool
   (pattern only, instance never leaves anyone's machine).

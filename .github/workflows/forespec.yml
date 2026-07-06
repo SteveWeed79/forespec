@@ -1,4 +1,4 @@
-name: Foresight PR gate
+name: Forespec PR gate
 
 # Dogfoods this repo's own drop-in action (action.yml, via `uses: ./`): grades the
 # checkpoints a PR touches, posts a sticky comment with how each moved vs the last
@@ -13,7 +13,7 @@ permissions:
   pull-requests: write # so the gate can upsert its comment
 
 jobs:
-  foresight:
+  forespec:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -26,12 +26,12 @@ jobs:
       - name: Restore calibration store
         uses: actions/cache@v4
         with:
-          path: .foresight
-          key: foresight-store-${{ github.run_id }}
+          path: .forespec
+          key: forespec-store-${{ github.run_id }}
           restore-keys: |
-            foresight-store-
+            forespec-store-
 
-      - name: Foresight gate
+      - name: Forespec gate
         uses: ./
         with:
           base: ${{ github.base_ref }}

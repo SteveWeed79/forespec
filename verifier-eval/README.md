@@ -1,6 +1,6 @@
 # Verifier-accuracy harness
 
-The Foresight thesis lives or dies on one question: **is the reasoning verifier
+The Forespec thesis lives or dies on one question: **is the reasoning verifier
 actually trustworthy on real code?** A checker you can't trust is worse than no
 checker — a false "shippable" is more dangerous than silence, because you build
 on top of it. This harness turns that question from a hope into a measured number.

@@ -134,20 +134,20 @@ const PLAIN = {
 
 function main() {
   if (has("-h") || has("--help")) {
-    console.log(`foresight proficiency — your self-facing per-domain read (tunes how much I explain).
+    console.log(`forespec proficiency — your self-facing per-domain read (tunes how much I explain).
 
-Usage: foresight proficiency [--store .foresight] [--json]
+Usage: forespec proficiency [--store .forespec] [--json]
 
 Derived from outcomes you've already recorded; it only ever goes UP from good calls and
 precise notes, never down for being blunt. SELF-FACING ONLY — never shared, never pooled.`);
     return 0;
   }
-  const storeDir = pathResolve(process.cwd(), arg("--store", ".foresight"));
+  const storeDir = pathResolve(process.cwd(), arg("--store", ".forespec"));
   const profile = estimateProficiency({ storeDir });
 
   if (has("--json")) { console.log(JSON.stringify(profile, null, 2)); return 0; }
 
-  console.log("\n🔭 Foresight proficiency — self-facing (never shared, never pooled)\n");
+  console.log("\n🔭 Forespec proficiency — self-facing (never shared, never pooled)\n");
   for (const d of DOMAINS) {
     const p = profile[d];
     console.log(`${d.padEnd(9)} ${p.band.toUpperCase().padEnd(9)} (${p.score})`);
@@ -155,7 +155,7 @@ precise notes, never down for being blunt. SELF-FACING ONLY — never shared, ne
     console.log(`  from: ${p.counts.high_reliability_outcomes} considered outcome(s), ${p.counts.judgment_calls} judgment call(s), ${p.counts.terms_used} domain term(s), ${p.counts.overrides_accepted} override(s)`);
   }
   console.log("\nThis is demonstrated engagement + judgment, not a competence grade. It tunes how");
-  console.log("much I explain — nothing else. Record outcomes (`foresight feedback`) to sharpen it.");
+  console.log("much I explain — nothing else. Record outcomes (`forespec feedback`) to sharpen it.");
   return 0;
 }
 

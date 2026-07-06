@@ -8,7 +8,7 @@ goes live. No stub, no half measure.
 ## Why
 
 The ICP is a solo/small-team builder using AI, with no legal team — the same reason
-Foresight exists for the *security* spine. Licensing is a parallel blind spot that
+Forespec exists for the *security* spine. Licensing is a parallel blind spot that
 bites late and expensively:
 
 - **No LICENSE file** → the work is "all rights reserved" by default. Nobody can
@@ -17,10 +17,10 @@ bites late and expensively:
   equivalent) → tooling and downstream consumers can't reason about terms.
 - **Dependency conflict (the expensive one)** → an **AGPL/GPL** package pulled into a
   closed-source product or hosted service is a real, late, painful discovery. This is
-  exactly Foresight's "surface it in week one, not month three" ethos, applied to law
+  exactly Forespec's "surface it in week one, not month three" ethos, applied to law
   instead of security.
 
-We just hand-did all of this for Foresight itself (BSL 1.1, LICENSE, SPDX id). A
+We just hand-did all of this for Forespec itself (BSL 1.1, LICENSE, SPDX id). A
 checkpoint would automate the *validation* half.
 
 ## Scope — validation only, not recommendation
@@ -82,6 +82,6 @@ that way; this earns it the same way or it waits.
 ## Companion (not this checkpoint): the `plan`-side license helper
 
 The *recommendation* half — "given how you intend to monetize, here are the license
-shapes and their tradeoffs" — is a natural `foresight plan` decision-helper. It asks,
+shapes and their tradeoffs" — is a natural `forespec plan` decision-helper. It asks,
 it doesn't grade. Worth a separate, smaller proposal once the validation checkpoint
 lands.

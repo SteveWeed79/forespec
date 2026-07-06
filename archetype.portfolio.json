@@ -1,5 +1,5 @@
 {
-  "$schema": "foresight/archetype/v2",
+  "$schema": "forespec/archetype/v2",
   "_readme": {
     "what_this_is": "Archetype MANIFEST for a personal / portfolio / content site. Resolve with `node library/resolve.mjs archetype.portfolio.json`.",
     "reuse": "Still 100% composed from the shared library — ZERO portfolio-specific checkpoints. The design.* checkpoints are the same ones the ecommerce archetype uses; the web.* checkpoints are shared with any content site; and it now also draws the universal security.*/data.*/reliability.* checkpoints every deployed site needs (HTTPS + headers, secrets, PII on the contact form, injection, error handling) — auth/upload/query checkpoints are omitted since a portfolio has no accounts or backend to speak of. The strongest demonstration of the library: a whole archetype with nothing new to author.",

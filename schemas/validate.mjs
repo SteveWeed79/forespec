@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Zero-dependency validator for the Foresight checkpoint library + archetype manifests.
+// Zero-dependency validator for the Forespec checkpoint library + archetype manifests.
 //
 // Checks the invariants a JSON Schema can't express:
 //   - library checkpoint ids are unique across the whole library

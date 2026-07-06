@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// foresight calibrate — propose severity deltas from accumulated outcomes
+// forespec calibrate — propose severity deltas from accumulated outcomes
 // (calibration brick 3). Pure analysis of the local store; no model calls.
 //
 // It does NOT overwrite anything. It reads predictions + your recorded outcomes
@@ -7,7 +7,7 @@
 // evidence behind them — which you accept one at a time. Accepted deltas land in a
 // local overrides file the verifier applies on top of the archetype, so the shared
 // library stays pristine and the tuning is earned + reversible. (Per
-// foresight.calibration-1.md: "calibration does not overwrite weights directly; it
+// forespec.calibration-1.md: "calibration does not overwrite weights directly; it
 // produces proposed deltas with the evidence behind them.")
 //
 // Usage:
@@ -16,7 +16,7 @@
 //   node repo-verify/calibrate.mjs accept <checkpoint> [severity]
 //   node repo-verify/calibrate.mjs reset  <checkpoint>  # drop an override
 //
-// Options: --store <dir> (default ./.foresight), --min <n> (min evidence, default 3)
+// Options: --store <dir> (default ./.forespec), --min <n> (min evidence, default 3)
 
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -77,7 +77,7 @@ export function propose(byCp, minEvidence = 3) {
   return out;
 }
 
-const HELP = `foresight calibrate — propose severity deltas from recorded outcomes.
+const HELP = `forespec calibrate — propose severity deltas from recorded outcomes.
 
 Usage:
   node repo-verify/calibrate.mjs                    show proposals
@@ -86,7 +86,7 @@ Usage:
   node repo-verify/calibrate.mjs reset  <cp>        drop an override
 
 Options:
-  --store <dir>   calibration store (default: ./.foresight)
+  --store <dir>   calibration store (default: ./.forespec)
   --min <n>       minimum outcomes before proposing (default: 3)
 
 Nothing changes until you accept. Accepted deltas go to <store>/overrides.json,
@@ -100,7 +100,7 @@ const has = (f) => process.argv.includes(f);
 
 function main() {
   if (has("-h") || has("--help")) { console.log(HELP); return 0; }
-  const storeDir = resolve(process.cwd(), arg("--store", ".foresight"));
+  const storeDir = resolve(process.cwd(), arg("--store", ".forespec"));
   const minEvidence = Number(arg("--min", "3")) || 3;
   const json = has("--json");
   const valueFlags = ["--store", "--min"];

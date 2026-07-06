@@ -1,5 +1,5 @@
 {
-  "$schema": "foresight/archetype/v2",
+  "$schema": "forespec/archetype/v2",
   "_readme": {
     "what_this_is": "Archetype MANIFEST for an app built on a Backend-as-a-Service (Supabase, Firebase) — the client talks directly to the database/storage and access control is enforced by row-level security / security rules rather than a traditional server. Resolve with `node library/resolve.mjs archetype.baas.json`.",
     "reuse": "Three BaaS-specific checkpoints (baas.*) carry the direct-to-database backbone — RLS enforcement, the client trust boundary, and privileged-key exposure. Everything else is COMPOSED from the shared library: a BaaS app still needs the universal spine (secrets, per-user access control, PII, error handling, abuse controls).",

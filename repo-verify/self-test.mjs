@@ -22,7 +22,7 @@ import { loadRepo, selectForCheckpoint, scoreFile } from "./select.mjs";
 import { measureRecall } from "./selection-eval.mjs";
 import { fingerprint, recordPredictions, latestPrediction, recordOutcome, readOverrides, writeOverrides, FILES } from "./store.mjs";
 import { aggregate, propose } from "./calibrate.mjs";
-import { scoreArchetypes, collectSignals, discoverManifests, isAmbiguous, classifyWithAI } from "./detect.mjs";
+import { scoreArchetypes, collectSignals, discoverManifests, isAmbiguous, classifyWithAI, archetypeFromIntent, classifyIntentWithAI, inferArchetype } from "./detect.mjs";
 import { readConfig, writeConfig, resolveManifestPath, CONFIG_FILE } from "./config.mjs";
 import { relevanceScore, selectForFeature, renderPlan } from "./plan.mjs";
 import { contrastRatio, parseColor, isLargeText, compositeToLevel, scoreContrast, scoreTypeScale, scoreResponsive, scoreSpacing } from "./design-metrics.mjs";
@@ -74,7 +74,7 @@ for (const tc of cases) {
 }
 
 console.log("\n3. Calibration store — pattern/instance wall (bricks 1–2):");
-const store = mkdtempSync(join(tmpdir(), "foresight-store-"));
+const store = mkdtempSync(join(tmpdir(), "forespec-store-"));
 try {
   const fakeResults = [{
     id: "payment.idempotency", domain: "backbone", severity: "critical",
@@ -115,7 +115,7 @@ try {
 }
 
 console.log("\n4. Calibration — propose & accept a delta (brick 3):");
-const store4 = mkdtempSync(join(tmpdir(), "foresight-cal-"));
+const store4 = mkdtempSync(join(tmpdir(), "forespec-cal-"));
 try {
   recordPredictions({
     storeDir: store4, runId: "run_cal", archetype: "ecommerce", archetypeVersion: "2.0.0",
@@ -143,7 +143,7 @@ try {
   check("applying the override lowers severity critical→high", cp.severity === "high");
 
   // thin evidence must NOT propose a change
-  const store5 = mkdtempSync(join(tmpdir(), "foresight-thin-"));
+  const store5 = mkdtempSync(join(tmpdir(), "forespec-thin-"));
   try {
     recordPredictions({ storeDir: store5, runId: "r", archetype: "ecommerce", archetypeVersion: "2.0.0", project: "p", results: [{ id: "auth.access_control", domain: "backbone", severity: "critical", level: 3, confidence: 0.9, gap: "x", rationale: "y", evidence: ["a.ts"], adapter: "mock", fingerprint: fingerprint("a") }] });
     const p2 = latestPrediction({ storeDir: store5, checkpointId: "auth.access_control" });
@@ -226,11 +226,11 @@ check("resolves a bare archetype name to the bundled manifest", typeof byName ==
 const byFile = resolveManifestPath("archetype.saas.json", { cwd: "/nonexistent" });
 check("resolves a manifest filename to the bundled manifest", byFile.endsWith("archetype.saas.json"));
 // config round-trips and the readers pick it up.
-const cfgDir = mkdtempSync(join(tmpdir(), "foresight-cfg-"));
+const cfgDir = mkdtempSync(join(tmpdir(), "forespec-cfg-"));
 try {
   check("readConfig returns null when absent", readConfig(cfgDir) === null);
-  const written = writeConfig(cfgDir, { schema: "foresight/config/v1", archetype: "archetype.saas.json" });
-  check("writeConfig creates foresight.config.json", written.endsWith(CONFIG_FILE));
+  const written = writeConfig(cfgDir, { schema: "forespec/config/v1", archetype: "archetype.saas.json" });
+  check("writeConfig creates forespec.config.json", written.endsWith(CONFIG_FILE));
   check("readConfig round-trips the archetype", readConfig(cfgDir).archetype === "archetype.saas.json");
 } finally { rmSync(cfgDir, { recursive: true, force: true }); }
 
@@ -381,6 +381,40 @@ for (const budget of [9000, 5000]) {
   check(`every known-vulnerable file is surfaced at budget ${budget} (${total - misses.length}/${total})`, misses.length === 0,
     misses.map((m) => `${m.repo}/${m.cpId}→${m.target}`).join(", "));
 }
+
+console.log("\n14. Greenfield start — declare-from-intent (the empty-repo on-ramp):");
+// An empty repo has no code to detect, so the archetype comes from the person's words.
+const intentTop = (t) => archetypeFromIntent(t)[0];
+check("'an online store with checkout and a cart' → ecommerce", intentTop("an online store with checkout and a cart").archetype === "ecommerce");
+check("'a multi-tenant SaaS with subscription billing' → saas", intentTop("a multi-tenant SaaS with subscription billing").archetype === "saas");
+check("'an AI chatbot with RAG over my docs' → ai-app", intentTop("an AI chatbot with RAG over my docs").archetype === "ai-app");
+check("'a Supabase-backed realtime app' → baas", intentTop("a Supabase-backed realtime app").archetype === "baas");
+check("'my personal portfolio blog' → portfolio", intentTop("my personal portfolio blog").archetype === "portfolio");
+// Token match, not substring: these must NOT fire the trap keyword.
+// Natural phrasings that avoid the obvious jargon — the real-builder gap (guards the vocab).
+check("'a shop to sell my handmade candles' → ecommerce", intentTop("a shop to sell my handmade candles").archetype === "ecommerce");
+check("'invoicing software for freelancers' → saas", intentTop("invoicing software for freelancers").archetype === "saas");
+check("'a customer support bot' → ai-app", intentTop("a customer support bot for my site").archetype === "ai-app");
+check("'a landing page for my startup' → portfolio", intentTop("a landing page for my startup").archetype === "portfolio");
+// Token match, not substring: these must NOT fire the trap keyword.
+check("'retail' does not trip 'ai' (ai-app)", archetypeFromIntent("a retail brand site").find((r) => r.archetype === "ai-app").score === 0);
+check("'restore a database' does not trip 'store' (ecommerce)", archetypeFromIntent("a tool to restore a database").find((r) => r.archetype === "ecommerce").score === 0);
+// A newsletter TOOL is not a portfolio — guards against re-adding an over-broad keyword.
+const nlTop = intentTop("an email newsletter app");
+check("'an email newsletter app' is not confidently classified portfolio", !(nlTop.archetype === "portfolio" && ["high", "medium"].includes(nlTop.confidence)));
+// Nothing to go on → abstain, so `start` asks instead of guessing.
+check("a contentless description abstains (confidence none)", intentTop("a thing that does stuff").confidence === "none");
+// Confident multi-hit reads as high; a lone hit stays tentative.
+check("multi-signal description reads high confidence", intentTop("an ecommerce storefront to sell products").confidence === "high");
+check("a lone weak hit is not high confidence", ["low", "medium"].includes(intentTop("a chatbot").confidence));
+// A lone GENERIC token asks rather than silently picking (the fix for the auto-proceed gap).
+check("a lone generic token ('a portal') reads low → asks", intentTop("just a portal").confidence === "low");
+// AI fallback for plain-language descriptions degrades gracefully — the $0 path never breaks.
+const aiIntentNoKey = await classifyIntentWithAI({ description: "an online store", candidates: [{ archetype: "ecommerce", applies_when: "x" }] });
+check("classifyIntentWithAI returns null without a key (never breaks the $0 path)", process.env.ANTHROPIC_API_KEY ? true : aiIntentNoKey === null);
+check("inferArchetype resolves a keyword-strong description via intent ($0)", (await inferArchetype({ description: "an online store", manifests: [{ archetype: "ecommerce", applies_when: "x" }], useAI: false })).via === "intent");
+const inferBlank = await inferArchetype({ description: "software my clients pay for monthly", manifests: [{ archetype: "saas", applies_when: "x" }], useAI: true });
+check("inferArchetype abstains on a keyword-blank description without a key (asks)", process.env.ANTHROPIC_API_KEY ? true : (inferBlank.archetype === null && inferBlank.via === "none"));
 
 console.log("");
 if (failures > 0) {

@@ -7,5 +7,12 @@ npm-debug.log*
 .env
 .env.local
 
-# Foresight calibration store (contains local instance data — never commit)
-.foresight/
+# Forespec calibration store (contains local instance data — never commit)
+.forespec/
+
+# Forespec per-project artifacts — generated when the tool runs against a repo. This IS the
+# tool's repo, not a graded project, so test runs must not leave these behind. (In a real
+# consumer project you DO commit foresight.config.json.)
+/forespec.config.json
+/forespec-plan.md
+/forespec-plan.bak.md
