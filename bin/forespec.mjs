@@ -50,7 +50,7 @@ Commands:
   calibrate [accept|reset]  Review or apply proposed severity deltas
   proficiency        Your self-facing per-domain read (tunes how much I explain)
 
-  -v, --version      Print the installed foresight-cli version
+  -v, --version      Print the installed forespec version
 
 Plan → build → verify → correct. Start with: foresight init`;
 

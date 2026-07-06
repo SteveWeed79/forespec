@@ -1,5 +1,5 @@
 {
-  "name": "foresight-cli",
+  "name": "forespec",
   "version": "0.1.0",
   "type": "module",
   "description": "Foresight — forces domain foresight before a feature, then verifies what got built against it.",
@@ -18,13 +18,13 @@
     "backend",
     "correctness"
   ],
-  "homepage": "https://github.com/SteveWeed79/foresight-cli#readme",
+  "homepage": "https://github.com/SteveWeed79/forespec#readme",
   "bugs": {
-    "url": "https://github.com/SteveWeed79/foresight-cli/issues"
+    "url": "https://github.com/SteveWeed79/forespec/issues"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/SteveWeed79/foresight-cli.git"
+    "url": "git+https://github.com/SteveWeed79/forespec.git"
   },
   "author": "Steve Weed",
   "license": "BUSL-1.1",
@@ -32,7 +32,7 @@
     "node": ">=18"
   },
   "bin": {
-    "foresight": "bin/foresight.mjs"
+    "foresight": "bin/forespec.mjs"
   },
   "files": [
     "bin/",
@@ -50,7 +50,7 @@
     "check": "node schemas/validate.mjs",
     "eval": "node verifier-eval/run-eval.mjs",
     "eval:claude": "node verifier-eval/run-eval.mjs --adapter claude --out verifier-eval/report.json",
-    "init": "node bin/foresight.mjs init",
+    "init": "node bin/forespec.mjs init",
     "detect": "node repo-verify/detect.mjs",
     "plan": "node repo-verify/plan.mjs",
     "design": "node repo-verify/design-probe.mjs",

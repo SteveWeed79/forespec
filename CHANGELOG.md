@@ -34,5 +34,5 @@ The verifier-first core, validated end to end.
 - **Calibration store** with a physical pattern/instance wall.
 - **License**: Business Source License 1.1 (converts to Apache 2.0 on the Change Date).
 
-[Unreleased]: https://github.com/SteveWeed79/foresight-cli/compare/v0.1.0...HEAD
-[0.1.0]: https://github.com/SteveWeed79/foresight-cli/releases/tag/v0.1.0
+[Unreleased]: https://github.com/SteveWeed79/forespec/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/SteveWeed79/forespec/releases/tag/v0.1.0

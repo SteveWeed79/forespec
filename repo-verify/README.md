@@ -15,7 +15,7 @@ Zero dependencies. It reuses the rest of the project rather than duplicating it:
 ## Onboarding — `foresight init` (start here)
 
 You don't have to know which archetype fits, and you don't retype it every run. The
-unified CLI (`bin/foresight.mjs`, exposed as `foresight` via `npx`) detects the archetype
+unified CLI (`bin/forespec.mjs`, exposed as `foresight` via `npx`) detects the archetype
 from cheap signals — declared dependencies, file paths, schema model names — and writes
 the choice once to `foresight.config.json`, which `verify` and the PR gate then read.
 

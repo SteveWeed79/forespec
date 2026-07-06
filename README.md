@@ -1,8 +1,8 @@
 # Foresight
 
-[![CI](https://github.com/SteveWeed79/foresight-cli/actions/workflows/ci.yml/badge.svg)](https://github.com/SteveWeed79/foresight-cli/actions/workflows/ci.yml)
-[![npm](https://img.shields.io/npm/v/foresight-cli)](https://www.npmjs.com/package/foresight-cli)
-[![node](https://img.shields.io/node/v/foresight-cli)](https://nodejs.org)
+[![CI](https://github.com/SteveWeed79/forespec/actions/workflows/ci.yml/badge.svg)](https://github.com/SteveWeed79/forespec/actions/workflows/ci.yml)
+[![npm](https://img.shields.io/npm/v/forespec)](https://www.npmjs.com/package/forespec)
+[![node](https://img.shields.io/node/v/forespec)](https://nodejs.org)
 [![license](https://img.shields.io/badge/license-BUSL--1.1-blue)](./LICENSE)
 
 *A standalone, tool-agnostic engine that forces domain **foresight before** you build a
@@ -109,7 +109,7 @@ walkthrough: [`repo-verify/README.md`](./repo-verify/README.md).
   repo*. Archetype detection (`foresight init`), the verifier CLI, the calibration store
   (the pattern/instance wall, made physical), and the git-aware **PR gate** + drop-in GitHub
   Action (`action.yml`). Start at [`repo-verify/README.md`](./repo-verify/README.md).
-- [`bin/foresight.mjs`](./bin) — the unified `foresight` CLI (`init` / `detect` / `plan` /
+- [`bin/forespec.mjs`](./bin) — the unified `foresight` CLI (`init` / `detect` / `plan` /
   `verify` — add `--html` for a visual report — / `design` / `gate` / `feedback` / `calibrate` /
   `proficiency`), exposed for `npx`.
 

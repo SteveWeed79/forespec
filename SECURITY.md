@@ -7,7 +7,7 @@ to the same standard it grades others against.
 
 **Please do not open a public issue for security problems.**
 
-Report privately through GitHub's **[Report a vulnerability](https://github.com/SteveWeed79/foresight-cli/security/advisories/new)**
+Report privately through GitHub's **[Report a vulnerability](https://github.com/SteveWeed79/forespec/security/advisories/new)**
 flow (the *Security* tab → *Report a vulnerability*). That opens a private advisory only
 the maintainers can see.
 

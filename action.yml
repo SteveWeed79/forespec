@@ -18,7 +18,7 @@ branding:
 #       steps:
 #         - uses: actions/checkout@v4
 #           with: { fetch-depth: 0 }   # full history so it can diff the base branch
-#         - uses: SteveWeed79/foresight-cli@v1
+#         - uses: SteveWeed79/forespec@v1
 #           with:
 #             # optional — omit both for the deterministic mock baseline at $0:
 #             anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -82,4 +82,4 @@ runs:
         [ -n "$FS_ARCHETYPE" ] && args+=(--archetype "$FS_ARCHETYPE")
         [ -n "$FS_ADAPTER" ] && args+=(--adapter "$FS_ADAPTER")
         [ "$FS_FAIL" = "true" ] && args+=(--fail)
-        node "$FS_ACTION_PATH/bin/foresight.mjs" "${args[@]}"
+        node "$FS_ACTION_PATH/bin/forespec.mjs" "${args[@]}"
