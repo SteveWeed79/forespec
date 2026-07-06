@@ -253,8 +253,12 @@ async function main() {
   const others = assessed.filter((r) => r.severity !== gateTier);
   const ungraded = assessed.filter((r) => r.level == null); // errored (N/A already excluded)
   const lvl = (r) => (r.level == null ? -1 : r.level);
-  const shippable = ungraded.length === 0 && gated.every((r) => lvl(r) >= 6);
-  const great = ungraded.length === 0 && gated.every((r) => lvl(r) >= 9) && others.every((r) => lvl(r) >= 6);
+  // INCONCLUSIVE, not "shippable": if nothing was gradable (empty repo, everything N/A, or all
+  // errored), `gated.every(...)` is vacuously true — a green verdict for a repo we never graded.
+  // Not reviewing and not reporting are the same failure; require real assessed evidence.
+  const conclusive = gated.length > 0;
+  const shippable = conclusive && ungraded.length === 0 && gated.every((r) => lvl(r) >= 6);
+  const great = conclusive && ungraded.length === 0 && gated.every((r) => lvl(r) >= 9) && others.every((r) => lvl(r) >= 6);
   const blocking = gated.filter((r) => lvl(r) < 6);
 
   // Brick 1 — log this run as training data (pattern/instance split), unless disabled.
@@ -338,8 +342,12 @@ async function main() {
     out.push("");
   }
   out.push(paint(useColor, COLORS.bold, "── goal_definition roll-up ──"));
-  out.push(`  shippable (all ${gateTier} ≥ 6): ${shippable ? paint(useColor, COLORS.green, "YES") : paint(useColor, COLORS.red, "NO")}`);
-  out.push(`  great (all ${gateTier} 9, rest ≥ 6): ${great ? paint(useColor, COLORS.green, "YES") : paint(useColor, COLORS.dim, "no")}`);
+  if (!conclusive) {
+    out.push(`  ${paint(useColor, COLORS.yellow, "INCONCLUSIVE")} — nothing gradable was found here (every checkpoint N/A or errored). This is NOT a pass.`);
+  } else {
+    out.push(`  shippable (all ${gateTier} ≥ 6): ${shippable ? paint(useColor, COLORS.green, "YES") : paint(useColor, COLORS.red, "NO")}`);
+    out.push(`  great (all ${gateTier} 9, rest ≥ 6): ${great ? paint(useColor, COLORS.green, "YES") : paint(useColor, COLORS.dim, "no")}`);
+  }
   if (blocking.length) {
     out.push(`  ${paint(useColor, COLORS.red, `blocking ${gateTier}:`)}`);
     for (const r of blocking) out.push(`    - ${r.id} (${r.level == null ? "ungraded" : "level " + r.level})`);

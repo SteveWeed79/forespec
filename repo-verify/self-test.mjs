@@ -339,6 +339,17 @@ const totalBadCrit = Object.values(badPerCritical).reduce((a, b) => a + b, 0);
 // ecommerce view = 6 criticals; run-eval counts all archetypes' criticals (more). This is a
 // rot-guard floor — enough bad cases that the rule-of-three bound stays meaningful.
 check("critical bad-case count supports a rule-of-three bound (≥24)", totalBadCrit >= 24, `have ${totalBadCrit}`);
+// Universal criticals: injection (RCE/SQLi) and secrets-exposure (credential leak) are
+// breach-class WHEREVER they appear. No per-archetype manifest may silently downgrade them
+// below critical — the miscalibration that had ai-app/baas/portfolio grading injection "medium".
+const UNIVERSAL_CRITICALS = ["security.injection", "security.secrets_management"];
+for (const m of discoverManifests(join(here, ".."))) {
+  const cps = resolveArchetype(join(here, "..", m.file)).checkpoints;
+  for (const id of UNIVERSAL_CRITICALS) {
+    const cp = cps.find((c) => c.id === id);
+    if (cp) check(`${m.archetype}: ${id} is critical (breach-class, never buried)`, cp.severity === "critical", `is ${cp.severity}`);
+  }
+}
 
 console.log("\n12. File selection determinism + budget discipline (select.mjs — the component that decides what the verifier sees):");
 // Determinism: loadRepo order must not depend on filesystem walk order.

@@ -191,7 +191,11 @@ function main() {
     console.error(`error: no checkpoint "${onlyId}" in ${archetype.archetype}`);
     return 2;
   }
-  const { relevant, mustHold } = selectForFeature(archetype.checkpoints, feature, { domain: arg("--domain", "backbone"), onlyId });
+  const domain = arg("--domain", "backbone");
+  const { relevant, mustHold } = selectForFeature(archetype.checkpoints, feature, { domain, onlyId });
+  // Don't silently drop a whole dimension: `plan` defaults to the backbone, so a design-heavy
+  // archetype (a portfolio) would show none of its design bar. Name what's omitted.
+  const designOmitted = (!onlyId && domain === "backbone") ? archetype.checkpoints.filter((c) => c.domain === "design") : [];
 
   if (has("--json")) {
     const pick = (c) => ({ id: c.id, domain: c.domain, severity: c.severity, title: c.title, reasoning: c.verify?.reasoning, level6: c.levels?.["6"], acceptance: (c.verify?.assertions ?? []).map((a) => a.check) });
@@ -202,9 +206,13 @@ function main() {
       plan: ordered.map((o) => ({ ...pick(o.cp), matched: o.matched })),
       relevant: relevant.map(pick),
       mustHold: mustHold.map(pick),
+      designOmitted: designOmitted.map(pick),
     }, null, 2));
     return 0;
   }
+  const designNote = designOmitted.length
+    ? `\n\n---\n_${designOmitted.length} design checkpoint(s) not shown — plan defaults to the backbone. Add \`--domain all\` to include the design bar; \`forespec design <url>\` grades it on the live page._`
+    : "";
 
   // Proficiency adaptation (P5): trim the teaching lines in domains you're fluent in.
   // Auto when a calibration store exists; --no-adapt to force full detail.
@@ -216,7 +224,7 @@ function main() {
     if (brief > 0) adaptNote = `\n_Adapted to your proficiency: trimmed the "why" on ${brief} checkpoint(s) in domains you're fluent in (\`forespec proficiency\` to see, \`--no-adapt\` to show all)._`;
   }
 
-  const md = renderPlan({ archetype, feature, relevant, mustHold, verbosity }) + adaptNote;
+  const md = renderPlan({ archetype, feature, relevant, mustHold, verbosity }) + adaptNote + designNote;
   const out = arg("--out", null);
   if (out) {
     const path = pathResolve(process.cwd(), out);
