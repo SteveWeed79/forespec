@@ -346,6 +346,16 @@ async function main() {
   }
   if (ungraded.length) out.push(`  ${paint(useColor, COLORS.yellow, "ungraded:")} ${ungraded.map((r) => r.id).join(", ")}`);
   if (notApplicable.length) out.push(`  ${paint(useColor, COLORS.dim, `not applicable (${notApplicable.length}, no relevant code):`)} ${notApplicable.map((r) => r.id).join(", ")}`);
+  // Call out the shortfall, don't hide it. `verify` grades the backbone by default and SKIPS
+  // the design checkpoints (design isn't reliably gradable from source). Silently omitting them
+  // reads as "all clear" when a whole dimension — the portfolio's actual product — went
+  // unreviewed. Not reviewing and not reporting are the same failure, so we name it.
+  const gradedIds = new Set(results.map((r) => r.id));
+  const designSkipped = (archetype.checkpoints || []).filter((c) => c.domain === "design" && !gradedIds.has(c.id));
+  if (designSkipped.length) {
+    out.push(`  ${paint(useColor, COLORS.yellow, `⚠ ${designSkipped.length} design checkpoint(s) NOT reviewed here:`)} ${designSkipped.map((c) => c.id).join(", ")}`);
+    out.push(`    ${paint(useColor, COLORS.dim, "design isn't reliably gradable from source, so verify skips it. For a design/a11y verdict — a portfolio's whole product — run `forespec design <url>` against the live page (or `verify --domain all` for a best-effort source read).")}`);
+  }
   if (gapReport && gapReport.items.length) {
     out.push("");
     out.push(paint(useColor, COLORS.bold, "── foresight: gaps ahead ──"));

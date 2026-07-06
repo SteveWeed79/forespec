@@ -2,34 +2,35 @@
   "$schema": "forespec/archetype/v2",
   "_readme": {
     "what_this_is": "Archetype MANIFEST for a personal / portfolio / content site. Resolve with `node library/resolve.mjs archetype.portfolio.json`.",
-    "reuse": "Still 100% composed from the shared library — ZERO portfolio-specific checkpoints. The design.* checkpoints are the same ones the ecommerce archetype uses; the web.* checkpoints are shared with any content site; and it now also draws the universal security.*/data.*/reliability.* checkpoints every deployed site needs (HTTPS + headers, secrets, PII on the contact form, injection, error handling) — auth/upload/query checkpoints are omitted since a portfolio has no accounts or backend to speak of. The strongest demonstration of the library: a whole archetype with nothing new to author.",
-    "no_criticals": "A portfolio has no revenue/data-critical backbone, so its goal_definition is expressed in terms of severity:high (the design + performance bar) rather than critical. goal_definition is archetype-contextual, like severity.",
+    "reuse": "Still 100% composed from the shared library — ZERO portfolio-specific checkpoints. The design.* checkpoints are the same ones the ecommerce archetype uses; the web.* checkpoints are shared with any content site; and it draws the universal security.*/data.*/reliability.* checkpoints every deployed site needs (HTTPS + headers, secrets, PII on the contact form, injection, error handling) — auth/upload/query checkpoints are omitted since a portfolio has no accounts or backend to speak of. The strongest demonstration of the library: a whole archetype with nothing new to author.",
+    "criticals": "A portfolio has no revenue backbone, but it still carries BREACH-class criticals the moment it has any dynamic surface: a secret shipped to the client (a leaked CMS/API token) and injection through a contact form are ship-blocking on a portfolio exactly as on a store. Those two are marked severity:critical here. On a pure-static site that has neither, the adversarial N/A verdict grades them 'not applicable' — honestly absent, NEVER a silent pass. Not reviewing and not reporting are the same failure; this archetype refuses to look clean by having nothing to fail.",
+    "design_is_the_product_but_hard_to_grade": "The design + performance bar is the portfolio's actual product, kept at severity:high. BUT design is graded best-effort from source and is the least reliable dimension that way — a trustworthy design/a11y verdict needs the instrumented browser probe (`forespec design <url>`). The report must say so rather than imply a clean static read is the final word.",
     "how_scoring_works": "Levels 3/6/9. 3 = crude/risky. 6 = solid, shippable. 9 = great. TRUST THE GAP, NOT THE NUMBER."
   },
 
   "archetype": "portfolio",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "applies_when": "A personal, portfolio, or content site: mostly static content, a high design bar, an optional contact form, little or no backend state.",
   "goal_definition": {
-    "shippable": "all severity:high at level >= 6",
-    "great": "all severity:high at 9, all others >= 6",
-    "honest_ceiling": "design checkpoints tagged taste_limited verify to ~level 7 mechanically; reaching 9 requires human design review the rubric cannot replace."
+    "shippable": "no severity:critical below level 6 (criticals grade N/A on a pure-static site with no dynamic surface), and all severity:high at level >= 6",
+    "great": "all severity:critical at 9, all severity:high at 9, all others >= 6",
+    "honest_ceiling": "design checkpoints tagged taste_limited verify to ~level 7 mechanically; reaching 9 requires human design review the rubric cannot replace, and a trustworthy design read requires the browser probe, not source grading."
   },
 
   "checkpoints": [
+    { "ref": "security.secrets_management", "severity": "critical" },
+    { "ref": "security.injection",        "severity": "critical" },
+    { "ref": "security.transport_headers", "severity": "high" },
+    { "ref": "data.pii_protection",       "severity": "high" },
+    { "ref": "web.forms_integrity",       "severity": "high" },
     { "ref": "design.visual_hierarchy",   "severity": "high" },
     { "ref": "design.type_scale",         "severity": "high" },
     { "ref": "design.contrast_a11y",      "severity": "high" },
     { "ref": "design.system_consistency", "severity": "high" },
     { "ref": "design.responsive",         "severity": "high" },
     { "ref": "web.performance",           "severity": "high" },
-    { "ref": "security.transport_headers", "severity": "high" },
-    { "ref": "security.secrets_management", "severity": "high" },
-    { "ref": "data.pii_protection",       "severity": "high" },
-    { "ref": "security.injection",        "severity": "medium" },
     { "ref": "reliability.error_handling", "severity": "medium" },
     { "ref": "design.spacing_system",     "severity": "medium" },
-    { "ref": "web.seo_metadata",          "severity": "medium" },
-    { "ref": "web.forms_integrity",       "severity": "medium" }
+    { "ref": "web.seo_metadata",          "severity": "medium" }
   ]
 }
