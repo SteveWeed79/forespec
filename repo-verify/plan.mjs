@@ -74,9 +74,39 @@ export function selectForFeature(checkpoints, feature, { domain = "backbone", on
   return { relevant, mustHold };
 }
 
-function renderCheckpoint(cp, brief = false) {
+const SEV_RANK = { critical: 0, high: 1, medium: 2, low: 3 };
+
+/**
+ * Sequence the plan the way the thesis demands: dangerous/foundational pieces first.
+ * Merges the feature-matched checkpoints and the must-hold backbone into ONE ordered
+ * build list — so the criticals a feature depends on (payment/idempotency/webhook for a
+ * checkout) sit right up with it instead of being exiled to a "regardless" section.
+ * Order: severity (critical→low), then feature-matched first, then relevance, then the
+ * archetype's own manifest order as the stable tiebreak. Each item carries whether the
+ * feature text matched it, so the renderer can mark it.
+ */
+export function orderForBuild(relevant, mustHold, feature, checkpoints = []) {
+  const matched = new Set(relevant.map((c) => c.id));
+  const idx = new Map(checkpoints.map((c, i) => [c.id, i]));
+  return [...relevant, ...mustHold]
+    .slice()
+    .sort((a, b) => {
+      const s = (SEV_RANK[a.severity] ?? 9) - (SEV_RANK[b.severity] ?? 9);
+      if (s) return s;
+      const m = (matched.has(b.id) ? 1 : 0) - (matched.has(a.id) ? 1 : 0);
+      if (m) return m;
+      const sc = relevanceScore(feature, b) - relevanceScore(feature, a);
+      if (sc) return sc;
+      return (idx.get(a.id) ?? 0) - (idx.get(b.id) ?? 0);
+    })
+    .map((cp) => ({ cp, matched: matched.has(cp.id) }));
+}
+
+function renderCheckpoint(cp, { brief = false, ordinal = null, matched = false } = {}) {
   const L = [];
-  L.push(`### ${cp.title}  ·  \`${cp.id}\`  ·  ${cp.severity}`);
+  const n = ordinal != null ? `${ordinal}. ` : "";
+  const tag = matched ? "  ·  ↳ matches your feature" : "";
+  L.push(`### ${n}${cp.title}  ·  \`${cp.id}\`  ·  ${cp.severity}${tag}`);
   if (cp.verify?.reasoning) L.push(`**Decide first:** ${cp.verify.reasoning}`);
   if (cp.levels?.["6"]) L.push(`**Shippable (level 6):** ${cp.levels["6"]}`);
   const assertions = cp.verify?.assertions ?? [];
@@ -92,26 +122,26 @@ function renderCheckpoint(cp, brief = false) {
 
 export function renderPlan({ archetype, feature, relevant, mustHold, verbosity }) {
   const briefFor = (cp) => (verbosity ? verbosity(cp) === "brief" : false);
-  const total = relevant.length + mustHold.length;
+  const ordered = orderForBuild(relevant, mustHold, feature, archetype.checkpoints || []);
+  const total = ordered.length;
+  const matchedCount = ordered.filter((o) => o.matched).length;
   const L = [];
   L.push(`# 🔭 Foresight plan — ${feature}`);
   L.push("");
   L.push(`Archetype: **${archetype.archetype}** v${archetype.version} · **${total}** checkpoint(s) to clear before you build.`);
-  L.push("");
   if (total === 0) {
+    L.push("");
     L.push("No backbone checkpoints matched this feature. Re-run with `--domain all` or a clearer description.");
     return L.join("\n");
   }
-  if (relevant.length) {
-    L.push(`## Directly relevant to "${feature}"`, "");
-    L.push(relevant.map((cp) => renderCheckpoint(cp, briefFor(cp))).join("\n\n"));
-    L.push("");
-  }
-  if (mustHold.length) {
-    L.push(`## Backbone guarantees — critical, must hold regardless`, "");
-    L.push(mustHold.map((cp) => renderCheckpoint(cp, briefFor(cp))).join("\n\n"));
-    L.push("");
-  }
+  L.push(
+    matchedCount
+      ? `**${matchedCount}** match your description directly; the rest are the critical backbone any feature here must hold. Ordered **most-critical / most-foundational first** — build them in this order.`
+      : `These are the critical backbone any feature here must hold, ordered **most-critical / most-foundational first** — build them in this order.`
+  );
+  L.push("");
+  L.push(ordered.map((o, i) => renderCheckpoint(o.cp, { brief: briefFor(o.cp), ordinal: i + 1, matched: o.matched })).join("\n\n"));
+  L.push("");
   L.push("---");
   L.push("**For your AI coder:** build the feature so every acceptance box above can be checked, then run `foresight verify` (or open a PR — the gate grades these same checkpoints). Levels: 3 present-but-risky · 6 solid/shippable · 9 great. Aim for 9 on critical, 6+ elsewhere — never infinite polish.");
   return L.join("\n");
@@ -148,7 +178,14 @@ function main() {
 
   if (has("--json")) {
     const pick = (c) => ({ id: c.id, domain: c.domain, severity: c.severity, title: c.title, reasoning: c.verify?.reasoning, level6: c.levels?.["6"], acceptance: (c.verify?.assertions ?? []).map((a) => a.check) });
-    console.log(JSON.stringify({ archetype: archetype.archetype, feature, relevant: relevant.map(pick), mustHold: mustHold.map(pick) }, null, 2));
+    const ordered = orderForBuild(relevant, mustHold, feature, archetype.checkpoints);
+    console.log(JSON.stringify({
+      archetype: archetype.archetype,
+      feature,
+      plan: ordered.map((o) => ({ ...pick(o.cp), matched: o.matched })),
+      relevant: relevant.map(pick),
+      mustHold: mustHold.map(pick),
+    }, null, 2));
     return 0;
   }
 
