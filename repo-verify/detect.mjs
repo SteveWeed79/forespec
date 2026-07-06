@@ -120,11 +120,11 @@ const ENV_RULES = {
 // (token-matched with plurals, so "ai" never fires on "email"/"retail", "store" never on
 // "restore") — deliberately distinct from RULES so the two paths can evolve independently.
 export const INTENT_RULES = {
-  ecommerce: ["ecommerce", "store", "storefront", "shop", "marketplace", "retail", "sell", "product", "cart", "checkout", "catalog", "inventory", "merch", "dropship"],
-  saas: ["saas", "subscription", "tenant", "multitenant", "dashboard", "billing", "workspace", "team", "seat", "b2b", "crm", "portal"],
-  "ai-app": ["ai", "llm", "chatbot", "assistant", "agent", "rag", "gpt", "generative", "prompt", "copilot", "embedding", "openai", "anthropic", "genai"],
+  ecommerce: ["ecommerce", "store", "storefront", "shop", "marketplace", "retail", "sell", "buy", "purchase", "boutique", "product", "cart", "checkout", "catalog", "inventory", "merch", "dropship"],
+  saas: ["saas", "subscription", "tenant", "multitenant", "dashboard", "billing", "invoice", "invoicing", "booking", "scheduling", "workspace", "team", "seat", "b2b", "crm", "portal"],
+  "ai-app": ["ai", "llm", "chatbot", "bot", "assistant", "agent", "rag", "gpt", "generative", "prompt", "copilot", "embedding", "semantic", "openai", "anthropic", "genai"],
   baas: ["supabase", "firebase", "firestore", "baas", "realtime"],
-  portfolio: ["portfolio", "blog", "resume", "showcase", "essay", "newsletter"],
+  portfolio: ["portfolio", "blog", "resume", "showcase", "essay", "landing"],
 };
 
 /**

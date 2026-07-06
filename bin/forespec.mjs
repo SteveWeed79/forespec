@@ -14,7 +14,7 @@
 // onboarding is a one-time step, not a flag you retype.
 
 import { spawnSync } from "node:child_process";
-import { readFileSync, writeFileSync } from "node:fs";
+import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { dirname, join, resolve as pathResolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { detectAuto, archetypeFromIntent, discoverManifests } from "../repo-verify/detect.mjs";
@@ -89,6 +89,7 @@ async function start(args) {
     return 2;
   }
   const repoRoot = pathResolve(process.cwd(), argVal(args, "--repo") ?? ".");
+  if (!existsSync(repoRoot)) { console.error(`error: repo path does not exist: ${repoRoot}`); return 2; }
   const manifests = discoverManifests(projectDir);
   if (manifests.length === 0) { console.error("No archetype manifests found."); return 1; }
 
@@ -102,9 +103,11 @@ async function start(args) {
   } else {
     ranked = archetypeFromIntent(description, manifests.map((m) => m.archetype));
     const top = ranked[0];
-    if (!top || top.confidence === "none") {
+    // Only run with a clear read (high/medium). A lone weak hit or a tie (low/none) is
+    // better asked than guessed — a wrong archetype silently mis-grades the whole build.
+    if (!top || top.confidence === "none" || top.confidence === "low") {
       console.log(`\n🔭 forespec start — ${repoRoot}\n`);
-      console.log(`Couldn't tell what you're building from "${description}". Say which kind it is:`);
+      console.log(`Couldn't tell for sure what you're building from "${description}". Say which kind it is:`);
       for (const m of manifests) console.log(`  forespec start "${description}" --archetype ${m.archetype}`);
       return 1;
     }

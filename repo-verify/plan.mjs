@@ -171,7 +171,7 @@ function main() {
     // when the text gives nothing to go on.
     const manifests = discoverManifests(pathResolve(here, ".."));
     const top = archetypeFromIntent(feature, manifests.map((m) => m.archetype))[0];
-    const picked = top && top.confidence !== "none" ? manifests.find((m) => m.archetype === top.archetype) : null;
+    const picked = top && (top.confidence === "high" || top.confidence === "medium") ? manifests.find((m) => m.archetype === top.archetype) : null;
     if (picked) {
       archetypePath = pathResolve(here, "..", picked.file);
       inferredNote = `no ${CONFIG_FILE} — inferred archetype '${top.archetype}' from "${feature}" (pass --archetype to override, or run \`forespec start\`)`;

@@ -391,8 +391,17 @@ check("'an AI chatbot with RAG over my docs' → ai-app", intentTop("an AI chatb
 check("'a Supabase-backed realtime app' → baas", intentTop("a Supabase-backed realtime app").archetype === "baas");
 check("'my personal portfolio blog' → portfolio", intentTop("my personal portfolio blog").archetype === "portfolio");
 // Token match, not substring: these must NOT fire the trap keyword.
+// Natural phrasings that avoid the obvious jargon — the real-builder gap (guards the vocab).
+check("'a shop to sell my handmade candles' → ecommerce", intentTop("a shop to sell my handmade candles").archetype === "ecommerce");
+check("'invoicing software for freelancers' → saas", intentTop("invoicing software for freelancers").archetype === "saas");
+check("'a customer support bot' → ai-app", intentTop("a customer support bot for my site").archetype === "ai-app");
+check("'a landing page for my startup' → portfolio", intentTop("a landing page for my startup").archetype === "portfolio");
+// Token match, not substring: these must NOT fire the trap keyword.
 check("'retail' does not trip 'ai' (ai-app)", archetypeFromIntent("a retail brand site").find((r) => r.archetype === "ai-app").score === 0);
 check("'restore a database' does not trip 'store' (ecommerce)", archetypeFromIntent("a tool to restore a database").find((r) => r.archetype === "ecommerce").score === 0);
+// A newsletter TOOL is not a portfolio — guards against re-adding an over-broad keyword.
+const nlTop = intentTop("an email newsletter app");
+check("'an email newsletter app' is not confidently classified portfolio", !(nlTop.archetype === "portfolio" && ["high", "medium"].includes(nlTop.confidence)));
 // Nothing to go on → abstain, so `start` asks instead of guessing.
 check("a contentless description abstains (confidence none)", intentTop("a thing that does stuff").confidence === "none");
 // Confident multi-hit reads as high; a lone hit stays tentative.
