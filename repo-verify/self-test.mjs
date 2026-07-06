@@ -22,7 +22,7 @@ import { loadRepo, selectForCheckpoint, scoreFile } from "./select.mjs";
 import { measureRecall } from "./selection-eval.mjs";
 import { fingerprint, recordPredictions, latestPrediction, recordOutcome, readOverrides, writeOverrides, FILES } from "./store.mjs";
 import { aggregate, propose } from "./calibrate.mjs";
-import { scoreArchetypes, collectSignals, discoverManifests, isAmbiguous, classifyWithAI } from "./detect.mjs";
+import { scoreArchetypes, collectSignals, discoverManifests, isAmbiguous, classifyWithAI, archetypeFromIntent } from "./detect.mjs";
 import { readConfig, writeConfig, resolveManifestPath, CONFIG_FILE } from "./config.mjs";
 import { relevanceScore, selectForFeature, renderPlan } from "./plan.mjs";
 import { contrastRatio, parseColor, isLargeText, compositeToLevel, scoreContrast, scoreTypeScale, scoreResponsive, scoreSpacing } from "./design-metrics.mjs";
@@ -381,6 +381,23 @@ for (const budget of [9000, 5000]) {
   check(`every known-vulnerable file is surfaced at budget ${budget} (${total - misses.length}/${total})`, misses.length === 0,
     misses.map((m) => `${m.repo}/${m.cpId}→${m.target}`).join(", "));
 }
+
+console.log("\n14. Greenfield start — declare-from-intent (the empty-repo on-ramp):");
+// An empty repo has no code to detect, so the archetype comes from the person's words.
+const intentTop = (t) => archetypeFromIntent(t)[0];
+check("'an online store with checkout and a cart' → ecommerce", intentTop("an online store with checkout and a cart").archetype === "ecommerce");
+check("'a multi-tenant SaaS with subscription billing' → saas", intentTop("a multi-tenant SaaS with subscription billing").archetype === "saas");
+check("'an AI chatbot with RAG over my docs' → ai-app", intentTop("an AI chatbot with RAG over my docs").archetype === "ai-app");
+check("'a Supabase-backed realtime app' → baas", intentTop("a Supabase-backed realtime app").archetype === "baas");
+check("'my personal portfolio blog' → portfolio", intentTop("my personal portfolio blog").archetype === "portfolio");
+// Token match, not substring: these must NOT fire the trap keyword.
+check("'retail' does not trip 'ai' (ai-app)", archetypeFromIntent("a retail brand site").find((r) => r.archetype === "ai-app").score === 0);
+check("'restore a database' does not trip 'store' (ecommerce)", archetypeFromIntent("a tool to restore a database").find((r) => r.archetype === "ecommerce").score === 0);
+// Nothing to go on → abstain, so `start` asks instead of guessing.
+check("a contentless description abstains (confidence none)", intentTop("a thing that does stuff").confidence === "none");
+// Confident multi-hit reads as high; a lone hit stays tentative.
+check("multi-signal description reads high confidence", intentTop("an ecommerce storefront to sell products").confidence === "high");
+check("a lone weak hit is not high confidence", ["low", "medium"].includes(intentTop("a chatbot").confidence));
 
 console.log("");
 if (failures > 0) {

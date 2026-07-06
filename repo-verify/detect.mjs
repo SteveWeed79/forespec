@@ -113,6 +113,48 @@ const ENV_RULES = {
   baas: ["supabase", "firebase", "firestore", "gotrue"],
 };
 
+// INTENT vocabulary — the words a builder uses to DESCRIBE what they're making, in plain
+// language ("I'm building an online store"), NOT the code signals RULES matches. This is the
+// "declare, don't detect" path for a new/empty repo, where there's no code to inspect yet:
+// the archetype comes from the person's stated intent. Kept as single DISCRIMINATING tokens
+// (token-matched with plurals, so "ai" never fires on "email"/"retail", "store" never on
+// "restore") — deliberately distinct from RULES so the two paths can evolve independently.
+export const INTENT_RULES = {
+  ecommerce: ["ecommerce", "store", "storefront", "shop", "marketplace", "retail", "sell", "product", "cart", "checkout", "catalog", "inventory", "merch", "dropship"],
+  saas: ["saas", "subscription", "tenant", "multitenant", "dashboard", "billing", "workspace", "team", "seat", "b2b", "crm", "portal"],
+  "ai-app": ["ai", "llm", "chatbot", "assistant", "agent", "rag", "gpt", "generative", "prompt", "copilot", "embedding", "openai", "anthropic", "genai"],
+  baas: ["supabase", "firebase", "firestore", "baas", "realtime"],
+  portfolio: ["portfolio", "blog", "resume", "showcase", "essay", "newsletter"],
+};
+
+/**
+ * PURE, $0: infer the archetype from a plain-language description of what someone is
+ * building — the "declare" on-ramp for an empty repo where detection has no code to read.
+ * Scores each available archetype by how many of its INTENT keywords the text hits (token
+ * match, so no substring false-positives), and reads a confidence off the count + margin.
+ * Returns the same ranked shape as scoreArchetypes so callers can treat them alike.
+ */
+export function archetypeFromIntent(text, available = Object.keys(INTENT_RULES)) {
+  const toks = tokenSet([String(text)]);
+  const scored = [];
+  for (const name of available) {
+    const kws = INTENT_RULES[name];
+    if (!kws) continue;
+    const matched = kws.filter((kw) => hasTok(toks, kw));
+    scored.push({ archetype: name, score: matched.length, matched: matched.map((k) => `intent:${k}`), confidence: "—" });
+  }
+  scored.sort((a, b) => b.score - a.score);
+  const [top, runner] = scored;
+  if (top) {
+    const margin = top.score - (runner?.score ?? 0);
+    if (top.score === 0) top.confidence = "none";
+    else if (top.score >= 2 && margin >= 2) top.confidence = "high";
+    else if (margin >= 1) top.confidence = "medium";
+    else top.confidence = "low"; // a tie, or a lone weak hit — worth confirming
+  }
+  return scored;
+}
+
 // Split into whole tokens, breaking on non-alphanumerics AND camelCase, lowercased.
 export function tokenize(str) {
   return String(str).replace(/([a-z0-9])([A-Z])/g, "$1 $2").toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);

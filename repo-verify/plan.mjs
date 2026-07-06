@@ -21,7 +21,8 @@ import { writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { resolveArchetype } from "../library/resolve.mjs";
 import { keywordsFor } from "./select.mjs";
-import { readConfig, resolveManifestPath } from "./config.mjs";
+import { readConfig, resolveManifestPath, CONFIG_FILE } from "./config.mjs";
+import { archetypeFromIntent, discoverManifests } from "./detect.mjs";
 import { estimateProficiency, verbosityFor } from "./proficiency.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -126,7 +127,7 @@ export function renderPlan({ archetype, feature, relevant, mustHold, verbosity }
   const total = ordered.length;
   const matchedCount = ordered.filter((o) => o.matched).length;
   const L = [];
-  L.push(`# 🔭 Foresight plan — ${feature}`);
+  L.push(`# 🔭 Forespec plan — ${feature}`);
   L.push("");
   L.push(`Archetype: **${archetype.archetype}** v${archetype.version} · **${total}** checkpoint(s) to clear before you build.`);
   if (total === 0) {
@@ -159,15 +160,31 @@ function main() {
   const repo = pathResolve(process.cwd(), arg("--repo", "."));
   const archetypeArg = arg("--archetype", null);
   const cfg = readConfig(repo);
-  const archetypePath = archetypeArg
-    ? resolveManifestPath(archetypeArg, { cwd: process.cwd() })
-    : cfg?.archetype
-      ? resolveManifestPath(cfg.archetype, { cwd: repo })
-      : pathResolve(here, "..", "archetype.ecommerce.json");
+  let archetypePath, inferredNote = "";
+  if (archetypeArg) {
+    archetypePath = resolveManifestPath(archetypeArg, { cwd: process.cwd() });
+  } else if (cfg?.archetype) {
+    archetypePath = resolveManifestPath(cfg.archetype, { cwd: repo });
+  } else {
+    // No --archetype and no config (a new/empty repo): DECLARE from the feature text rather
+    // than silently grading against ecommerce. Infer, and say so; only fall back to ecommerce
+    // when the text gives nothing to go on.
+    const manifests = discoverManifests(pathResolve(here, ".."));
+    const top = archetypeFromIntent(feature, manifests.map((m) => m.archetype))[0];
+    const picked = top && top.confidence !== "none" ? manifests.find((m) => m.archetype === top.archetype) : null;
+    if (picked) {
+      archetypePath = pathResolve(here, "..", picked.file);
+      inferredNote = `no ${CONFIG_FILE} — inferred archetype '${top.archetype}' from "${feature}" (pass --archetype to override, or run \`forespec start\`)`;
+    } else {
+      archetypePath = pathResolve(here, "..", "archetype.ecommerce.json");
+      inferredNote = `no ${CONFIG_FILE} and couldn't infer the archetype from "${feature}" — defaulting to ecommerce (pass --archetype)`;
+    }
+  }
 
   let archetype;
   try { archetype = resolveArchetype(archetypePath); }
   catch (e) { console.error(`error: ${e.message}`); return 2; }
+  if (inferredNote) console.error(inferredNote);
 
   const onlyId = arg("--checkpoint", null);
   if (onlyId && !archetype.checkpoints.some((c) => c.id === onlyId)) {
