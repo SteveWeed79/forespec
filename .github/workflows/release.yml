@@ -1,0 +1,43 @@
+name: Release
+
+# Publish to npm on a version tag. Cut a release with:
+#
+#   npm version <patch|minor|major>   # bumps package.json, refreshes the BSL Change
+#                                      # Date, commits + tags (see scripts/bump-change-date.mjs)
+#   git push --follow-tags
+#
+# Pushing the v* tag triggers this workflow, which self-tests and publishes.
+#
+# One-time setup: add an npm automation token as the repo secret NPM_TOKEN
+# (npmjs.com -> Access Tokens -> Generate -> "Automation"). The job also mints
+# npm provenance (a signed, public attestation that this tarball was built from
+# this commit in this workflow) — fitting for a tool whose whole pitch is trust.
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+  id-token: write # required for npm provenance (--provenance)
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          registry-url: "https://registry.npmjs.org"
+
+      # Belt-and-suspenders: prepublishOnly runs this too, but a named step gives a
+      # clear, early red X if the suite is broken before we ever touch the registry.
+      - name: Self-test gate
+        run: node repo-verify/self-test.mjs
+
+      - name: Publish to npm (public, with provenance)
+        run: npm publish --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

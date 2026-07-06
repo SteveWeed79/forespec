@@ -1,5 +1,10 @@
 # Foresight
 
+[![CI](https://github.com/SteveWeed79/foresight-cli/actions/workflows/ci.yml/badge.svg)](https://github.com/SteveWeed79/foresight-cli/actions/workflows/ci.yml)
+[![npm](https://img.shields.io/npm/v/foresight-cli)](https://www.npmjs.com/package/foresight-cli)
+[![node](https://img.shields.io/node/v/foresight-cli)](https://nodejs.org)
+[![license](https://img.shields.io/badge/license-BUSL--1.1-blue)](./LICENSE)
+
 *A standalone, tool-agnostic engine that forces domain **foresight before** you build a
 feature, then **verifies** what actually got built against that foresight — so the expensive
 discoveries (atomic stock holds, auth boundaries, data-model shape) surface in week one, not

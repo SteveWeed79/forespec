@@ -1,0 +1,35 @@
+name: CI
+
+# The trust badge. Foresight's whole pitch is "a verifier you can trust," so its own
+# suite must be visibly green. Runs the deterministic self-test (no API key needed) and
+# the schema validator across supported Node versions on every push to main and every PR.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: ["18", "20", "22"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+
+      # Zero runtime dependencies (playwright-core is an optional dep the self-test skips),
+      # so there is nothing to install — the engine runs straight from source.
+      - name: Validate schemas
+        run: node schemas/validate.mjs
+
+      - name: Self-test (deterministic, no API key)
+        run: node repo-verify/self-test.mjs

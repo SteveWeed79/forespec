@@ -14,6 +14,7 @@
 // themselves), so they work the same whether invoked here or directly.
 
 import { spawnSync } from "node:child_process";
+import { readFileSync } from "node:fs";
 import { dirname, join, resolve as pathResolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { detectAuto } from "../repo-verify/detect.mjs";
@@ -49,12 +50,23 @@ Commands:
   calibrate [accept|reset]  Review or apply proposed severity deltas
   proficiency        Your self-facing per-domain read (tunes how much I explain)
 
+  -v, --version      Print the installed foresight-cli version
+
 Plan → build → verify → correct. Start with: foresight init`;
 
 function run(script, args) {
   const r = spawnSync(process.execPath, [script, ...args], { stdio: "inherit" });
   if (r.error) { console.error(`fatal: ${r.error.message}`); return 2; }
   return r.status ?? 1;
+}
+
+function version() {
+  try {
+    const pkg = JSON.parse(readFileSync(join(projectDir, "package.json"), "utf8"));
+    return pkg.version ?? "unknown";
+  } catch {
+    return "unknown";
+  }
 }
 
 async function init(args) {
@@ -105,6 +117,7 @@ async function init(args) {
 async function dispatch() {
   const [cmd, ...rest] = process.argv.slice(2);
   if (!cmd || cmd === "-h" || cmd === "--help" || cmd === "help") { console.log(HELP); return 0; }
+  if (cmd === "-v" || cmd === "--version" || cmd === "version") { console.log(version()); return 0; }
   if (cmd === "init") return await init(rest);
   if (PASSTHROUGH[cmd]) return run(PASSTHROUGH[cmd], rest);
   console.error(`unknown command: ${cmd}\n`);
