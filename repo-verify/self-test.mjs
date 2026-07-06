@@ -22,7 +22,7 @@ import { loadRepo, selectForCheckpoint, scoreFile } from "./select.mjs";
 import { measureRecall } from "./selection-eval.mjs";
 import { fingerprint, recordPredictions, latestPrediction, recordOutcome, readOverrides, writeOverrides, FILES } from "./store.mjs";
 import { aggregate, propose } from "./calibrate.mjs";
-import { scoreArchetypes, collectSignals, discoverManifests, isAmbiguous, classifyWithAI, archetypeFromIntent } from "./detect.mjs";
+import { scoreArchetypes, collectSignals, discoverManifests, isAmbiguous, classifyWithAI, archetypeFromIntent, classifyIntentWithAI, inferArchetype } from "./detect.mjs";
 import { readConfig, writeConfig, resolveManifestPath, CONFIG_FILE } from "./config.mjs";
 import { relevanceScore, selectForFeature, renderPlan } from "./plan.mjs";
 import { contrastRatio, parseColor, isLargeText, compositeToLevel, scoreContrast, scoreTypeScale, scoreResponsive, scoreSpacing } from "./design-metrics.mjs";
@@ -407,6 +407,14 @@ check("a contentless description abstains (confidence none)", intentTop("a thing
 // Confident multi-hit reads as high; a lone hit stays tentative.
 check("multi-signal description reads high confidence", intentTop("an ecommerce storefront to sell products").confidence === "high");
 check("a lone weak hit is not high confidence", ["low", "medium"].includes(intentTop("a chatbot").confidence));
+// A lone GENERIC token asks rather than silently picking (the fix for the auto-proceed gap).
+check("a lone generic token ('a portal') reads low → asks", intentTop("just a portal").confidence === "low");
+// AI fallback for plain-language descriptions degrades gracefully — the $0 path never breaks.
+const aiIntentNoKey = await classifyIntentWithAI({ description: "an online store", candidates: [{ archetype: "ecommerce", applies_when: "x" }] });
+check("classifyIntentWithAI returns null without a key (never breaks the $0 path)", process.env.ANTHROPIC_API_KEY ? true : aiIntentNoKey === null);
+check("inferArchetype resolves a keyword-strong description via intent ($0)", (await inferArchetype({ description: "an online store", manifests: [{ archetype: "ecommerce", applies_when: "x" }], useAI: false })).via === "intent");
+const inferBlank = await inferArchetype({ description: "software my clients pay for monthly", manifests: [{ archetype: "saas", applies_when: "x" }], useAI: true });
+check("inferArchetype abstains on a keyword-blank description without a key (asks)", process.env.ANTHROPIC_API_KEY ? true : (inferBlank.archetype === null && inferBlank.via === "none"));
 
 console.log("");
 if (failures > 0) {

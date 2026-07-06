@@ -134,6 +134,18 @@ export const INTENT_RULES = {
  * match, so no substring false-positives), and reads a confidence off the count + margin.
  * Returns the same ranked shape as scoreArchetypes so callers can treat them alike.
  */
+// The UNAMBIGUOUS tells — a single one is enough to proceed (overridably). Everything else in
+// INTENT_RULES is a weaker/contextual hint that only earns a confident read in combination, so a
+// lone generic token ("landing", "portal", "team") asks rather than silently picks an archetype
+// that would mis-grade the whole build.
+const STRONG_INTENT = new Set([
+  "ecommerce", "store", "storefront", "shop", "marketplace", "boutique", "dropship", "checkout", "cart",
+  "saas", "subscription", "multitenant", "invoice", "invoicing", "crm",
+  "ai", "llm", "chatbot", "rag", "gpt", "copilot", "embedding", "semantic", "openai", "anthropic", "genai",
+  "supabase", "firebase", "firestore", "baas",
+  "portfolio", "resume", "blog",
+]);
+
 export function archetypeFromIntent(text, available = Object.keys(INTENT_RULES)) {
   const toks = tokenSet([String(text)]);
   const scored = [];
@@ -141,16 +153,17 @@ export function archetypeFromIntent(text, available = Object.keys(INTENT_RULES))
     const kws = INTENT_RULES[name];
     if (!kws) continue;
     const matched = kws.filter((kw) => hasTok(toks, kw));
-    scored.push({ archetype: name, score: matched.length, matched: matched.map((k) => `intent:${k}`), confidence: "—" });
+    const score = matched.reduce((s, k) => s + (STRONG_INTENT.has(k) ? 2 : 1), 0);
+    scored.push({ archetype: name, score, matched: matched.map((k) => `intent:${k}`), strong: matched.some((k) => STRONG_INTENT.has(k)), confidence: "—" });
   }
   scored.sort((a, b) => b.score - a.score);
   const [top, runner] = scored;
   if (top) {
     const margin = top.score - (runner?.score ?? 0);
-    if (top.score === 0) top.confidence = "none";
-    else if (top.score >= 2 && margin >= 2) top.confidence = "high";
-    else if (margin >= 1) top.confidence = "medium";
-    else top.confidence = "low"; // a tie, or a lone weak hit — worth confirming
+    if (top.score === 0) top.confidence = "none";                                 // nothing matched — ask
+    else if (top.score >= 3 && margin >= 2) top.confidence = "high";              // several/strong signals, clear winner
+    else if ((top.strong || top.score >= 2) && margin >= 1) top.confidence = "medium"; // a strong tell, or 2+ hints, with a lead
+    else top.confidence = "low";                                                  // a lone weak token, or a tie — worth confirming
   }
   return scored;
 }
@@ -448,6 +461,84 @@ export async function detectAuto({ repoRoot, projectDir = pathResolve(here, ".."
     }
   }
   return { ...base, ai };
+}
+
+// ---------------- Intent inference (the `start` on-ramp) ----------------
+// Keyword-first ($0) via archetypeFromIntent; when that abstains and a key is present, ONE
+// model call reads the plain-language description — the same "cheap by default, spend the
+// oracle exactly when needed" shape as detection. Degrades gracefully: no key or any error
+// and it stays with the keyword read (which abstains → `start` asks).
+
+const INTENT_SYSTEM =
+  "You classify what a developer wants to BUILD into exactly one archetype from the provided list, or 'none' if " +
+  "none genuinely fit. You get a short plain-language description. Reason only from it; for a genuinely ambiguous " +
+  "or contentless description prefer 'none' over a weak guess. Respond with the structured object only.";
+
+/** One classification call from a plain description. Returns {archetype, confidence, rationale} or null. */
+export async function classifyIntentWithAI({ description, candidates }) {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  const model = process.env.ANTHROPIC_MODEL;
+  if (!apiKey || !model || !candidates?.length || !String(description ?? "").trim()) return null;
+  const baseUrl = process.env.ANTHROPIC_BASE_URL ?? "https://api.anthropic.com";
+  const names = candidates.map((c) => c.archetype);
+  const schema = {
+    type: "object", additionalProperties: false,
+    properties: {
+      archetype: { type: "string", enum: [...names, "none"] },
+      confidence: { type: "string", enum: ["high", "medium", "low"] },
+      rationale: { type: "string" },
+    },
+    required: ["archetype", "confidence", "rationale"],
+  };
+  try {
+    const res = await fetch(`${baseUrl}/v1/messages`, {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01" },
+      body: JSON.stringify({
+        model, max_tokens: 512,
+        output_config: { format: { type: "json_schema", schema } },
+        system: INTENT_SYSTEM,
+        messages: [{ role: "user", content: [
+          "# Candidate archetypes",
+          ...candidates.map((c) => `- ${c.archetype}: ${c.applies_when}`),
+          "- none: none of the above genuinely fit",
+          "",
+          "# What the developer wants to build",
+          String(description).trim(),
+          "",
+          "Pick the single best-fit archetype (or 'none'), a confidence, and a one-sentence rationale.",
+        ].join("\n") }],
+      }),
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    const textBlock = (data.content ?? []).find((b) => b.type === "text");
+    if (!textBlock) return null;
+    const parsed = JSON.parse(textBlock.text);
+    return { archetype: parsed.archetype, confidence: parsed.confidence, rationale: parsed.rationale };
+  } catch {
+    return null; // no key / network / parse error → caller keeps the keyword read
+  }
+}
+
+/**
+ * Resolve a description to an archetype for `start`: keyword-first, AI-fallback on abstain.
+ * Returns { archetype|null, confidence, via: 'intent'|'ai'|'none', ranked, matched, rationale, aiAvailable }.
+ */
+export async function inferArchetype({ description, manifests, useAI = true }) {
+  const ranked = archetypeFromIntent(description, manifests.map((m) => m.archetype));
+  const top = ranked[0];
+  if (top && (top.confidence === "high" || top.confidence === "medium")) {
+    return { archetype: top.archetype, confidence: top.confidence, via: "intent", ranked, matched: top.matched };
+  }
+  const aiAvailable = !!(process.env.ANTHROPIC_API_KEY && process.env.ANTHROPIC_MODEL);
+  if (useAI && aiAvailable) {
+    const pick = await classifyIntentWithAI({ description, candidates: manifests });
+    if (pick && pick.archetype && pick.archetype !== "none") {
+      return { archetype: pick.archetype, confidence: pick.confidence, via: "ai", ranked, rationale: pick.rationale, aiAvailable };
+    }
+  }
+  return { archetype: null, confidence: top?.confidence ?? "none", via: "none", ranked, aiAvailable };
 }
 
 // ---------------- CLI ----------------

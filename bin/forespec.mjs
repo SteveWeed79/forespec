@@ -14,10 +14,10 @@
 // onboarding is a one-time step, not a flag you retype.
 
 import { spawnSync } from "node:child_process";
-import { readFileSync, writeFileSync, existsSync } from "node:fs";
+import { readFileSync, writeFileSync, existsSync, renameSync } from "node:fs";
 import { dirname, join, resolve as pathResolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { detectAuto, archetypeFromIntent, discoverManifests } from "../repo-verify/detect.mjs";
+import { detectAuto, discoverManifests, inferArchetype } from "../repo-verify/detect.mjs";
 import { writeConfig, readConfig, CONFIG_FILE } from "../repo-verify/config.mjs";
 import { resolveArchetype } from "../library/resolve.mjs";
 import { selectForFeature, renderPlan } from "../repo-verify/plan.mjs";
@@ -72,7 +72,9 @@ function version() {
   }
 }
 
-const argVal = (args, flag) => { const i = args.indexOf(flag); return i !== -1 && args[i + 1] ? args[i + 1] : null; };
+// Value for `flag`, or null. Rejects a following token that is itself a flag, so a value-less
+// `--archetype --repo x` doesn't swallow `--repo` as the archetype.
+const argVal = (args, flag) => { const i = args.indexOf(flag); const v = i !== -1 ? args[i + 1] : null; return v && !v.startsWith("-") ? v : null; };
 
 /**
  * `start` — the greenfield on-ramp. An empty repo has nothing to detect, so you DECLARE
@@ -94,24 +96,25 @@ async function start(args) {
   if (manifests.length === 0) { console.error("No archetype manifests found."); return 1; }
 
   const override = argVal(args, "--archetype");
-  let archetypeName, via, ranked = null;
+  let archetypeName, via, ranked = null, aiRationale = null;
   if (override) {
     const norm = override.replace(/^archetype\./, "").replace(/\.json$/, "");
     const m = manifests.find((x) => x.archetype === norm || x.file === override || x.file === `archetype.${norm}.json`);
     if (!m) { console.error(`error: no archetype "${override}". Available: ${manifests.map((x) => x.archetype).join(", ")}`); return 2; }
     archetypeName = m.archetype; via = "declared";
   } else {
-    ranked = archetypeFromIntent(description, manifests.map((m) => m.archetype));
-    const top = ranked[0];
-    // Only run with a clear read (high/medium). A lone weak hit or a tie (low/none) is
-    // better asked than guessed — a wrong archetype silently mis-grades the whole build.
-    if (!top || top.confidence === "none" || top.confidence === "low") {
+    // Keyword-first ($0); if it can't tell (a lone weak token or a tie), fall back to one AI
+    // read of the plain-language description. Only proceeds on a clear read — otherwise asks,
+    // because a wrong archetype silently mis-grades the whole build.
+    const inf = await inferArchetype({ description, manifests, useAI: !args.includes("--no-ai") });
+    if (!inf.archetype) {
       console.log(`\n🔭 forespec start — ${repoRoot}\n`);
       console.log(`Couldn't tell for sure what you're building from "${description}". Say which kind it is:`);
+      if (!inf.aiAvailable) console.log("(Tip: set ANTHROPIC_API_KEY + ANTHROPIC_MODEL and I can read a plain-language description, not just keywords.)");
       for (const m of manifests) console.log(`  forespec start "${description}" --archetype ${m.archetype}`);
       return 1;
     }
-    archetypeName = top.archetype; via = "intent";
+    archetypeName = inf.archetype; via = inf.via; ranked = inf.ranked; aiRationale = inf.rationale ?? null;
   }
 
   const manifest = manifests.find((m) => m.archetype === archetypeName);
@@ -132,16 +135,23 @@ async function start(args) {
   // checklist your AI coder builds through and `verify` grades against.
   const { relevant, mustHold } = selectForFeature(archetype.checkpoints, description, { domain: "backbone" });
   const md = renderPlan({ archetype, feature: description, relevant, mustHold });
-  writeFileSync(join(repoRoot, "forespec-plan.md"), md.endsWith("\n") ? md : md + "\n");
+  // Never destroy a plan the user has been working through (checked boxes, notes). On a re-run,
+  // preserve the prior copy so re-running to correct the archetype/description is non-destructive.
+  const planPath = join(repoRoot, "forespec-plan.md");
+  let planNote = "";
+  if (existsSync(planPath)) { renameSync(planPath, join(repoRoot, "forespec-plan.bak.md")); planNote = "  (previous → forespec-plan.bak.md)"; }
+  writeFileSync(planPath, md.endsWith("\n") ? md : md + "\n");
   const total = relevant.length + mustHold.length;
 
   console.log(`\n🔭 forespec start — ${repoRoot}\n`);
   console.log(`Building: ${description}`);
-  console.log(`Archetype: ${archetypeName}` + (via === "intent" ? "  (inferred — --archetype to override)" : "  (declared)"));
-  if (ranked && ranked[0]?.matched?.length) console.log(`  why: ${ranked[0].matched.join(", ")}`);
+  const viaLabel = via === "declared" ? "  (declared)" : via === "ai" ? "  (inferred via AI — --archetype to override)" : "  (inferred — --archetype to override)";
+  console.log(`Archetype: ${archetypeName}${viaLabel}`);
+  if (aiRationale) console.log(`  why: ${aiRationale}`);
+  else if (ranked && ranked[0]?.matched?.length) console.log(`  why: ${ranked[0].matched.join(", ")}`);
   console.log("");
   console.log(`${existing ? "Updated" : "Wrote"}  ${CONFIG_FILE}   → so verify/gate grade against ${archetypeName}`);
-  console.log(`Wrote  forespec-plan.md   → your build order: ${total} checkpoint(s), most-foundational first`);
+  console.log(`Wrote  forespec-plan.md   → your build order: ${total} checkpoint(s), most-foundational first${planNote}`);
   console.log("");
   console.log("Next — the foresight rides along, it doesn't stop here:");
   console.log("  1. Hand forespec-plan.md to your AI coder. Build item #1 first (the dangerous/foundational one).");
