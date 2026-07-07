@@ -612,5 +612,7 @@ are set, it spends one model call to break the tie; --no-ai disables that.`);
 }
 
 if (process.argv[1] && pathResolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  main().then((c) => process.exit(c), (e) => { console.error(`fatal: ${e?.message ?? e}`); process.exit(2); });
+  // exitCode, not process.exit(): a hard exit force-closes undici's fetch
+  // keep-alive socket mid-teardown → libuv async.c assertion on Windows (see verify.mjs).
+  main().then((c) => { process.exitCode = c; }, (e) => { console.error(`fatal: ${e?.message ?? e}`); process.exitCode = 2; });
 }

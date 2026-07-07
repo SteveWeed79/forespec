@@ -220,4 +220,7 @@ async function dispatch() {
   return 2;
 }
 
-dispatch().then((c) => process.exit(c), (e) => { console.error(`fatal: ${e?.message ?? e}`); process.exit(2); });
+// exitCode, not process.exit(): the init/start AI path uses undici (fetch), and a
+// hard exit force-closes its keep-alive socket mid-teardown → libuv async.c
+// assertion on Windows. Idle undici sockets are unref'd, so exit stays prompt.
+dispatch().then((c) => { process.exitCode = c; }, (e) => { console.error(`fatal: ${e?.message ?? e}`); process.exitCode = 2; });
