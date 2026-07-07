@@ -97,12 +97,10 @@ async function main() {
     const prev = arr[i - 1];
     return !["--archetype", "--domain", "--checkpoint", "--adapter", "--budget", "--store", "--html"].includes(prev);
   });
-  const repoArg = positionals[0];
-  if (!repoArg) {
-    console.error("error: missing <repo-path>\n");
-    console.error(HELP);
-    return 2;
-  }
+  // Default to the current directory, matching `forespec init`/`start`: a bare
+  // `forespec verify` grades the repo you're standing in. (First-run friction —
+  // `init` defaults to cwd, so users reasonably expect `verify` to as well.)
+  const repoArg = positionals[0] ?? ".";
 
   const repoPath = pathResolve(process.cwd(), repoArg);
   if (!existsSync(repoPath) || !statSync(repoPath).isDirectory()) {
@@ -446,10 +444,15 @@ async function main() {
   return shippable ? 0 : 1;
 }
 
+// Set exitCode and let the event loop drain rather than process.exit(): a hard
+// exit force-closes undici's (global fetch) keep-alive socket mid-teardown, which
+// trips a libuv assertion on Windows (async.c: !UV_HANDLE_CLOSING) after the run
+// has already finished. Idle undici sockets are unref'd, so the process still
+// exits promptly — just without the double-close race.
 main().then(
-  (code) => process.exit(code),
+  (code) => { process.exitCode = code; },
   (err) => {
     console.error(`fatal: ${err?.message ?? err}`);
-    process.exit(2);
+    process.exitCode = 2;
   },
 );
