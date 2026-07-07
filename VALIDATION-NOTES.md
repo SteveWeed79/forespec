@@ -9,13 +9,30 @@ scratch area outside this repo and never committed.
 
 ---
 
-## ⚠ Revalidation owed (post-audit, July 2026)
+## ⚠ Revalidation owed (post-audit, July 2026) — scope proven narrow
 
-The July 2026 adversarial audit fixed verdict-integrity bugs, and several fixes touch the
-grading path (adapter assertion presentation, fail-closed verdict validation, selection
-keywords for abuse_controls, baas storage reasoning). Every number below was measured
-BEFORE those changes: they remain the best available estimate, but must be re-measured
-before being cited for a release. Blocked on API credits.
+The July 2026 adversarial audit fixed verdict-integrity bugs, several touching the
+grading path. An impact analysis then bounded exactly which measured numbers they can
+affect (verified against the code, not assumed):
+
+- **Adapter assertion split (runtime → context):** only checkpoints WITH runtime
+  assertions get a different prompt — all 8 are design/web checkpoints, **none critical**.
+  The false-green corpus (criticals only) never sees those prompts. → numbers unaffected.
+- **Selection changes (budget packer, abuse_controls keywords):** the corpus eval reads
+  fixture files directly and never calls select.mjs; abuse_controls is severity:high
+  everywhere (not in the FG corpus). → numbers unaffected. (These changes affect
+  repo-level runs — where they *reduce* false-green risk.)
+- **Fail-closed verdict validation:** can only convert previously-accepted verdicts into
+  ERRORS, and the eval exits non-zero on errors — an error cannot score as a false-green.
+  → numbers can only get stricter.
+- **`baas.rls_enforced` reasoning (+storage sentence):** the ONE change to a critical's
+  grading prompt. Its ~8 corpus trials are the only stale ones. In-context review of its
+  bad fixtures (table-RLS failures) shows the additive sentence has no mechanism to flip
+  them — but per this project's own rule, that is a hunch, not a measurement.
+
+**Net:** of the 104 + 66 critical trials, only `baas.rls_enforced`'s are invalidated.
+The owed re-measurement is ~10–16 API calls (cents), plus a small pipeline smoke run —
+not a full M-series rerun. Blocked on API credits; everything else below stands.
 
 ## Paid M-series validation (corpus-v2)
 
