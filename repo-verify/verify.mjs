@@ -419,7 +419,7 @@ async function main() {
     for (const r of blocking) out.push(`    - ${r.id} (${r.level == null ? "ungraded" : "level " + r.level})`);
   }
   if (ungraded.length) out.push(`  ${paint(useColor, COLORS.yellow, "ungraded:")} ${ungraded.map((r) => r.id).join(", ")}`);
-  if (notApplicable.length) out.push(`  ${paint(useColor, COLORS.dim, `not applicable (${notApplicable.length}, no relevant code):`)} ${notApplicable.map((r) => r.id).join(", ")}`);
+  if (notApplicable.length) out.push(`  ${paint(useColor, COLORS.dim, `not applicable (${notApplicable.length}):`)} ${notApplicable.map((r) => r.id + (r.challenged ? " (challenged)" : "")).join(", ")}`);
   // Whole-domain omission is part of the verdict (computed once, shared with JSON/HTML).
   if (designSkipped.length) {
     out.push(`  ${paint(useColor, COLORS.yellow, `⚠ ${designSkipped.length} design checkpoint(s) NOT reviewed here:`)} ${designSkipped.join(", ")}`);

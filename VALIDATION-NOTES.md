@@ -30,9 +30,15 @@ affect (verified against the code, not assumed):
   bad fixtures (table-RLS failures) shows the additive sentence has no mechanism to flip
   them — but per this project's own rule, that is a hunch, not a measurement.
 
-**Net:** of the 104 + 66 critical trials, only `baas.rls_enforced`'s are invalidated.
-The owed re-measurement is ~10–16 API calls (cents), plus a small pipeline smoke run —
-not a full M-series rerun. Blocked on API credits; everything else below stands.
+**Net:** of the 104 + 66 critical trials, only `baas.rls_enforced`'s were invalidated —
+and that debt is now PAID. **Re-measured 2026-07-08 on the updated prompt (post-audit
+pipeline, fail-closed adapter): 8/8 critical-bad trials caught (incl. the Firebase rules
+variant), 4/4 good trials passed, 0 false-greens, 0 misses** (a second identical run was
+also observed all-correct). The corpus-v3 pooled bound stands with rls_enforced refreshed.
+Also verified live post-audit: the AI intent fallback (keyword-blank description → correct
+archetype via one AI call, correct rationale) and the verify pipeline end-to-end through
+the fail-closed adapter — including a model N/A that was adversarially challenged, survived
+honestly (Prisma-parameterized fixture), and surfaced as a gap instead of a silent pass.
 
 ## Paid M-series validation (corpus-v2)
 
