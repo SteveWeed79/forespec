@@ -78,6 +78,25 @@ That last step is the point: the standard isn't a static checklist — it **comp
 work (and, opt-in later, across a shared pattern pool), while your project's specifics never
 leave your machine.
 
+## Proof — it caught a real bug on a repo that was already shipped
+
+Pointed at a **real production ecommerce app** (a codebase it had never seen, not a fixture),
+`forespec verify` returned one blocking critical: the Stripe **checkout-session creation call
+carried no idempotency key**, so a double-click or a client retry could open two charges for one
+cart. Confirmed real by direct code review. It also caught a subtler one *while passing that
+checkpoint at level 9* — a refund idempotency key with no per-refund nonce, so two equal-amount
+partial refunds collide and reconcile wrong.
+
+Every finding was then independently re-checked against the actual source. The result, recorded
+honestly in [`docs/real-repo-audit-2026-07.md`](./docs/real-repo-audit-2026-07.md):
+
+- **0 fabricated findings, 0 false-greens** — every flag pointed at real code.
+- The bias is **over-severity, not fabrication** — it would rather flag something you've already
+  handled than miss something you haven't. That's the safe direction, and the candor a grader you
+  trust with *"is this shippable?"* has to earn.
+
+Not "perfect" — honest. That's the whole point.
+
 ## Design & specs (for the curious)
 
 | File | What it is |
