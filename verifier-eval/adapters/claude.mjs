@@ -59,8 +59,8 @@ const CHALLENGE_PREFIX =
 function buildPrompt(checkpoint, code) {
   const levels = checkpoint.levels;
   const A = checkpoint.verify.assertions ?? [];
-  const staticAsserts = A.filter((a) => a.type !== "test").map((a) => `- ${a.check}`).join("\n");
-  const testAsserts = A.filter((a) => a.type === "test").map((a) => `- ${a.check}`).join("\n");
+  const staticAsserts = A.filter((a) => a.type === "static" || !a.type).map((a) => `- ${a.check}`).join("\n");
+  const testAsserts = A.filter((a) => a.type === "test" || a.type === "runtime").map((a) => `- ${a.check}`).join("\n");
   return [
     `# Checkpoint: ${checkpoint.id} — ${checkpoint.title}`,
     `Why it matters: ${checkpoint.why}`,
@@ -87,7 +87,7 @@ function buildPrompt(checkpoint, code) {
 // Retry transient overload / rate-limit / 5xx (e.g. a 529 "Overloaded" during a
 // long eval run) so a single blip doesn't error a whole fixture. Zero-dep backoff.
 async function postWithRetry(url, opts, tries = 5) {
-  const RETRYABLE = new Set([429, 500, 502, 503, 529]);
+  const RETRYABLE = new Set([408, 429, 500, 502, 503, 504, 529]);
   let res, err;
   for (let i = 0; i < tries; i++) {
     try {
@@ -153,12 +153,24 @@ export async function verify({ checkpoint, code, challenge = false }) {
   } catch {
     throw new Error(`could not parse verdict JSON: ${textBlock.text.slice(0, 200)}`);
   }
+  // Fail CLOSED on a malformed verdict: the schema layer can't enforce enum/bounds on every
+  // gateway, and a "passing" grade with no stated basis violates the honesty mechanic (a
+  // score that can't state its basis doesn't ship). An invalid verdict errors the checkpoint
+  // — it becomes ungraded and blocks — rather than slipping into the gate as a number.
+  const applicable = parsed.applicable !== false;
+  if (applicable && ![3, 6, 9].includes(parsed.level)) {
+    throw new Error(`invalid verdict: level=${JSON.stringify(parsed.level)} (must be 3|6|9)`);
+  }
+  if (applicable && parsed.level >= 6 && !(typeof parsed.rationale === "string" && parsed.rationale.trim())) {
+    throw new Error("invalid verdict: a passing level with no rationale (no stated basis)");
+  }
+  const conf = typeof parsed.confidence === "number" ? Math.min(1, Math.max(0, parsed.confidence)) : parsed.confidence;
   return {
     applicable: parsed.applicable,
     // When the checkpoint's subject is absent, the level is meaningless — null it
     // so consumers treat it as N/A (not-assessed), never as a passing or failing grade.
-    level: parsed.applicable ? parsed.level : null,
-    confidence: parsed.confidence,
+    level: applicable ? parsed.level : null,
+    confidence: conf,
     gap: parsed.gap,
     rationale: parsed.rationale,
   };

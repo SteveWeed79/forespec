@@ -313,7 +313,7 @@ check("backbone rises above 'learning' from real signals", prof.backbone.band !=
 check("design stays 'learning' (no design signals)", prof.design.band === "learning");
 check("asymmetric: a blunt note never lowered the score", prof.backbone.score >= empty.backbone.score);
 check("counts surface the evidence", prof.backbone.counts.judgment_calls === 3 && prof.backbone.counts.terms_used >= 2, `judgment ${prof.backbone.counts.judgment_calls}, terms ${prof.backbone.counts.terms_used}`);
-check("bandFor thresholds (0.3→learning, 0.5→steady, 0.8→fluent)", bandFor(0.3) === "learning" && bandFor(0.5) === "steady" && bandFor(0.8) === "fluent");
+check("bandFor thresholds at the real boundaries (0.39/0.40, 0.74/0.75)", bandFor(0.39) === "learning" && bandFor(0.4) === "steady" && bandFor(0.74) === "steady" && bandFor(0.75) === "fluent");
 // A fluent domain switches verbosity to brief (the "get out of the way" behavior).
 check("fluent ⇒ brief verbosity", verbosityFor("backbone", { backbone: { band: "fluent" } }) === "brief");
 
@@ -347,7 +347,8 @@ for (const m of discoverManifests(join(here, ".."))) {
   const cps = resolveArchetype(join(here, "..", m.file)).checkpoints;
   for (const id of UNIVERSAL_CRITICALS) {
     const cp = cps.find((c) => c.id === id);
-    if (cp) check(`${m.archetype}: ${id} is critical (breach-class, never buried)`, cp.severity === "critical", `is ${cp.severity}`);
+    // Omission IS a downgrade — the strongest one. Every archetype must reference these.
+    check(`${m.archetype}: ${id} present and critical (breach-class, never buried or omitted)`, !!cp && cp.severity === "critical", cp ? `is ${cp.severity}` : "MISSING from manifest");
   }
 }
 
@@ -423,7 +424,9 @@ check("a lone generic token ('a portal') reads low → asks", intentTop("just a 
 // AI fallback for plain-language descriptions degrades gracefully — the $0 path never breaks.
 const aiIntentNoKey = await classifyIntentWithAI({ description: "an online store", candidates: [{ archetype: "ecommerce", applies_when: "x" }] });
 check("classifyIntentWithAI returns null without a key (never breaks the $0 path)", process.env.ANTHROPIC_API_KEY ? true : aiIntentNoKey === null);
-check("inferArchetype resolves a keyword-strong description via intent ($0)", (await inferArchetype({ description: "an online store", manifests: [{ archetype: "ecommerce", applies_when: "x" }], useAI: false })).via === "intent");
+check("inferArchetype resolves a keyword-strong description via intent ($0)", (await inferArchetype({ description: "an online shop with checkout", manifests: [{ archetype: "ecommerce", applies_when: "x" }], useAI: false })).via === "intent");
+// "store" the verb is not a shop — a lone "store" hit must ask, not write an ecommerce config.
+check("'a tool to store recipes' does not confidently read ecommerce", intentTop("a tool to store recipes").confidence !== "high" && intentTop("a tool to store recipes").confidence !== "medium");
 const inferBlank = await inferArchetype({ description: "software my clients pay for monthly", manifests: [{ archetype: "saas", applies_when: "x" }], useAI: true });
 check("inferArchetype abstains on a keyword-blank description without a key (asks)", process.env.ANTHROPIC_API_KEY ? true : (inferBlank.archetype === null && inferBlank.via === "none"));
 

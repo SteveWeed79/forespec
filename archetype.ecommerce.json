@@ -13,7 +13,7 @@
   },
 
   "archetype": "ecommerce",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "applies_when": "The site takes money for goods/services: a catalog, a cart or equivalent, and a payment flow.",
   "goal_definition": {
     "shippable": "all severity:critical at level >= 6",
@@ -37,6 +37,7 @@
     { "ref": "security.injection",                   "severity": "critical" },
     { "ref": "security.secrets_management",          "severity": "critical" },
     { "ref": "auth.credential_storage",              "severity": "critical" },
+    { "ref": "auth.session_security",                "severity": "high" },
     { "ref": "security.transport_headers",           "severity": "high" },
     { "ref": "security.file_upload",                 "severity": "high" },
     { "ref": "data.pii_protection",                  "severity": "high" },

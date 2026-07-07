@@ -9,6 +9,14 @@ scratch area outside this repo and never committed.
 
 ---
 
+## ⚠ Revalidation owed (post-audit, July 2026)
+
+The July 2026 adversarial audit fixed verdict-integrity bugs, and several fixes touch the
+grading path (adapter assertion presentation, fail-closed verdict validation, selection
+keywords for abuse_controls, baas storage reasoning). Every number below was measured
+BEFORE those changes: they remain the best available estimate, but must be re-measured
+before being cited for a release. Blocked on API credits.
+
 ## Paid M-series validation (corpus-v2)
 
 The reasoning verifier (`claude` adapter, Sonnet-class model) run end to end against the

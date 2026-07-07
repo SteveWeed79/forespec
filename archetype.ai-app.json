@@ -8,7 +8,7 @@
   },
 
   "archetype": "ai-app",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "applies_when": "An app whose core is calling an LLM: a chatbot, RAG/assistant, agent, or an AI feature in a larger product. Untrusted user (and often retrieved or tool) input reaches a model, the model's output is used, and the model may be able to call tools. A provider API key and often user data cross to a third party.",
   "goal_definition": {
     "shippable": "all severity:critical at level >= 6",
@@ -27,7 +27,10 @@
     { "ref": "reliability.error_handling",  "severity": "high" },
     { "ref": "data.pii_protection",         "severity": "high" },
     { "ref": "security.abuse_controls",     "severity": "high" },
-    { "ref": "auth.access_control",         "severity": "high" },
+    { "ref": "auth.access_control",         "severity": "critical" },
+    { "ref": "auth.credential_storage",     "severity": "critical" },
+    { "ref": "auth.session_security",       "severity": "high" },
+    { "ref": "security.file_upload",        "severity": "high" },
 
     { "ref": "security.injection",          "severity": "critical" },
     { "ref": "security.transport_headers",  "severity": "medium" }

@@ -12,6 +12,7 @@
   "version": "1.1.0",
   "applies_when": "A personal, portfolio, or content site: mostly static content, a high design bar, an optional contact form, little or no backend state.",
   "goal_definition": {
+    "gate_tiers": ["critical", "high"],
     "shippable": "no severity:critical below level 6 (criticals grade N/A on a pure-static site with no dynamic surface), and all severity:high at level >= 6",
     "great": "all severity:critical at 9, all severity:high at 9, all others >= 6",
     "honest_ceiling": "design checkpoints tagged taste_limited verify to ~level 7 mechanically; reaching 9 requires human design review the rubric cannot replace, and a trustworthy design read requires the browser probe, not source grading."

@@ -69,7 +69,11 @@ export function selectForFeature(checkpoints, feature, { domain = "backbone", on
   else if (domain !== "all") pool = pool.filter((c) => c.domain === domain);
 
   const scored = pool.map((cp) => ({ cp, score: relevanceScore(feature, cp) }));
-  const relevant = scored.filter((s) => s.score > 0).sort((a, b) => b.score - a.score).map((s) => s.cp);
+  // A checkpoint the user NAMED with --checkpoint IS the plan — asking for it and getting
+  // an empty document because the feature text didn't keyword-match it is a non-answer.
+  const relevant = onlyId
+    ? pool
+    : scored.filter((s) => s.score > 0).sort((a, b) => b.score - a.score).map((s) => s.cp);
   const relevantIds = new Set(relevant.map((c) => c.id));
   const mustHold = onlyId ? [] : pool.filter((c) => c.severity === "critical" && !relevantIds.has(c.id));
   return { relevant, mustHold };
@@ -148,7 +152,7 @@ export function renderPlan({ archetype, feature, relevant, mustHold, verbosity }
   return L.join("\n");
 }
 
-const VALUE_FLAGS = ["--repo", "--archetype", "--domain", "--checkpoint", "--out"];
+const VALUE_FLAGS = ["--repo", "--archetype", "--domain", "--checkpoint", "--out", "--store"];
 
 function main() {
   if (has("-h") || has("--help")) { console.log(HELP); return 0; }
@@ -158,6 +162,11 @@ function main() {
   if (!feature) { console.error("error: missing \"<feature description>\"\n"); console.error(HELP); return 2; }
 
   const repo = pathResolve(process.cwd(), arg("--repo", "."));
+  const domainArg = arg("--domain", "backbone");
+  if (!["backbone", "design", "all"].includes(domainArg)) {
+    console.error(`error: --domain must be backbone | design | all (got "${domainArg}")`);
+    return 2;
+  }
   const archetypeArg = arg("--archetype", null);
   const cfg = readConfig(repo);
   let archetypePath, inferredNote = "";
@@ -166,19 +175,20 @@ function main() {
   } else if (cfg?.archetype) {
     archetypePath = resolveManifestPath(cfg.archetype, { cwd: repo });
   } else {
-    // No --archetype and no config (a new/empty repo): DECLARE from the feature text rather
-    // than silently grading against ecommerce. Infer, and say so; only fall back to ecommerce
-    // when the text gives nothing to go on.
+    // No --archetype and no config (a new/empty repo): DECLARE from the feature text. If the
+    // text doesn't say, ASK — a silent ecommerce default would interrogate a chatbot about
+    // stock holds and read as authority. Wrong-but-confident is the one failure we refuse.
     const manifests = discoverManifests(pathResolve(here, ".."));
     const top = archetypeFromIntent(feature, manifests.map((m) => m.archetype))[0];
     const picked = top && (top.confidence === "high" || top.confidence === "medium") ? manifests.find((m) => m.archetype === top.archetype) : null;
-    if (picked) {
-      archetypePath = pathResolve(here, "..", picked.file);
-      inferredNote = `no ${CONFIG_FILE} — inferred archetype '${top.archetype}' from "${feature}" (pass --archetype to override, or run \`forespec start\`)`;
-    } else {
-      archetypePath = pathResolve(here, "..", "archetype.ecommerce.json");
-      inferredNote = `no ${CONFIG_FILE} and couldn't infer the archetype from "${feature}" — defaulting to ecommerce (pass --archetype)`;
+    if (!picked) {
+      console.error(`error: no ${CONFIG_FILE} here and the archetype isn't clear from "${feature}".`);
+      console.error(`Say which kind of app this is (or run \`forespec start "<what you're building>"\` first):`);
+      for (const m of manifests) console.error(`  forespec plan "${feature}" --archetype ${m.archetype}`);
+      return 2;
     }
+    archetypePath = pathResolve(here, "..", picked.file);
+    inferredNote = `no ${CONFIG_FILE} — inferred archetype '${top.archetype}' from "${feature}" (pass --archetype to override, or run \`forespec start\`)`;
   }
 
   let archetype;

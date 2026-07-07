@@ -48,7 +48,15 @@ function appendJsonl(dir, file, obj) {
 function readJsonl(dir, file) {
   const p = join(dir, file);
   if (!existsSync(p)) return [];
-  return readFileSync(p, "utf8").split("\n").filter(Boolean).map((l) => JSON.parse(l));
+  // Tolerate a corrupt/truncated line (crash mid-append, disk hiccup): skip it with a
+  // warning instead of bricking every store consumer (calibrate, feedback, proficiency).
+  const out = [];
+  let skipped = 0;
+  for (const l of readFileSync(p, "utf8").split("\n").filter(Boolean)) {
+    try { out.push(JSON.parse(l)); } catch { skipped++; }
+  }
+  if (skipped) console.error(`warning: ${file}: skipped ${skipped} corrupt line(s)`);
+  return out;
 }
 
 /**
@@ -84,10 +92,17 @@ export function recordPredictions({ storeDir, runId, archetype, archetypeVersion
   return { count, storeDir };
 }
 
-/** Most recent prediction for a checkpoint (optionally within one run). */
-export function latestPrediction({ storeDir, checkpointId, runId }) {
+/**
+ * Most recent prediction for a checkpoint (optionally within one run, and optionally scoped
+ * to one archetype/adapter — a store shared across archetypes or adapters must not let an
+ * ecommerce mock-run become the "prior" for a saas claude-run's regression math).
+ */
+export function latestPrediction({ storeDir, checkpointId, runId, archetype, adapter }) {
   const pats = readJsonl(storeDir, FILES.predPattern).filter(
-    (p) => p.checkpoint_id === checkpointId && (!runId || p.run_id === runId),
+    (p) => p.checkpoint_id === checkpointId
+      && (!runId || p.run_id === runId)
+      && (!archetype || p.archetype === archetype)
+      && (!adapter || p.adapter === adapter),
   );
   return pats.length ? pats[pats.length - 1] : null;
 }
