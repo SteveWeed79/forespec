@@ -444,10 +444,15 @@ async function main() {
   return shippable ? 0 : 1;
 }
 
+// Set exitCode and let the event loop drain rather than process.exit(): a hard
+// exit force-closes undici's (global fetch) keep-alive socket mid-teardown, which
+// trips a libuv assertion on Windows (async.c: !UV_HANDLE_CLOSING) after the run
+// has already finished. Idle undici sockets are unref'd, so the process still
+// exits promptly — just without the double-close race.
 main().then(
-  (code) => process.exit(code),
+  (code) => { process.exitCode = code; },
   (err) => {
     console.error(`fatal: ${err?.message ?? err}`);
-    process.exit(2);
+    process.exitCode = 2;
   },
 );

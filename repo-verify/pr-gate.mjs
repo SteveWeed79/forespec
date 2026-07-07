@@ -279,4 +279,6 @@ async function main() {
   return 0;
 }
 
-main().then((c) => process.exit(c), (e) => { console.error(`fatal: ${e?.message ?? e}`); process.exit(2); });
+// exitCode, not process.exit(): a hard exit force-closes undici's fetch keep-alive
+// socket mid-teardown → libuv async.c assertion on Windows (see verify.mjs).
+main().then((c) => { process.exitCode = c; }, (e) => { console.error(`fatal: ${e?.message ?? e}`); process.exitCode = 2; });
