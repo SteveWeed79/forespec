@@ -81,7 +81,7 @@ const KEYWORDS = {
   "ecommerce.catalog.variant_model": ["product", "variant", "sku", "price", "stock", "orderline", "lineitem", "order"],
   "ecommerce.inventory.reconciliation": ["stock", "inventory", "movement", "ledger", "refund", "restock", "adjust"],
   "ecommerce.checkout.cost_correctness": ["total", "tax", "shipping", "subtotal", "calculate", "compute", "price", "amount", "charge"],
-  "security.abuse_controls": ["ratelimit", "throttle", "captcha", "abuse", "bruteforce", "lockout", "attempts"],
+  "security.abuse_controls": ["ratelimit", "throttle", "captcha", "abuse", "bruteforce", "lockout", "attempts", "login", "signin", "signup", "password", "otp"],
   "web.performance": ["lazy", "defer", "preload", "image", "bundle", "cache", "<img", "script"],
   "web.seo_metadata": ["meta", "og:", "title", "description", "canonical", "sitemap", "robots", "<main", "<head"],
   "web.forms_integrity": ["form", "validate", "safeparse", "zod", "sanitize", "csrf", "ratelimit"],
@@ -164,9 +164,17 @@ export function selectForCheckpoint(all, cp, budgetChars = 60_000, perFileCap = 
 
   const chosen = [];
   let used = 0;
+  const MIN_SLICE = 400; // below this a clipped fragment carries no signal
   for (const f of ordered) {
-    const content = clip(f.content);
-    if (used + content.length > budgetChars && chosen.length > 0) continue;
+    let content = clip(f.content);
+    const remaining = budgetChars - used;
+    if (content.length > remaining && chosen.length > 0) {
+      // Rank order is the trust order: a higher-ranked file gets the remaining budget
+      // (clipped) before a lower-ranked file gets any. Skipping it while smaller, less
+      // relevant files back-fill silently dropped top-ranked vulnerable files.
+      if (remaining < MIN_SLICE) break;
+      content = content.slice(0, remaining) + "\n// …(truncated for budget)…\n";
+    }
     chosen.push({ ...f, content });
     used += content.length;
     if (used >= budgetChars) break;

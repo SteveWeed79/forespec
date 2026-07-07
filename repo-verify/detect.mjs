@@ -139,7 +139,9 @@ export const INTENT_RULES = {
 // lone generic token ("landing", "portal", "team") asks rather than silently picks an archetype
 // that would mis-grade the whole build.
 const STRONG_INTENT = new Set([
-  "ecommerce", "store", "storefront", "shop", "marketplace", "boutique", "dropship", "checkout", "cart",
+  // NOTE: deliberately NOT "store" — "a tool to store recipes" is not a shop. It stays a
+  // weak hint; only unambiguous commerce words are strong tells.
+  "ecommerce", "storefront", "shop", "marketplace", "boutique", "dropship", "checkout", "cart",
   "saas", "subscription", "multitenant", "invoice", "invoicing", "crm",
   "ai", "llm", "chatbot", "rag", "gpt", "copilot", "embedding", "semantic", "openai", "anthropic", "genai",
   "supabase", "firebase", "firestore", "baas",
@@ -368,7 +370,9 @@ const CLASSIFY_SYSTEM =
 function buildClassifyPrompt(signals, candidates) {
   const paths = (signals.paths ?? []).slice(0, 120);
   const manifestHint = (signals.depText ?? "").trim().slice(0, 400);
-  const selfDesc = (signals.selfDescription ?? "").trim().slice(0, 1500);
+  // Strip anything that could forge the UNTRUSTED delimiters: a repo's README must not be
+  // able to fake an early <<<END UNTRUSTED>>> and smuggle "trusted" instructions after it.
+  const selfDesc = (signals.selfDescription ?? "").replace(/<<<[^>]*>>>/g, " ").trim().slice(0, 1500);
   return [
     "# Candidate archetypes",
     ...candidates.map((c) => `- ${c.archetype}: ${c.applies_when}`),
@@ -420,13 +424,14 @@ export async function classifyWithAI({ signals, candidates }) {
         messages: [{ role: "user", content: buildClassifyPrompt(signals, candidates) }],
       }),
     });
-    if (!res.ok) return null;
+    if (!res.ok) { console.error(`note: AI classifier unavailable (HTTP ${res.status}) — keeping the heuristic result`); return null; }
     const data = await res.json();
     const textBlock = (data.content ?? []).find((b) => b.type === "text");
     if (!textBlock) return null;
     const parsed = JSON.parse(textBlock.text);
     return { archetype: parsed.archetype, confidence: parsed.confidence, rationale: parsed.rationale };
-  } catch {
+  } catch (e) {
+    console.error(`note: AI classifier failed (${e?.message ?? e}) — keeping the heuristic result`);
     return null; // network/parse/model error → caller keeps the heuristic result
   }
 }
@@ -510,13 +515,14 @@ export async function classifyIntentWithAI({ description, candidates }) {
         ].join("\n") }],
       }),
     });
-    if (!res.ok) return null;
+    if (!res.ok) { console.error(`note: AI intent reader unavailable (HTTP ${res.status}) — falling back to keywords`); return null; }
     const data = await res.json();
     const textBlock = (data.content ?? []).find((b) => b.type === "text");
     if (!textBlock) return null;
     const parsed = JSON.parse(textBlock.text);
     return { archetype: parsed.archetype, confidence: parsed.confidence, rationale: parsed.rationale };
-  } catch {
+  } catch (e) {
+    console.error(`note: AI intent reader failed (${e?.message ?? e}) — falling back to keywords`);
     return null; // no key / network / parse error → caller keeps the keyword read
   }
 }
@@ -534,7 +540,9 @@ export async function inferArchetype({ description, manifests, useAI = true }) {
   const aiAvailable = !!(process.env.ANTHROPIC_API_KEY && process.env.ANTHROPIC_MODEL);
   if (useAI && aiAvailable) {
     const pick = await classifyIntentWithAI({ description, candidates: manifests });
-    if (pick && pick.archetype && pick.archetype !== "none") {
+    // Only a CONFIDENT AI read proceeds — a low-confidence guess writing the config would
+    // silently mis-grade the whole build, the exact thing the keyword gate refuses to do.
+    if (pick && pick.archetype && pick.archetype !== "none" && (pick.confidence === "high" || pick.confidence === "medium")) {
       return { archetype: pick.archetype, confidence: pick.confidence, via: "ai", ranked, rationale: pick.rationale, aiAvailable };
     }
   }

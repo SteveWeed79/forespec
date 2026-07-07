@@ -5,7 +5,8 @@
   "checkpoints": [
     {
       "id": "baas.rls_enforced",
-      "domain": "backbone", "confidence": "established",
+      "domain": "backbone",
+      "confidence": "established",
       "title": "Row-Level Security is on AND scoped for every table with user data",
       "why": "A BaaS exposes the database directly to the browser; row-level security is the only boundary between a user and everyone else's rows. AI-generated apps routinely ship a table with RLS disabled, or 'enabled' with a permissive `using (true)` policy that authorizes everyone — so the anon key held by the client reads the whole table. This is the most common real-world data leak on this stack.",
       "levels": {
@@ -14,17 +15,27 @@
         "9": "RLS enforced by default on all tables, policies reviewed per operation (select/insert/update/delete), with tests proving a second user's rows are denied."
       },
       "verify": {
-        "reasoning": "For each table holding user or sensitive data, is RLS enabled, and does its policy actually scope rows to the authenticated user — or is it disabled or `using (true)`? Could the anon/client key read or write another user's rows?",
+        "reasoning": "For each table holding user or sensitive data, is RLS enabled, and does its policy actually scope rows to the authenticated user — or is it disabled or `using (true)`? Could the anon/client key read or write another user's rows? Same question for STORAGE: are bucket/object rules scoped to the owner, or is any bucket public/unrestricted that holds user content?",
         "assertions": [
-          {"check": "Every table with user/sensitive data has RLS enabled.", "type": "static"},
-          {"check": "Policies scope rows to the authenticated user (e.g. auth.uid() = user_id), not `using (true)`.", "type": "static"},
-          {"check": "A test proves a different user cannot read or modify another user's rows.", "type": "test"}
+          {
+            "check": "Every table with user/sensitive data has RLS enabled.",
+            "type": "static"
+          },
+          {
+            "check": "Policies scope rows to the authenticated user (e.g. auth.uid() = user_id), not `using (true)`.",
+            "type": "static"
+          },
+          {
+            "check": "A test proves a different user cannot read or modify another user's rows.",
+            "type": "test"
+          }
         ]
       }
     },
     {
       "id": "baas.client_trust_boundary",
-      "domain": "backbone", "confidence": "established",
+      "domain": "backbone",
+      "confidence": "established",
       "title": "Security-critical rules aren't enforced only in client code",
       "why": "With a BaaS the client talks directly to the database and storage, so anything enforced only in the browser — an ownership check, a role gate, a price, an insert validation — is enforced nowhere: a user can call the database/API directly (or edit the client) and bypass it. AI code commonly 'checks' a permission in a React component or a client function and assumes that is sufficient.",
       "levels": {
@@ -35,14 +46,21 @@
       "verify": {
         "reasoning": "Which rules (ownership, role, price, validation) are enforced only in client code? Since the client can call the database/storage directly, is each of those ALSO enforced by an RLS policy, a DB constraint, or a server function — or can a direct call bypass it?",
         "assertions": [
-          {"check": "Security/integrity rules are enforced at the DB/server boundary (RLS, constraint, or server function), not only in the client.", "type": "static"},
-          {"check": "Client-settable fields that shouldn't be user-controlled (role, price, owner id, status) are constrained or set server-side.", "type": "static"}
+          {
+            "check": "Security/integrity rules are enforced at the DB/server boundary (RLS, constraint, or server function), not only in the client.",
+            "type": "static"
+          },
+          {
+            "check": "Client-settable fields that shouldn't be user-controlled (role, price, owner id, status) are constrained or set server-side.",
+            "type": "static"
+          }
         ]
       }
     },
     {
       "id": "baas.privileged_key_exposure",
-      "domain": "backbone", "confidence": "established",
+      "domain": "backbone",
+      "confidence": "established",
       "title": "The service-role / admin key never reaches the client",
       "why": "A BaaS gives you two keys: a public anon key (safe for the browser, bounded by RLS) and a service-role/admin key that BYPASSES RLS entirely. AI code frequently puts the service key in a client-exposed env var (NEXT_PUBLIC_/VITE_), a client-imported module, or hard-codes it — handing every visitor full, RLS-bypassing read/write to the whole database.",
       "levels": {
@@ -53,8 +71,14 @@
       "verify": {
         "reasoning": "Where is the service-role/admin key used? Is it confined to server code, or is it in a client-exposed env var (NEXT_PUBLIC_/VITE_), imported into a client bundle, or hard-coded? Could the browser obtain a key that bypasses RLS?",
         "assertions": [
-          {"check": "The service-role/admin key is referenced only in server-side code, never a client-exposed (NEXT_PUBLIC_/VITE_) env var or client bundle.", "type": "static"},
-          {"check": "The client is initialized with the anon/public key, not the service key.", "type": "static"}
+          {
+            "check": "The service-role/admin key is referenced only in server-side code, never a client-exposed (NEXT_PUBLIC_/VITE_) env var or client bundle.",
+            "type": "static"
+          },
+          {
+            "check": "The client is initialized with the anon/public key, not the service key.",
+            "type": "static"
+          }
         ]
       }
     }

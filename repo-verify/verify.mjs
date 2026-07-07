@@ -62,6 +62,7 @@ Every run is logged to the calibration store (pattern + instance — the wall is
 record a verdict on a flag with: node repo-verify/feedback.mjs <checkpoint-id> <outcome>`;
 
 const COLORS = { reset: "\x1b[0m", bold: "\x1b[1m", dim: "\x1b[2m", red: "\x1b[31m", green: "\x1b[32m", yellow: "\x1b[33m", cyan: "\x1b[36m" };
+const SEV_ORDER = ["critical", "high", "medium", "low"];
 function paint(on, code, s) {
   return on ? `${code}${s}${COLORS.reset}` : s;
 }
@@ -133,6 +134,12 @@ async function main() {
   }
 
   const domain = arg("--domain", "backbone");
+  if (!["backbone", "design", "all"].includes(domain)) {
+    // A typo'd domain would filter the checkpoint set to zero and read as a property of the
+    // REPO ("inconclusive") instead of a usage error. Fail loud, fail here.
+    console.error(`error: --domain must be backbone | design | all (got "${domain}")`);
+    return 2;
+  }
   const onlyId = arg("--checkpoint", null);
   const budget = Number(arg("--budget", "60000")) || 60_000;
   const json = has("--json");
@@ -151,6 +158,12 @@ async function main() {
   const appliedOverrides = [];
   for (const cp of archetype.checkpoints) {
     const ov = overrides.severity?.[cp.id];
+    if (ov && !SEV_ORDER.includes(ov)) {
+      // An invalid severity (hand-edit typo) would never equal any gate tier — the checkpoint
+      // would silently drop OUT of the shippable gate. Refuse it, keep the manifest severity.
+      console.error(`warning: ignoring invalid severity override for ${cp.id}: "${ov}" (must be one of ${SEV_ORDER.join("|")})`);
+      continue;
+    }
     if (ov && ov !== cp.severity) {
       appliedOverrides.push({ id: cp.id, from: cp.severity, to: ov });
       cp.severity = ov;
@@ -178,8 +191,12 @@ async function main() {
   }
 
   const useColor = process.stdout.isTTY === true && !json;
+  // The silent-downgrade trap: a rotated/missing key must NEVER quietly swap the trusted
+  // reasoning verifier for the keyword mock and still green-light CI. The warning goes to
+  // stderr on EVERY surface (json included), and the degradation is carried in the output.
+  const adapterDegraded = !!note;
+  if (note) console.error(`note: ${note}\n`);
   if (!json) {
-    if (note) console.error(`note: ${note}\n`);
     console.error(`Verifying ${repoPath}`);
     const srcNote = archetypeSource === "config" ? " (from forespec.config.json)" : archetypeSource === "default" ? " (default — run `forespec init` to detect)" : "";
     console.error(`  ${archetype.archetype} v${archetype.version}${srcNote} | adapter: ${adapter.name ?? adapterName} | ${checkpoints.length} checkpoint(s)`);
@@ -243,19 +260,61 @@ async function main() {
   // toward the gate — a repo with no payments isn't "unshippable" for payment checkpoints.
   const assessed = results.filter((r) => r.applicable !== false);
   const notApplicable = results.filter((r) => r.applicable === false);
-  // The gate is the archetype's TOP severity tier PRESENT, not always "critical":
-  // ecommerce/saas/ai/baas gate on criticals; portfolio (which has no criticals by design)
-  // gates on its high-severity design/web bar. Hardcoding "critical" let a no-criticals
-  // archetype pass the gate for free — a real bug found battle-testing a real portfolio.
-  const SEV_ORDER = ["critical", "high", "medium", "low"];
-  const gateTier = SEV_ORDER.find((s) => assessed.some((r) => r.severity === s)) ?? "critical";
-  const gated = assessed.filter((r) => r.severity === gateTier);
-  const others = assessed.filter((r) => r.severity !== gateTier);
+  // Which severity tier(s) gate "shippable":
+  //   1. The archetype may DECLARE them (goal_definition.gate_tiers, e.g. portfolio gates on
+  //      critical AND high — its design/web bar is the product, not polish).
+  //   2. Otherwise: the top severity tier among the checkpoint DEFINITIONS being run — defined,
+  //      not assessed, so N/A results can't quietly change which tier gates the release.
+  //   3. If every checkpoint in the gate tier(s) came back N/A, the gate DEMOTES to the top
+  //      assessed tier — loudly. The demotion is reported on every surface; a silent demotion
+  //      would let a selection miss un-gate an entire critical backbone.
+  const declaredTiers = (archetype.goal_definition?.gate_tiers ?? []).filter((t) => SEV_ORDER.includes(t));
+  const definedTop = SEV_ORDER.find((s) => checkpoints.some((c) => c.severity === s));
+  let gateTiers = declaredTiers.length ? declaredTiers : definedTop ? [definedTop] : [];
+  let gateDemotion = null;
+  if (gateTiers.length && !assessed.some((r) => gateTiers.includes(r.severity))) {
+    const fallback = SEV_ORDER.find((s) => assessed.some((r) => r.severity === s));
+    if (fallback) {
+      gateDemotion = { from: gateTiers.join("+"), to: fallback, reason: `every ${gateTiers.join("/")} checkpoint was N/A — that tier was never assessed` };
+      gateTiers = [fallback];
+    }
+  }
+  const gateTier = gateTiers.join("+") || "critical"; // display label
+  const gated = assessed.filter((r) => gateTiers.includes(r.severity));
+  const others = assessed.filter((r) => !gateTiers.includes(r.severity));
   const ungraded = assessed.filter((r) => r.level == null); // errored (N/A already excluded)
   const lvl = (r) => (r.level == null ? -1 : r.level);
-  const shippable = ungraded.length === 0 && gated.every((r) => lvl(r) >= 6);
-  const great = ungraded.length === 0 && gated.every((r) => lvl(r) >= 9) && others.every((r) => lvl(r) >= 6);
+  // INCONCLUSIVE, not "shippable": if nothing was gradable (empty repo, everything N/A, or all
+  // errored), `gated.every(...)` is vacuously true — a green verdict for a repo we never graded.
+  // Not reviewing and not reporting are the same failure; require real assessed evidence.
+  const conclusive = gated.length > 0;
+  const shippable = conclusive && ungraded.length === 0 && gated.every((r) => lvl(r) >= 6);
+  const great = conclusive && ungraded.length === 0 && gated.every((r) => lvl(r) >= 9) && others.every((r) => lvl(r) >= 6);
   const blocking = gated.filter((r) => lvl(r) < 6);
+
+  // Whole-domain omission is part of the verdict, not a footnote: the default --domain
+  // backbone SKIPS design checkpoints entirely, and every surface (text, JSON, HTML) must
+  // say so — a machine consumer reading JSON deserves the same disclosure a human gets.
+  const gradedIds = new Set(results.map((r) => r.id));
+  const designSkipped = (archetype.checkpoints || []).filter((c) => c.domain === "design" && !gradedIds.has(c.id)).map((c) => c.id);
+
+  // ONE rollup, shared verbatim by the JSON and HTML surfaces so they can never disagree
+  // with the terminal about what was graded, what gated, and what was skipped.
+  const rollup = {
+    conclusive,
+    shippable,
+    great,
+    gate_tier: gateTier,
+    gate_tiers: gateTiers,
+    gate_demotion: gateDemotion,
+    domain,
+    blocking: blocking.map((r) => r.id),
+    ungraded: ungraded.map((r) => r.id),
+    not_applicable: notApplicable.map((r) => r.id),
+    design_skipped: designSkipped,
+    adapter: adapter.name ?? adapterName,
+    adapter_degraded: adapterDegraded,
+  };
 
   // Brick 1 — log this run as training data (pattern/instance split), unless disabled.
   let storeInfo = null;
@@ -298,7 +357,7 @@ async function main() {
         model: adapterName === "claude" ? process.env.ANTHROPIC_MODEL ?? null : null,
         generatedAt: new Date().toISOString().replace("T", " ").slice(0, 16) + " UTC",
         results,
-        rollup: { shippable, great, blocking: blocking.map((r) => r.id) },
+        rollup,
         gaps: gapReport,
         checkpoints,
       });
@@ -311,7 +370,7 @@ async function main() {
   }
 
   if (json) {
-    console.log(JSON.stringify({ archetype: archetype.archetype, version: archetype.version, adapter: adapter.name ?? adapterName, overrides_applied: appliedOverrides, results, rollup: { shippable, great, gate_tier: gateTier, blocking: blocking.map((r) => r.id), ungraded: ungraded.map((r) => r.id), not_applicable: notApplicable.map((r) => r.id) }, gaps: gapReport, store: storeInfo }, null, 2));
+    console.log(JSON.stringify({ archetype: archetype.archetype, version: archetype.version, adapter: adapter.name ?? adapterName, overrides_applied: appliedOverrides, results, rollup, gaps: gapReport, store: storeInfo }, null, 2));
     return shippable ? 0 : 1;
   }
 
@@ -327,7 +386,12 @@ async function main() {
       continue;
     }
     if (r.applicable === false) {
-      out.push(`  ${paint(useColor, COLORS.dim, "n/a — no code relevant to this checkpoint in the repo")}`);
+      // Two different claims, two different sentences: a structural N/A means selection found
+      // nothing; a challenged N/A means code MATCHED but the model justified (under adversarial
+      // re-interrogation) that it's unrelated. Conflating them overstates the first as proof.
+      out.push(`  ${paint(useColor, COLORS.dim, r.challenged
+        ? "n/a — matched code was judged unrelated (verdict survived the adversarial challenge)"
+        : "n/a — no code relevant to this checkpoint in the repo")}`);
       out.push("");
       continue;
     }
@@ -338,14 +402,29 @@ async function main() {
     out.push("");
   }
   out.push(paint(useColor, COLORS.bold, "── goal_definition roll-up ──"));
-  out.push(`  shippable (all ${gateTier} ≥ 6): ${shippable ? paint(useColor, COLORS.green, "YES") : paint(useColor, COLORS.red, "NO")}`);
-  out.push(`  great (all ${gateTier} 9, rest ≥ 6): ${great ? paint(useColor, COLORS.green, "YES") : paint(useColor, COLORS.dim, "no")}`);
+  if (gateDemotion) {
+    out.push(`  ${paint(useColor, COLORS.yellow, `⚠ gate demoted ${gateDemotion.from} → ${gateDemotion.to}:`)} ${gateDemotion.reason}. The ${gateDemotion.from} tier was NOT cleared — it was never assessed.`);
+  }
+  if (!conclusive) {
+    out.push(`  ${paint(useColor, COLORS.yellow, "INCONCLUSIVE")} — nothing gradable was found here (every checkpoint N/A or errored). This is NOT a pass.`);
+  } else {
+    out.push(`  shippable (all ${gateTier} ≥ 6): ${shippable ? paint(useColor, COLORS.green, "YES") : paint(useColor, COLORS.red, "NO")}`);
+    out.push(`  great (all ${gateTier} 9, rest ≥ 6): ${great ? paint(useColor, COLORS.green, "YES") : paint(useColor, COLORS.dim, "no")}`);
+  }
+  if (adapterDegraded) {
+    out.push(`  ${paint(useColor, COLORS.yellow, "⚠ graded by the mock keyword baseline (no API key)")} — NOT the validated reasoning verifier. Do not trust this verdict for a ship decision.`);
+  }
   if (blocking.length) {
     out.push(`  ${paint(useColor, COLORS.red, `blocking ${gateTier}:`)}`);
     for (const r of blocking) out.push(`    - ${r.id} (${r.level == null ? "ungraded" : "level " + r.level})`);
   }
   if (ungraded.length) out.push(`  ${paint(useColor, COLORS.yellow, "ungraded:")} ${ungraded.map((r) => r.id).join(", ")}`);
-  if (notApplicable.length) out.push(`  ${paint(useColor, COLORS.dim, `not applicable (${notApplicable.length}, no relevant code):`)} ${notApplicable.map((r) => r.id).join(", ")}`);
+  if (notApplicable.length) out.push(`  ${paint(useColor, COLORS.dim, `not applicable (${notApplicable.length}):`)} ${notApplicable.map((r) => r.id + (r.challenged ? " (challenged)" : "")).join(", ")}`);
+  // Whole-domain omission is part of the verdict (computed once, shared with JSON/HTML).
+  if (designSkipped.length) {
+    out.push(`  ${paint(useColor, COLORS.yellow, `⚠ ${designSkipped.length} design checkpoint(s) NOT reviewed here:`)} ${designSkipped.join(", ")}`);
+    out.push(`    ${paint(useColor, COLORS.dim, "design isn't reliably gradable from source, so verify skips it. For a design/a11y verdict — a portfolio's whole product — run `forespec design <url>` against the live page (or `verify --domain all` for a best-effort source read).")}`);
+  }
   if (gapReport && gapReport.items.length) {
     out.push("");
     out.push(paint(useColor, COLORS.bold, "── foresight: gaps ahead ──"));

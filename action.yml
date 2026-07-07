@@ -18,7 +18,7 @@ branding:
 #       steps:
 #         - uses: actions/checkout@v4
 #           with: { fetch-depth: 0 }   # full history so it can diff the base branch
-#         - uses: SteveWeed79/forespec@v1
+#         - uses: SteveWeed79/forespec@v0.1.0
 #           with:
 #             # optional — omit both for the deterministic mock baseline at $0:
 #             anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -41,7 +41,10 @@ inputs:
     description: "mock | claude. Default: claude when an API key + model are provided, else mock."
     default: ""
   fail:
-    description: "Set 'true' to block the PR on a touched-critical regression or a critical below level 6."
+    description: "Set 'true' to block the PR on a touched-tier regression or a gate-tier checkpoint below level 6."
+    default: "false"
+  all-domains:
+    description: "Set 'true' to also grade design checkpoints (default: backbone only — the skipped domain is disclosed either way)."
     default: "false"
   store:
     description: "Calibration store directory."
@@ -75,6 +78,7 @@ runs:
         FS_ARCHETYPE: ${{ inputs.archetype }}
         FS_ADAPTER: ${{ inputs.adapter }}
         FS_FAIL: ${{ inputs.fail }}
+        FS_ALL_DOMAINS: ${{ inputs.all-domains }}
         FS_STORE: ${{ inputs.store }}
         FS_ACTION_PATH: ${{ github.action_path }}
       run: |
@@ -82,4 +86,5 @@ runs:
         [ -n "$FS_ARCHETYPE" ] && args+=(--archetype "$FS_ARCHETYPE")
         [ -n "$FS_ADAPTER" ] && args+=(--adapter "$FS_ADAPTER")
         [ "$FS_FAIL" = "true" ] && args+=(--fail)
+        [ "$FS_ALL_DOMAINS" = "true" ] && args+=(--all-domains)
         node "$FS_ACTION_PATH/bin/forespec.mjs" "${args[@]}"

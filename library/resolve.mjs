@@ -41,7 +41,12 @@ export function resolveArchetype(manifestPath, library = loadLibrary()) {
   const checkpoints = [];
   const seen = new Set();
 
-  for (const ref of manifest.checkpoints ?? []) {
+  if (!Array.isArray(manifest.checkpoints) || manifest.checkpoints.length === 0) {
+    // A typo'd key ("checkpoint") must not resolve to a clean-looking EMPTY archetype —
+    // everything downstream would grade nothing and read as all-clear.
+    throw new Error(`manifest ${manifestPath} has no "checkpoints" array — nothing to grade is an authoring error, not an empty standard`);
+  }
+  for (const ref of manifest.checkpoints) {
     if (!ref.ref) {
       errors.push(`a checkpoint entry is missing "ref"`);
       continue;

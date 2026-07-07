@@ -8,7 +8,7 @@
   },
 
   "archetype": "baas",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "applies_when": "An app built on a Backend-as-a-Service such as Supabase or Firebase, where the client SDK reads and writes the database/storage directly and access control is enforced by row-level security or security rules plus the key the browser holds, rather than by a server the client cannot bypass.",
   "goal_definition": {
     "shippable": "all severity:critical at level >= 6",
@@ -27,7 +27,7 @@
     { "ref": "reliability.error_handling",   "severity": "high" },
     { "ref": "security.abuse_controls",      "severity": "high" },
 
-    { "ref": "security.injection",           "severity": "medium" },
+    { "ref": "security.injection",           "severity": "critical" },
     { "ref": "security.transport_headers",   "severity": "medium" }
   ]
 }

@@ -189,27 +189,52 @@ export function renderReport({ project, archetype, version, adapter, model, gene
   const naQuiet = results.filter((r) => r.applicable === false && !gapIds.has(r.id));
 
   const count = (lvl) => assessed.filter((r) => r.level === lvl).length;
-  const critAll = assessed.filter((r) => r.severity === "critical");
   const shippable = !!(rollup && rollup.shippable);
   const great = !!(rollup && rollup.great);
   const blocking = (rollup && rollup.blocking) || [];
+  // State the REAL gate, never a hardcoded "critical": portfolio gates on critical+high, a
+  // demoted gate must confess, and conclusive===false is its own verdict — rendering it as
+  // "Not shippable: criticals below the line" fabricates a basis about checkpoints that were
+  // never assessed. This report may only say what the rollup actually established.
+  const gateTiers = (rollup && rollup.gate_tiers) || ["critical"];
+  const gateLabel = esc((rollup && rollup.gate_tier) || gateTiers.join("+"));
+  const conclusive = rollup ? rollup.conclusive !== false : true;
+  const demotion = rollup && rollup.gate_demotion;
+  const gatedAll = assessed.filter((r) => gateTiers.includes(r.severity));
+  const gateRule = `<span class="verdict-rule">gate: every <b style="color:var(--ink)">${gateLabel}</b> checkpoint ≥ 6</span>`;
+  const sevLabel = (rows) => {
+    const sevs = [...new Set(rows.map((r) => r.severity))];
+    return sevs.length === 1 ? `${esc(sevs[0])}-severity` : "lower-tier";
+  };
 
   // ---- verdict ----
   let badge, sub;
-  if (shippable) {
-    const nine = count(9), three = count(3);
-    badge = `<span class="verdict-badge"><span class="dot"></span>${great ? "Hardened" : "Shippable"}</span>
-      <span class="verdict-rule">gate: every <b style="color:var(--ink)">critical</b> checkpoint ≥ 6</span>`;
+  if (!conclusive) {
+    badge = `<span class="verdict-badge bad"><span class="dot"></span>Inconclusive</span>${gateRule}`;
+    sub = `Nothing gradable was found — every checkpoint came back not-applicable or errored. <b>This is NOT a pass:</b> no ${gateLabel} checkpoint was assessed.${errored.length ? ` ${errored.length} checkpoint(s) errored.` : ""}`;
+  } else if (shippable) {
+    const nine = count(9);
+    const threes = assessed.filter((r) => r.level === 3);
+    badge = `<span class="verdict-badge"><span class="dot"></span>${great ? "Hardened" : "Shippable"}</span>${gateRule}`;
     const parts = [];
-    parts.push(`All <b>${critAll.length} critical</b> checkpoint${critAll.length === 1 ? "" : "s"} clear the ship line${nine ? ` — <b>${nine} hardened</b> (level 9)` : ""}.`);
-    if (three) parts.push(`<b>${three} high-severity</b> item${three === 1 ? "" : "s"} at level 3 ${three === 1 ? "is" : "are"} worth tightening; none block release.`);
+    parts.push(`All <b>${gatedAll.length} ${gateLabel}</b> checkpoint${gatedAll.length === 1 ? "" : "s"} clear the ship line${nine ? ` — <b>${nine} hardened</b> (level 9)` : ""}.`);
+    if (threes.length) parts.push(`<b>${threes.length} ${sevLabel(threes)}</b> item${threes.length === 1 ? "" : "s"} at level 3 ${threes.length === 1 ? "is" : "are"} worth tightening; none block release.`);
     parts.push(gapItems.length ? `<b>${gapItems.length}</b> required checkpoint${gapItems.length === 1 ? "" : "s"} not built yet — see gaps below.` : `Nothing required is missing — zero gaps.`);
     sub = parts.join(" ");
   } else {
-    badge = `<span class="verdict-badge bad"><span class="dot"></span>Not shippable</span>
-      <span class="verdict-rule">gate: every <b style="color:var(--ink)">critical</b> checkpoint ≥ 6</span>`;
+    badge = `<span class="verdict-badge bad"><span class="dot"></span>Not shippable</span>${gateRule}`;
     const list = blocking.length ? `: <b>${blocking.map(esc).join(", ")}</b>` : "";
-    sub = `<b>${blocking.length || "One or more"}</b> critical checkpoint${blocking.length === 1 ? "" : "s"} ${blocking.length ? "sits" : "sit"} below the ship line${list}. Fix ${blocking.length === 1 ? "it" : "these"} before release.${errored.length ? ` ${errored.length} checkpoint(s) could not be graded.` : ""}`;
+    sub = blocking.length
+      ? `<b>${blocking.length}</b> ${gateLabel} checkpoint${blocking.length === 1 ? "" : "s"} sit${blocking.length === 1 ? "s" : ""} below the ship line${list}. Fix ${blocking.length === 1 ? "it" : "these"} before release.${errored.length ? ` ${errored.length} checkpoint(s) could not be graded.` : ""}`
+      : errored.length
+        ? `<b>${errored.length}</b> checkpoint(s) could not be graded — an ungraded ${gateLabel} checkpoint blocks the gate.`
+        : `The ${gateLabel} gate did not clear.`;
+  }
+  if (demotion) {
+    sub = `<b>⚠ Gate demoted ${esc(demotion.from)} → ${esc(demotion.to)}:</b> ${esc(demotion.reason)}. The ${esc(demotion.from)} tier was <b>not</b> cleared. ` + sub;
+  }
+  if (rollup && rollup.adapter_degraded) {
+    sub = `<b>⚠ Graded by the mock keyword baseline (no API key) — not the validated reasoning verifier. Do not trust this verdict for a ship decision.</b> ` + sub;
   }
 
   // ---- tiles ----
@@ -251,9 +276,11 @@ export function renderReport({ project, archetype, version, adapter, model, gene
     </section>`;
   }
 
+  const designSkipped = (rollup && rollup.design_skipped) || [];
   const minorHtml =
     (naQuiet.length ? `<p class="minor"><b>Not applicable (${naQuiet.length}):</b> ${naQuiet.map((r) => esc(r.id)).join(", ")} — no code relevant to ${naQuiet.length === 1 ? "this checkpoint" : "these checkpoints"} in the repo.</p>` : "") +
-    (errored.length ? `<p class="minor"><b>Could not grade (${errored.length}):</b> ${errored.map((r) => esc(r.id)).join(", ")}.</p>` : "");
+    (errored.length ? `<p class="minor"><b>Could not grade (${errored.length}):</b> ${errored.map((r) => esc(r.id)).join(", ")}.</p>` : "") +
+    (designSkipped.length ? `<p class="minor"><b>⚠ Not reviewed (${designSkipped.length} design checkpoint${designSkipped.length === 1 ? "" : "s"}):</b> ${designSkipped.map(esc).join(", ")} — design isn't reliably gradable from source, so this run skipped it. For a design/a11y verdict, run <code>forespec design &lt;url&gt;</code> against the live page.</p>` : "");
 
   const meta = [
     project ? `project <b>${esc(project)}</b>` : "",
