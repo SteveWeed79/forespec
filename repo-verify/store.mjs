@@ -107,7 +107,11 @@ export function latestPrediction({ storeDir, checkpointId, runId, archetype, ada
   return pats.length ? pats[pats.length - 1] : null;
 }
 
-export const OUTCOMES = ["hit", "false-positive", "over-severe", "ignored"];
+// `missed-evidence` = the flag over-fired because selection didn't surface the
+// relevant code, NOT because the rubric is too strict. Kept OUT of the severity-
+// lowering signal in calibrate.mjs so it can never manufacture a false-green on a
+// repo that genuinely lacks the control — it points at selection, not severity.
+export const OUTCOMES = ["hit", "false-positive", "over-severe", "ignored", "missed-evidence"];
 
 /**
  * Brick 2 — record a human verdict on a prediction. Splits the same way: the

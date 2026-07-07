@@ -20,7 +20,7 @@ import { resolveArchetype } from "../library/resolve.mjs";
 import * as mock from "../verifier-eval/adapters/mock.mjs";
 import { loadRepo, selectForCheckpoint, scoreFile } from "./select.mjs";
 import { measureRecall } from "./selection-eval.mjs";
-import { fingerprint, recordPredictions, latestPrediction, recordOutcome, readOverrides, writeOverrides, FILES } from "./store.mjs";
+import { fingerprint, recordPredictions, latestPrediction, recordOutcome, readOverrides, writeOverrides, FILES, OUTCOMES } from "./store.mjs";
 import { aggregate, propose } from "./calibrate.mjs";
 import { scoreArchetypes, collectSignals, discoverManifests, isAmbiguous, classifyWithAI, archetypeFromIntent, classifyIntentWithAI, inferArchetype } from "./detect.mjs";
 import { readConfig, writeConfig, resolveManifestPath, CONFIG_FILE } from "./config.mjs";
@@ -151,6 +151,21 @@ try {
     const thin = propose(aggregate({ storeDir: store5 }), 3).find((p) => p.checkpoint === "auth.access_control");
     check("does NOT propose on thin evidence (n < min)", !!thin && thin.action === "watch", `got ${thin && thin.action}`);
   } finally { rmSync(store5, { recursive: true, force: true }); }
+
+  // missed-evidence must NEVER lower severity — it points at selection, not the rubric.
+  // (Real-repo audit 2026-07: over-severity from a thin slice is recorded as
+  //  missed-evidence so it can't earn a severity drop that would false-green a repo
+  //  which genuinely lacks the control.)
+  check("missed-evidence is a recordable verdict", OUTCOMES.includes("missed-evidence"));
+  const store6 = mkdtempSync(join(tmpdir(), "forespec-missed-"));
+  try {
+    recordPredictions({ storeDir: store6, runId: "r", archetype: "ecommerce", archetypeVersion: "2.0.0", project: "p", results: [{ id: "security.injection", domain: "backbone", severity: "critical", level: 3, confidence: 0.9, gap: "x", rationale: "y", evidence: ["a.ts"], adapter: "mock", fingerprint: fingerprint("inj") }] });
+    const p3 = latestPrediction({ storeDir: store6, checkpointId: "security.injection" });
+    for (let i = 0; i < 4; i++) recordOutcome({ storeDir: store6, prediction: p3, outcome: "missed-evidence", source: "self_observed", project: "p" });
+    const me = propose(aggregate({ storeDir: store6 }), 3).find((p) => p.checkpoint === "security.injection");
+    check("missed-evidence never lowers severity", !!me && me.action !== "lower-severity" && !me.to, `got ${me && me.action}/${me && me.to}`);
+    check("missed-evidence proposes improve-selection", !!me && me.action === "improve-selection", `got ${me && me.action}`);
+  } finally { rmSync(store6, { recursive: true, force: true }); }
 } finally {
   rmSync(store4, { recursive: true, force: true });
 }

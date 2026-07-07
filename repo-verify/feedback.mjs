@@ -9,10 +9,12 @@
 // Usage:
 //   node repo-verify/feedback.mjs <checkpoint-id> <outcome> [options]
 //
-//   <outcome>  hit | false-positive | over-severe | ignored
+//   <outcome>  hit | false-positive | over-severe | ignored | missed-evidence
 //                hit           = flag was real and acting on it made sense
 //                false-positive= flag was wrong / not a real issue
 //                over-severe   = real, but the level overstated the actual blast radius
+//                missed-evidence= over-fired because selection didn't surface the control
+//                                 (points at selection — never lowers severity)
 //                ignored       = acknowledged, chose not to act (yet)
 //
 // Options:
@@ -42,6 +44,7 @@ Outcome:  ${OUTCOMES.join(" | ")}
   hit            flag was real and acting on it made sense
   false-positive flag was wrong / not a real issue
   over-severe    real, but the level overstated the actual blast radius
+  missed-evidence over-fired because selection didn't surface the control (never lowers severity)
   ignored        acknowledged, chose not to act (yet)
 
 Options:

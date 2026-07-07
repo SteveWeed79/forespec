@@ -37,7 +37,7 @@ export function aggregate({ storeDir }) {
   const byCp = {};
   for (const o of outs) {
     const cp = (byCp[o.checkpoint_id] ??= {
-      hit: 0, "false-positive": 0, "over-severe": 0, ignored: 0, total: 0, sources: {},
+      hit: 0, "false-positive": 0, "over-severe": 0, ignored: 0, "missed-evidence": 0, total: 0, sources: {},
     });
     if (o.outcome in cp) cp[o.outcome]++;
     cp.total++;
@@ -51,18 +51,25 @@ export function aggregate({ storeDir }) {
  * Turn tallies into proposals. Transparent rules (no hidden weights):
  *  - mostly false-positive / over-severe → propose lowering severity one tier
  *  - mostly hit                          → propose raising severity one tier
+ *  - mostly missed-evidence              → improve selection, NOT severity (the flag
+ *                                          over-fires because the code wasn't surfaced;
+ *                                          lowering severity here would hide real gaps
+ *                                          on repos that DON'T have the control)
  *  - too few outcomes                    → watch (never propose on thin evidence)
  *  - mixed                               → stable
  */
 export function propose(byCp, minEvidence = 3) {
   const out = [];
   for (const [checkpoint, a] of Object.entries(byCp)) {
+    // `down` (severity-lowering) deliberately excludes missed-evidence — that's a
+    // selection problem, and folding it in would earn false-greens elsewhere.
     const down = a["false-positive"] + a["over-severe"];
     const up = a.hit;
+    const missed = a["missed-evidence"] ?? 0;
     const cur = a.current_severity ?? "unknown";
     const evidence = {
       hit: a.hit, false_positive: a["false-positive"], over_severe: a["over-severe"],
-      ignored: a.ignored, total: a.total, sources: a.sources,
+      missed_evidence: missed, ignored: a.ignored, total: a.total, sources: a.sources,
     };
     if (a.total < minEvidence) {
       out.push({ checkpoint, action: "watch", reason: `only ${a.total} outcome(s); need ${minEvidence}`, evidence });
@@ -70,8 +77,10 @@ export function propose(byCp, minEvidence = 3) {
       out.push({ checkpoint, action: "lower-severity", from: cur, to: tierShift(cur, -1), strength: a.total >= 6 ? "medium" : "low", reason: `${down} over-fire/over-severe vs ${up} hit`, evidence });
     } else if (up >= down * 2 && up >= minEvidence) {
       out.push({ checkpoint, action: "raise-severity", from: cur, to: tierShift(cur, +1), strength: a.total >= 6 ? "medium" : "low", reason: `${up} hit vs ${down} over-fire`, evidence });
+    } else if (missed >= minEvidence && missed >= down && missed >= up) {
+      out.push({ checkpoint, action: "improve-selection", reason: `${missed} missed-evidence: selection isn't surfacing the control — fix selection, do NOT lower severity`, evidence });
     } else {
-      out.push({ checkpoint, action: "stable", reason: `mixed (${up} hit / ${down} down)`, evidence });
+      out.push({ checkpoint, action: "stable", reason: `mixed (${up} hit / ${down} down / ${missed} missed-evidence)`, evidence });
     }
   }
   return out;
@@ -140,11 +149,11 @@ function main() {
   console.log(`Calibration proposals (store: ${storeDir}, min evidence ${minEvidence}):\n`);
   for (const p of proposals) {
     const e = p.evidence;
-    const tag = p.action === "lower-severity" ? "⬇" : p.action === "raise-severity" ? "⬆" : p.action === "watch" ? "·" : "=";
+    const tag = p.action === "lower-severity" ? "⬇" : p.action === "raise-severity" ? "⬆" : p.action === "improve-selection" ? "⚙" : p.action === "watch" ? "·" : "=";
     console.log(`${tag} ${p.checkpoint}`);
     if (p.to) console.log(`    propose severity ${p.from} → ${p.to}  [${p.strength} confidence]`);
     console.log(`    ${p.reason}`);
-    console.log(`    evidence: ${e.hit} hit / ${e.false_positive} false-pos / ${e.over_severe} over-severe / ${e.ignored} ignored (n=${e.total}); sources ${JSON.stringify(e.sources)}`);
+    console.log(`    evidence: ${e.hit} hit / ${e.false_positive} false-pos / ${e.over_severe} over-severe / ${e.missed_evidence} missed-evidence / ${e.ignored} ignored (n=${e.total}); sources ${JSON.stringify(e.sources)}`);
     if (p.to) console.log(`    accept: node repo-verify/calibrate.mjs accept ${p.checkpoint}`);
     console.log("");
   }
