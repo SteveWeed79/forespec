@@ -97,12 +97,10 @@ async function main() {
     const prev = arr[i - 1];
     return !["--archetype", "--domain", "--checkpoint", "--adapter", "--budget", "--store", "--html"].includes(prev);
   });
-  const repoArg = positionals[0];
-  if (!repoArg) {
-    console.error("error: missing <repo-path>\n");
-    console.error(HELP);
-    return 2;
-  }
+  // Default to the current directory, matching `forespec init`/`start`: a bare
+  // `forespec verify` grades the repo you're standing in. (First-run friction —
+  // `init` defaults to cwd, so users reasonably expect `verify` to as well.)
+  const repoArg = positionals[0] ?? ".";
 
   const repoPath = pathResolve(process.cwd(), repoArg);
   if (!existsSync(repoPath) || !statSync(repoPath).isDirectory()) {
