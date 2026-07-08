@@ -7,6 +7,14 @@ All notable changes to this project are documented here. Format follows
 ## [Unreleased]
 
 ### Added
+- **`forespec demo`** — a zero-setup, no-API-key scripted walkthrough of a verifier run on a
+  bundled vulnerable-checkout example. Grounded in that code's real holes and rendered through
+  the same code path as a live `verify`, it's the fastest way to see what the tool does (~20s).
+  Honestly labelled `via demo`; the header/footer point to `forespec verify` for a live grade.
+- Shared terminal renderer (`repo-verify/render-cli.mjs`) — `verify` and `demo` render a graded
+  run through one source of truth, so the demo can never drift from real `verify` output.
+- The bundled `vulnerable-checkout` example now ships in the package (so `demo`'s "bundled
+  example" is literally present, and can be graded live with `forespec verify`).
 - `forespec -v` / `--version` prints the installed version.
 - CI workflow: self-test + schema validation on Node 18/20/22 for every push to `main`
   and every PR.

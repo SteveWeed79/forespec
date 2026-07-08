@@ -25,6 +25,21 @@ requires. And AI coding tools *drive* the engine (Claude Code first); it never l
 > PR gate, and the greenfield on-ramp are here and runnable. New to this kind of project?
 > [`SETUP.md`](./SETUP.md) gets you going on Windows, step by step.
 
+## See it work in 20 seconds
+
+No install, no API key, nothing to configure — this replays the verifier on a bundled
+vulnerable-checkout example so you can see exactly what a real grade looks like:
+
+```bash
+npx forespec demo
+```
+
+It flags the non-obvious criticals (a Stripe call with **no idempotency key** → double
+charges; a **stock race**; an order marked *paid* on the unverified client return), **passes**
+the one that's actually fine (card data never touches your server), and surfaces a required
+piece you *haven't built yet* — the discernment a grader you'd trust with "is this shippable?"
+has to earn. Then point it at your own repo:
+
 ## Quickstart
 
 ```bash

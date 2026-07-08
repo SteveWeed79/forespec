@@ -31,6 +31,7 @@ import { fingerprint, newRunId, recordPredictions, readOverrides } from "./store
 import { readConfig, resolveManifestPath } from "./config.mjs";
 import { selectGaps, adviseGaps } from "./gaps.mjs";
 import { renderReport } from "./report-html.mjs";
+import { renderVerifyText } from "./render-cli.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -61,18 +62,7 @@ The claude adapter reads ANTHROPIC_API_KEY and ANTHROPIC_MODEL from the environm
 Every run is logged to the calibration store (pattern + instance — the wall is physical);
 record a verdict on a flag with: node repo-verify/feedback.mjs <checkpoint-id> <outcome>`;
 
-const COLORS = { reset: "\x1b[0m", bold: "\x1b[1m", dim: "\x1b[2m", red: "\x1b[31m", green: "\x1b[32m", yellow: "\x1b[33m", cyan: "\x1b[36m" };
 const SEV_ORDER = ["critical", "high", "medium", "low"];
-function paint(on, code, s) {
-  return on ? `${code}${s}${COLORS.reset}` : s;
-}
-
-function levelTag(level, on) {
-  if (level == null) return paint(on, COLORS.red, "ungraded");
-  if (level >= 9) return paint(on, COLORS.green, "level 9");
-  if (level >= 6) return paint(on, COLORS.green, "level 6");
-  return paint(on, COLORS.yellow, "level 3");
-}
 
 function pickAdapterName() {
   const explicit = arg("--adapter", null);
@@ -372,70 +362,7 @@ async function main() {
     return shippable ? 0 : 1;
   }
 
-  const out = [];
-  out.push("");
-  out.push(paint(useColor, COLORS.bold, `Forespec — ${archetype.archetype} v${archetype.version}`));
-  out.push("");
-  for (const r of results) {
-    out.push(`${paint(useColor, COLORS.cyan, r.id)}  ${paint(useColor, COLORS.dim, `[${r.domain}/${r.severity}]`)}`);
-    if (r.error) {
-      out.push(`  ${paint(useColor, COLORS.red, "could not grade")}: ${r.error}`);
-      out.push("");
-      continue;
-    }
-    if (r.applicable === false) {
-      // Two different claims, two different sentences: a structural N/A means selection found
-      // nothing; a challenged N/A means code MATCHED but the model justified (under adversarial
-      // re-interrogation) that it's unrelated. Conflating them overstates the first as proof.
-      out.push(`  ${paint(useColor, COLORS.dim, r.challenged
-        ? "n/a — matched code was judged unrelated (verdict survived the adversarial challenge)"
-        : "n/a — no code relevant to this checkpoint in the repo")}`);
-      out.push("");
-      continue;
-    }
-    const conf = typeof r.confidence === "number" ? r.confidence.toFixed(2) : r.confidence;
-    out.push(`  ${levelTag(r.level, useColor)}  ${paint(useColor, COLORS.dim, `(confidence: ${conf}, via ${r.adapter})`)}`);
-    if (r.rationale) out.push(`  ${paint(useColor, COLORS.dim, "why:")} ${r.rationale}`);
-    if (r.gap) out.push(`  ${paint(useColor, COLORS.bold, "gap:")} ${r.gap}`);
-    out.push("");
-  }
-  out.push(paint(useColor, COLORS.bold, "── goal_definition roll-up ──"));
-  if (gateDemotion) {
-    out.push(`  ${paint(useColor, COLORS.yellow, `⚠ gate demoted ${gateDemotion.from} → ${gateDemotion.to}:`)} ${gateDemotion.reason}. The ${gateDemotion.from} tier was NOT cleared — it was never assessed.`);
-  }
-  if (!conclusive) {
-    out.push(`  ${paint(useColor, COLORS.yellow, "INCONCLUSIVE")} — nothing gradable was found here (every checkpoint N/A or errored). This is NOT a pass.`);
-  } else {
-    out.push(`  shippable (all ${gateTier} ≥ 6): ${shippable ? paint(useColor, COLORS.green, "YES") : paint(useColor, COLORS.red, "NO")}`);
-    out.push(`  great (all ${gateTier} 9, rest ≥ 6): ${great ? paint(useColor, COLORS.green, "YES") : paint(useColor, COLORS.dim, "no")}`);
-  }
-  if (adapterDegraded) {
-    out.push(`  ${paint(useColor, COLORS.yellow, "⚠ graded by the mock keyword baseline (no API key)")} — NOT the validated reasoning verifier. Do not trust this verdict for a ship decision.`);
-  }
-  if (blocking.length) {
-    out.push(`  ${paint(useColor, COLORS.red, `blocking ${gateTier}:`)}`);
-    for (const r of blocking) out.push(`    - ${r.id} (${r.level == null ? "ungraded" : "level " + r.level})`);
-  }
-  if (ungraded.length) out.push(`  ${paint(useColor, COLORS.yellow, "ungraded:")} ${ungraded.map((r) => r.id).join(", ")}`);
-  if (notApplicable.length) out.push(`  ${paint(useColor, COLORS.dim, `not applicable (${notApplicable.length}):`)} ${notApplicable.map((r) => r.id + (r.challenged ? " (challenged)" : "")).join(", ")}`);
-  // Whole-domain omission is part of the verdict (computed once, shared with JSON/HTML).
-  if (designSkipped.length) {
-    out.push(`  ${paint(useColor, COLORS.yellow, `⚠ ${designSkipped.length} design checkpoint(s) NOT reviewed here:`)} ${designSkipped.join(", ")}`);
-    out.push(`    ${paint(useColor, COLORS.dim, "design isn't reliably gradable from source, so verify skips it. For a design/a11y verdict — a portfolio's whole product — run `forespec design <url>` against the live page (or `verify --domain all` for a best-effort source read).")}`);
-  }
-  if (gapReport && gapReport.items.length) {
-    out.push("");
-    out.push(paint(useColor, COLORS.bold, "── foresight: gaps ahead ──"));
-    out.push(`  ${paint(useColor, COLORS.dim, "required by this archetype, no code for it yet — surface early, fill deliberately:")}`);
-    for (const it of gapReport.items) {
-      const tag = it.urgency === "now" ? paint(useColor, COLORS.yellow, "[now] ") : paint(useColor, COLORS.cyan, "[soon]");
-      out.push("");
-      out.push(`  ${tag} ${paint(useColor, COLORS.bold, it.headline)}  ${paint(useColor, COLORS.dim, `(${it.id}, ${it.severity})`)}`);
-      if (it.why_your_archetype) out.push(`       ${paint(useColor, COLORS.dim, "why:")} ${it.why_your_archetype}`);
-      if (it.what_good_looks_like) out.push(`       ${paint(useColor, COLORS.dim, "built right:")} ${it.what_good_looks_like}`);
-    }
-  }
-  console.log(out.join("\n"));
+  console.log(renderVerifyText({ archetype, results, rollup, gaps: gapReport, useColor }));
   if (storeInfo) {
     console.error(`\nrecorded ${storeInfo.recorded} prediction(s) → ${storeInfo.dir} (run ${storeInfo.run_id})`);
     console.error(`  give a flag a verdict: node repo-verify/feedback.mjs <checkpoint-id> hit|false-positive|over-severe|ignored`);
