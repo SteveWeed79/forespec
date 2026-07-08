@@ -37,6 +37,7 @@
   "files": [
     "bin/",
     "repo-verify/*.mjs",
+    "repo-verify/fixtures/vulnerable-checkout/*",
     "verifier-eval/adapters/*.mjs",
     "library/",
     "schemas/",
@@ -47,6 +48,7 @@
     "playwright-core": "^1.40.0"
   },
   "scripts": {
+    "demo": "node repo-verify/demo.mjs",
     "check": "node schemas/validate.mjs",
     "eval": "node verifier-eval/run-eval.mjs",
     "eval:claude": "node verifier-eval/run-eval.mjs --adapter claude --out verifier-eval/report.json",

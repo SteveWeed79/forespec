@@ -27,6 +27,7 @@ const projectDir = pathResolve(here, "..");
 const rv = (f) => join(projectDir, "repo-verify", f);
 
 const PASSTHROUGH = {
+  demo: rv("demo.mjs"),
   detect: rv("detect.mjs"),
   plan: rv("plan.mjs"),
   verify: rv("verify.mjs"),
@@ -42,6 +43,7 @@ const HELP = `forespec — force domain foresight before you build, then keep it
 Usage: forespec <command> [options]
 
 Commands:
+  demo               See the verifier at work on a bundled example — no API key, ~20s
   start "<what you're building>"   New/empty repo: declare it → archetype + build-order checklist
   init [repo]        Existing repo: detect the archetype and write ${CONFIG_FILE}
   plan "<feature>"   Interrogate a feature BEFORE building it; emit a spec
@@ -55,7 +57,7 @@ Commands:
 
   -v, --version      Print the installed forespec version
 
-Point → build → verify → correct. New repo? Start with: forespec start "…"`;
+Point → build → verify → correct. First time? See it work: forespec demo`;
 
 function run(script, args) {
   const r = spawnSync(process.execPath, [script, ...args], { stdio: "inherit" });
