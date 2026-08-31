@@ -15,6 +15,12 @@ permissions:
 jobs:
   forespec:
     runs-on: ubuntu-latest
+    # The gate refuses to run without a verifier it trusts, so with no model configured this
+    # job would fail every PR. Skipping is the honest third option: a red X on every PR gets
+    # the workflow deleted, and a green check that graded nothing is the vacuous pass this
+    # project exists to prevent. Skipped is neither — it reports that no grading happened.
+    # Set the ANTHROPIC_MODEL repo variable (and ANTHROPIC_API_KEY secret) to turn it on.
+    if: ${{ vars.ANTHROPIC_MODEL != '' }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -35,7 +41,7 @@ jobs:
         uses: ./
         with:
           base: ${{ github.base_ref }}
-          # Optional — set these (repo secret + variable) to use the reasoning
-          # verifier. Without them the gate runs the deterministic mock baseline at $0.
+          # Required — in CI there's no coding agent in the loop, so the gate needs an
+          # API key. Without one it refuses and posts nothing (see the job `if:` above).
           anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
           anthropic-model: ${{ vars.ANTHROPIC_MODEL }}

@@ -32,6 +32,7 @@ import { readConfig, resolveManifestPath } from "./config.mjs";
 import { selectGaps, adviseGaps } from "./gaps.mjs";
 import { renderReport } from "./report-html.mjs";
 import { renderVerifyText } from "./render-cli.mjs";
+import { pickAdapter, noVerifierMessage } from "./verifier-choice.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -50,8 +51,10 @@ Options:
   --archetype <file>   Archetype manifest (default: archetype.ecommerce.json)
   --domain <d>         backbone | design | all (default: backbone)
   --checkpoint <id>    Grade a single checkpoint by id
-  --adapter <name>     agent | mock | claude (default: agent if --verdicts/FORESPEC_VERDICTS,
-                       else claude if ANTHROPIC_API_KEY+ANTHROPIC_MODEL set, else mock)
+  --adapter <name>     agent | claude | mock (default: agent if --verdicts/FORESPEC_VERDICTS,
+                       else claude if ANTHROPIC_API_KEY+ANTHROPIC_MODEL set. With neither,
+                       verify REFUSES rather than grading with something it can't trust.
+                       'mock' is the keyword baseline and must be asked for by name.)
   --verdicts <file>    Agent-written verdicts to grade from (implies --adapter agent)
   --budget <chars>     Per-checkpoint context budget (default: 60000)
   --store <dir>        Calibration store dir for the prediction log (default: ./.forespec)
@@ -68,22 +71,6 @@ Every run is logged to the calibration store (pattern + instance — the wall is
 record a verdict on a flag with: node repo-verify/feedback.mjs <checkpoint-id> <outcome>`;
 
 const SEV_ORDER = ["critical", "high", "medium", "low"];
-
-function pickAdapterName() {
-  const explicit = arg("--adapter", null);
-  if (explicit) return { name: explicit, note: null };
-  // Verdicts on hand mean an agent already did the grading — prefer them over an API call.
-  if (arg("--verdicts", null) || process.env.FORESPEC_VERDICTS) return { name: "agent", note: null };
-  if (process.env.ANTHROPIC_API_KEY && process.env.ANTHROPIC_MODEL) return { name: "claude", note: null };
-  return {
-    name: "mock",
-    note:
-      "no verifier configured — using the mock keyword baseline, which is NOT a grader to " +
-      "trust. For real grading at no cost, run this from your coding agent: install the " +
-      "Claude Code plugin and use /forespec:verify (see docs/claude-code-plugin.md). " +
-      "Or set ANTHROPIC_API_KEY + ANTHROPIC_MODEL to call the API verifier directly.",
-  };
-}
 
 async function main() {
   if (has("-h") || has("--help")) {
@@ -178,7 +165,15 @@ async function main() {
     checkpoints = checkpoints.filter((c) => c.domain === domain);
   }
 
-  const { name: adapterName, note } = pickAdapterName();
+  // The silent-downgrade trap: a rotated/missing key must NEVER quietly swap the trusted
+  // reasoning verifier for the keyword mock. Refusing outright is the only version of that
+  // guarantee a first-time user actually experiences — a warning above a page of red
+  // keyword findings gets read as a verdict no matter how it's labelled.
+  const { name: adapterName, explicit: adapterExplicit, trusted, reason } = pickAdapter((f) => arg(f, null));
+  if (!adapterName) {
+    console.error(noVerifierMessage({ reason }));
+    return 2;
+  }
   let adapter;
   try {
     adapter = await import(new URL(`../verifier-eval/adapters/${adapterName}.mjs`, import.meta.url));
@@ -188,11 +183,16 @@ async function main() {
   }
 
   const useColor = process.stdout.isTTY === true && !json;
-  // The silent-downgrade trap: a rotated/missing key must NEVER quietly swap the trusted
-  // reasoning verifier for the keyword mock and still green-light CI. The warning goes to
-  // stderr on EVERY surface (json included), and the degradation is carried in the output.
-  const adapterDegraded = !!note;
-  if (note) console.error(`note: ${note}\n`);
+  // An explicitly-chosen untrusted adapter (`--adapter mock`) is still degraded — the caller
+  // asked for the baseline, but the output must keep saying so on every surface, json included.
+  const adapterDegraded = !trusted;
+  if (adapterDegraded) {
+    console.error(
+      `note: adapter "${adapterName}" is not a grader to trust — it exists to exercise the ` +
+        `harness and to be the dumb baseline a real verifier must beat. Do not gate a merge ` +
+        `or a ship decision on it.\n`,
+    );
+  }
   if (!json) {
     console.error(`Verifying ${repoPath}`);
     const srcNote = archetypeSource === "config" ? " (from forespec.config.json)" : archetypeSource === "default" ? " (default — run `forespec init` to detect)" : "";

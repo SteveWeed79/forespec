@@ -18,7 +18,8 @@ import { rmSync, mkdtempSync, readFileSync, writeFileSync, existsSync } from "no
 import { tmpdir } from "node:os";
 import { resolveArchetype } from "../library/resolve.mjs";
 import * as mock from "../verifier-eval/adapters/mock.mjs";
-import { loadRepo, selectForCheckpoint, scoreFile } from "./select.mjs";
+import { loadRepo, selectForCheckpoint, scoreFile, withLineNumbers } from "./select.mjs";
+import { pickAdapter, noVerifierMessage } from "./verifier-choice.mjs";
 import { measureRecall } from "./selection-eval.mjs";
 import { fingerprint, recordPredictions, latestPrediction, recordOutcome, readOverrides, writeOverrides, FILES, OUTCOMES } from "./store.mjs";
 import { aggregate, propose } from "./calibrate.mjs";
@@ -497,6 +498,42 @@ const agentWrapped = await loadAgent({ verdicts: [{ id: "payment.idempotency", l
 check("agent adapter accepts the { verdicts: [...] } wrapper", (await agentWrapped.verify({ checkpoint: cpStub })).level === 6);
 delete process.env.FORESPEC_VERDICTS;
 rmSync(agentDir, { recursive: true, force: true });
+
+// ── the first-run cliff: refuse rather than fake a grade ────────────────────────────
+// A run with no verifier used to fall back to the keyword baseline and print ~20 checkpoints
+// of "defaults to risky" — a wall of red that reads as a verdict. These pin the refusal.
+const noneEnv = {};
+check("no verifier configured → refuses (no adapter chosen)", pickAdapter(() => null, noneEnv).name === null);
+check("half-configured key (no model) → still refuses", pickAdapter(() => null, { ANTHROPIC_API_KEY: "sk-x" }).name === null);
+check("the refusal names WHICH half is missing", pickAdapter(() => null, { ANTHROPIC_API_KEY: "sk-x" }).reason.includes("ANTHROPIC_MODEL"));
+check("key + model → claude", pickAdapter(() => null, { ANTHROPIC_API_KEY: "sk-x", ANTHROPIC_MODEL: "m" }).name === "claude");
+check("FORESPEC_VERDICTS → agent, no key needed", pickAdapter(() => null, { FORESPEC_VERDICTS: "/tmp/v.json" }).name === "agent");
+check("--verdicts → agent", pickAdapter((f) => (f === "--verdicts" ? "/tmp/v.json" : null), noneEnv).name === "agent");
+// The mock stays reachable — as the baseline a real verifier must beat — but only by name,
+// and it never counts as trusted, so `verify` keeps labelling it and `gate --fail` blocks on it.
+check("--adapter mock is honoured when asked for by name", pickAdapter((f) => (f === "--adapter" ? "mock" : null), noneEnv).name === "mock");
+check("mock is never trusted, even when explicit", pickAdapter((f) => (f === "--adapter" ? "mock" : null), noneEnv).trusted === false);
+check("claude and agent are trusted", pickAdapter((f) => (f === "--adapter" ? "claude" : null), noneEnv).trusted === true &&
+  pickAdapter((f) => (f === "--adapter" ? "agent" : null), noneEnv).trusted === true);
+// The message is the first thing a new user sees instead of a grade — it must hand them
+// somewhere to go, not just say no.
+const refusal = noVerifierMessage({ reason: "no verifier is configured" });
+check("refusal points at the free plugin path first", refusal.indexOf("/plugin install") < refusal.indexOf("ANTHROPIC_API_KEY"));
+check("refusal names what still works with no verifier", ["demo", "plan", "init"].every((c) => refusal.includes(`forespec ${c}`)));
+const ciRefusal = noVerifierMessage({ context: "ci" });
+check("in CI the refusal leads with the key (no agent in the loop)", ciRefusal.indexOf("anthropic-api-key") < ciRefusal.indexOf("/plugin install"));
+
+// ── file:line anchoring (the API path grades a packed blob, so it needs the numbers) ──
+const numbered = withLineNumbers("// FILE: a/b.ts\nconst x = 1;\nconst y = 2;\n\n// FILE: c.ts\nfoo();");
+check("line numbering restarts at each FILE header", numbered.includes("   1 | const x = 1;") && numbered.includes("   1 | foo();"));
+check("line numbering leaves FILE headers unnumbered", numbered.includes("// FILE: a/b.ts\n   1 |"));
+check("line numbering counts within a file", numbered.includes("   2 | const y = 2;"));
+// Headerless fixture (the eval harness path) still numbers from 1.
+check("headerless code numbers from 1", withLineNumbers("a();\nb();").startsWith("   1 | a();"));
+// Presentation only: the packed `code` the calibration store fingerprints is untouched, so
+// adding line numbers can't orphan every historical prior.
+const packSample = selectForCheckpoint(loadRepo(fixture), resolveArchetype(archetypePath).checkpoints[0], 60_000).code;
+check("packing is unchanged by numbering (fingerprint joins survive)", !packSample.includes(" | ") || !/^\s+\d+ \| /m.test(packSample));
 
 // The plugin manifest carries its own version, and the marketplace uses it to decide whether
 // an install is stale. Two versions of one artifact drift silently; this makes them one.

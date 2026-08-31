@@ -107,15 +107,22 @@ description — never your code — to pick the archetype.
   through the same roll-up, gaps report and calibration store. No key, no cost, and it can
   cite `file:line`. Run it as `/forespec:verify`.
 - **An API key** — set `ANTHROPIC_API_KEY` + `ANTHROPIC_MODEL` and `verify` calls the model
-  directly. This is the CI path, and it's the one that carries the measured bar: 0
-  false-greens on 52 critical bad cases, rule-of-three 95% upper bound ≤ 2.9% (see
-  [`VALIDATION-NOTES.md`](./VALIDATION-NOTES.md)). That bar covers the ecommerce/universal
+  directly. This is the CI path (no agent in the loop), and it's the one that carries the
+  measured bar: 0 false-greens on 52 critical bad cases, rule-of-three 95% upper bound ≤ 2.9%
+  (see [`VALIDATION-NOTES.md`](./VALIDATION-NOTES.md)). That bar covers the ecommerce/universal
   corpus; the newer `saas` / `ai-app` / `baas` archetypes are **first-pass** validated (full
   rule-of-three pending).
 
-With neither, `verify` falls back to a deterministic keyword `mock` baseline that exists only
-to exercise the harness — it is **not a grader to trust**, and it says so on every surface.
-Full walkthrough: [`repo-verify/README.md`](./repo-verify/README.md).
+**With neither, `verify` refuses.** It won't fake a grade — a page of keyword-matched "risky"
+verdicts looks like a verdict no matter how it's labelled, and the point of this tool is a
+number you can act on. The `mock` keyword baseline still exists as the dumb bar a real verifier
+has to beat, but you have to ask for it by name (`--adapter mock`), and it can never certify a
+merge. Full walkthrough: [`repo-verify/README.md`](./repo-verify/README.md).
+
+**What works with no verifier at all**, right now, no setup: `forespec demo` (a real graded run
+on a bundled example), `forespec plan "<feature>"` (what the feature actually requires, before
+you build it), `forespec init` (archetype detection from metadata), and `forespec checkpoints`
+(the standard itself, as JSON). The foresight half of the product costs nothing to try.
 
 ## The loop that stays live
 

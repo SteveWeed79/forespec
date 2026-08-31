@@ -46,9 +46,28 @@ All notable changes to this project are documented here. Format follows
   status badges.
 
 ### Changed
-- The README leads with the plugin. Getting a real grade no longer starts with "create an API
-  key" — the agent the user is already inside can do it, and can cite `file:line` while doing it.
-- The no-verifier warning points at the free plugin path first, then the API key.
+- **`verify` and `gate` now REFUSE when no verifier is configured**, instead of silently
+  falling back to the keyword baseline. A first run on a real repo used to print ~20
+  checkpoints of "level 3 — keyword baseline found no good-signal token, defaults to risky":
+  a wall of red that reads as a verdict. It was labelled honestly on every surface and that
+  still wasn't enough. The refusal names which half of the config is missing and points at
+  both ways to get a real grader, plus what works with no verifier at all (`demo`, `plan`,
+  `init`, `checkpoints`). The `mock` baseline stays reachable as the dumb bar a real verifier
+  must beat — by name (`--adapter mock`), never by accident, never trusted, and it can no
+  longer certify a merge under `gate --fail` even when asked for explicitly.
+- The PR gate refuses **before posting**, not only under `--fail`. A PR decorated with
+  keyword-baseline findings teaches reviewers that Forespec comments are noise — a cost that
+  outlives the misconfigured run. This repo's own gate workflow now skips when unconfigured,
+  which is neither a red X on every PR nor the vacuous green this project exists to prevent.
+- **The API verifier anchors findings to `file:line`.** Packed code is presented to it with
+  per-file line numbers (restarting at each `// FILE:` header) and `evidence` is now a
+  required field on its verdict; refs without a line number are dropped rather than passed off
+  as anchored. Numbering is presentation-only — the packed `code` the calibration store
+  fingerprints is unchanged, so historical prior-run joins survive.
+- The README leads with the plugin, and with what costs nothing to try. Getting a real grade no
+  longer starts with "create an API key."
+- `action.yml`: `anthropic-api-key` is documented as required rather than "optional — omit for
+  the $0 mock baseline."
 
 ## [0.1.0] — first public release
 

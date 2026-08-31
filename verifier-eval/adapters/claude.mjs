@@ -10,7 +10,9 @@
 //                       (see https://platform.claude.com/docs/en/about-claude/models)
 //   ANTHROPIC_BASE_URL  optional — defaults to https://api.anthropic.com
 //
-// Implements the adapter interface: verify({ checkpoint, code }) -> { level, confidence, gap, rationale }
+// Implements the adapter interface: verify({ checkpoint, code }) -> { level, confidence, gap, rationale, evidence }
+
+import { withLineNumbers } from "../../repo-verify/select.mjs";
 
 export const name = "claude";
 
@@ -32,7 +34,14 @@ const SYSTEM =
   "present in the code. Set applicable=false ONLY when that subject is entirely absent — there is no such feature " +
   "here to grade at all. NEVER use applicable=false to dodge a hard call: if the subject IS present but a safeguard " +
   "is missing or the code is exploitable, that is applicable=true with level 3, a real problem — not N/A. If you are " +
-  "unsure whether the subject is present, treat it as present and grade it. Respond with the structured object only.";
+  "unsure whether the subject is present, treat it as present and grade it. " +
+  "EVIDENCE: the code is shown with line numbers, restarting at each '// FILE: <path>' header, so " +
+  "the numbers are real line numbers in that file. Cite every claim as '<path>:<line>' in `evidence` — " +
+  "the exact line a reader must open to see what you found, not the top of the file. A finding a " +
+  "reader has to go re-locate themselves is most of the way to useless. Cite the line the risk is ON " +
+  "(the unguarded call, the concatenated query), not where you would put the fix. For a level 6 or 9, " +
+  "cite the line where the property HOLDS. For applicable=false, return an empty array. " +
+  "Respond with the structured object only.";
 
 const SCHEMA = {
   type: "object",
@@ -43,8 +52,9 @@ const SCHEMA = {
     confidence: { type: "number" },
     gap: { type: "string" },
     rationale: { type: "string" },
+    evidence: { type: "array", items: { type: "string" } },
   },
-  required: ["applicable", "level", "confidence", "gap", "rationale"],
+  required: ["applicable", "level", "confidence", "gap", "rationale", "evidence"],
 };
 
 // Prepended when a first-pass N/A is being challenged: the code was selected BECAUSE it
@@ -76,11 +86,12 @@ function buildPrompt(checkpoint, code) {
     testAsserts ? `\n## Level-9 hardening only (NOT required for a 6) — a present test raises toward 9; an ABSENT test never lowers the grade, and this snippet may contain no tests at all\n${testAsserts}` : ``,
     ``,
     `## Code under review`,
+    `Line-numbered, restarting at each "// FILE: <path>" header — so "NNNN |" is that file's real line number. Cite findings as "<path>:<line>".`,
     "```ts",
-    code,
+    withLineNumbers(code),
     "```",
     ``,
-    `First set "applicable": is this checkpoint's subject present in the code above at all? If the feature it guards simply does not exist here, set applicable=false (the level is then ignored). If the subject IS present — even if unsafe — set applicable=true and grade it; never use applicable=false to avoid flagging a real problem. Then assign a level (3, 6, or 9), your confidence 0-1, the concrete gap to the next level (one or two sentences, not a list), and a one-sentence rationale.`,
+    `First set "applicable": is this checkpoint's subject present in the code above at all? If the feature it guards simply does not exist here, set applicable=false (the level is then ignored). If the subject IS present — even if unsafe — set applicable=true and grade it; never use applicable=false to avoid flagging a real problem. Then assign a level (3, 6, or 9), your confidence 0-1, the concrete gap to the next level (one or two sentences, not a list), a one-sentence rationale, and "evidence": the "<path>:<line>" refs backing it (empty array when applicable=false).`,
   ].join("\n");
 }
 
@@ -173,5 +184,9 @@ export async function verify({ checkpoint, code, challenge = false }) {
     confidence: conf,
     gap: parsed.gap,
     rationale: parsed.rationale,
+    // Only `path:line` refs are kept. A bare filename is what the caller already had from
+    // selection, so letting one through would silently look like an anchored finding while
+    // pointing at the top of a file — worse than falling back to the file list openly.
+    evidence: Array.isArray(parsed.evidence) ? parsed.evidence.filter((e) => typeof e === "string" && /:\d+$/.test(e.trim())) : [],
   };
 }
