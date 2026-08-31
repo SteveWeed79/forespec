@@ -14,7 +14,7 @@
 
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { rmSync, mkdtempSync, readFileSync, existsSync } from "node:fs";
+import { rmSync, mkdtempSync, readFileSync, writeFileSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { resolveArchetype } from "../library/resolve.mjs";
 import * as mock from "../verifier-eval/adapters/mock.mjs";
@@ -444,6 +444,72 @@ check("inferArchetype resolves a keyword-strong description via intent ($0)", (a
 check("'a tool to store recipes' does not confidently read ecommerce", intentTop("a tool to store recipes").confidence !== "high" && intentTop("a tool to store recipes").confidence !== "medium");
 const inferBlank = await inferArchetype({ description: "software my clients pay for monthly", manifests: [{ archetype: "saas", applies_when: "x" }], useAI: true });
 check("inferArchetype abstains on a keyword-blank description without a key (asks)", process.env.ANTHROPIC_API_KEY ? true : (inferBlank.archetype === null && inferBlank.via === "none"));
+
+// ── agent adapter (the no-API-key path: the coding agent IS the verifier) ────────────
+// The plugin lets an agent grade the repo and hand verdicts back through this adapter, so
+// the roll-up, gaps report and calibration store are shared with the API path. A verdict
+// file is model-written, i.e. untrusted input on the same footing as an API response — so
+// these prove it fails CLOSED rather than letting a malformed grade into the gate.
+const agentDir = mkdtempSync(join(tmpdir(), "forespec-agent-"));
+const agentFile = join(agentDir, "verdicts.json");
+const agentMod = pathToFileURL(join(here, "..", "verifier-eval", "adapters", "agent.mjs")).href;
+
+/** Load a fresh copy of the adapter against `verdicts` (module-level memo → cache-bust). */
+async function loadAgent(verdicts, bust) {
+  writeFileSync(agentFile, typeof verdicts === "string" ? verdicts : JSON.stringify(verdicts));
+  process.env.FORESPEC_VERDICTS = agentFile;
+  return await import(`${agentMod}?agent-selftest=${bust}`);
+}
+const cpStub = { id: "payment.idempotency" };
+
+const agentOk = await loadAgent([
+  { id: "payment.idempotency", applicable: true, level: 3, confidence: 0.9, gap: "add a key", rationale: "no idempotency key on create", evidence: ["a.ts:1"] },
+  { id: "payment.webhook_authenticity", applicable: false, rationale: "no webhook route: grep for constructEvent returns nothing" },
+], 1);
+const okVerdict = await agentOk.verify({ checkpoint: cpStub });
+check("agent adapter serves a graded verdict", okVerdict.level === 3 && okVerdict.confidence === 0.9);
+check("agent adapter carries file:line evidence (the API path can only cite paths)", okVerdict.evidence?.[0] === "a.ts:1");
+check("agent adapter nulls the level on an N/A", (await agentOk.verify({ checkpoint: { id: "payment.webhook_authenticity" } })).level === null);
+check("agent adapter reports which checkpoints it graded", agentOk.hasVerdict("payment.idempotency") && !agentOk.hasVerdict("auth.access_control"));
+// Silence is not a pass: an ungraded checkpoint must error, never drop out of the roll-up.
+check("agent adapter throws on a checkpoint with no verdict",
+  await agentOk.verify({ checkpoint: { id: "auth.access_control" } }).then(() => false, () => true));
+// verify.mjs skips its adversarial N/A re-pass here — re-reading a file returns the identical
+// record, so the `challenged` flag would claim a challenge that never ran.
+check("agent adapter declares itself self-challenged", agentOk.selfChallenged === true);
+
+/** Does loading this verdict file reject? */
+async function agentRejects(verdicts, bust) {
+  return await loadAgent(verdicts, bust).then((m) => m.verify({ checkpoint: cpStub })).then(() => false, () => true);
+}
+check("agent adapter rejects a level outside 3|6|9",
+  await agentRejects([{ id: "payment.idempotency", level: 5, rationale: "x" }], 2));
+check("agent adapter rejects a passing grade with no stated basis",
+  await agentRejects([{ id: "payment.idempotency", level: 6 }], 3));
+check("agent adapter rejects an out-of-range confidence",
+  await agentRejects([{ id: "payment.idempotency", level: 3, confidence: 7, rationale: "x" }], 4));
+check("agent adapter rejects a duplicate verdict for one checkpoint",
+  await agentRejects([{ id: "payment.idempotency", level: 3, rationale: "a" }, { id: "payment.idempotency", level: 6, rationale: "b" }], 5));
+check("agent adapter rejects malformed JSON", await agentRejects("{not json", 6));
+check("agent adapter rejects a non-array verdict document", await agentRejects({ level: 3 }, 7));
+// The documented `{ "verdicts": [...] }` wrapper is accepted alongside a bare array.
+const agentWrapped = await loadAgent({ verdicts: [{ id: "payment.idempotency", level: 6, rationale: "key present" }] }, 8);
+check("agent adapter accepts the { verdicts: [...] } wrapper", (await agentWrapped.verify({ checkpoint: cpStub })).level === 6);
+delete process.env.FORESPEC_VERDICTS;
+rmSync(agentDir, { recursive: true, force: true });
+
+// The plugin manifest carries its own version, and the marketplace uses it to decide whether
+// an install is stale. Two versions of one artifact drift silently; this makes them one.
+const rootDir = join(here, "..");
+const pkgVersion = JSON.parse(readFileSync(join(rootDir, "package.json"), "utf8")).version;
+const pluginManifest = JSON.parse(readFileSync(join(rootDir, ".claude-plugin", "plugin.json"), "utf8"));
+check("plugin manifest version matches package.json", pluginManifest.version === pkgVersion,
+  `plugin.json ${pluginManifest.version} vs package.json ${pkgVersion}`);
+// Every component the plugin advertises must actually be on disk — a marketplace install
+// silently missing its verifier would fail at the moment someone first tries it.
+for (const rel of ["agents/forespec-verifier.md", "commands/verify.md", "commands/plan.md", "skills/forespec-foresight/SKILL.md", ".claude-plugin/marketplace.json"]) {
+  check(`plugin ships ${rel}`, existsSync(join(rootDir, rel)));
+}
 
 console.log("");
 if (failures > 0) {

@@ -19,7 +19,8 @@ part moves run-over-run — so the foresight arrives on time, and stays live.
 
 Forespec is **not** a security scanner. Security is one row of what it checks; the rest is
 correctness, data-modeling, reliability, and design — the whole backbone your archetype
-requires. And AI coding tools *drive* the engine (Claude Code first); it never lives inside them.
+requires. It runs **inside the coding agent you already use** (Claude Code first), so the
+foresight lands while the code is being written rather than in a review three days later.
 
 > **Status: early build.** Five archetypes, the reasoning verifier, the plan/interrogator, the
 > PR gate, and the greenfield on-ramp are here and runnable. New to this kind of project?
@@ -40,7 +41,36 @@ the one that's actually fine (card data never touches your server), and surfaces
 piece you *haven't built yet* — the discernment a grader you'd trust with "is this shippable?"
 has to earn. Then point it at your own repo:
 
-## Quickstart
+## Quickstart — the Claude Code plugin
+
+The shortest path to a real grade on your own code. No API key, no metered cost — it runs on
+the Claude Code subscription you already have:
+
+```
+/plugin marketplace add SteveWeed79/forespec
+/plugin install forespec@forespec
+```
+
+```
+/forespec:plan add checkout     # before you build — what does this actually require?
+/forespec:verify                # after you build — what's shippable, what's not
+```
+
+It also loads on its own the moment you start writing payment, auth, tenancy, upload, LLM, or
+Supabase/Firebase code, so the requirement arrives at *write* time — an idempotency key passed
+on the payment intent is an argument; retrofitted into a live payment path it's surgery. Full
+details, including how to drive it from any other agent:
+[`docs/claude-code-plugin.md`](./docs/claude-code-plugin.md).
+
+**This is also the better grader**, not a cheap fallback. The API path packs keyword-ranked
+files into a character budget and grades the blob, so it can only cite a file path. An agent
+has grep and read: it follows the call chain into the middleware that supposedly verifies the
+signature, and cites `file:line` — a finding you can fix instead of one you have to go
+re-investigate.
+
+## Or as a CLI
+
+For CI, or when there's no agent in the loop:
 
 ```bash
 # New/empty repo — DECLARE what you're building; Forespec points you and writes a build plan:
@@ -53,7 +83,7 @@ forespec init
 forespec plan "add checkout flow"
 
 # After you build — grade the backbone, and see how each checkpoint moved vs last time:
-forespec verify              # real grading needs an API key — see below
+forespec verify              # standalone grading needs an API key — see below
 forespec verify --html       # …drop a visual report you can open in a browser
 forespec gate --help         # wire the PR/CI gate that comments on every pull request
 ```
@@ -69,14 +99,23 @@ through. Over time `forespec proficiency` reads how much judgment you've shown p
 where you're fluent.
 
 `start`/`init` read only metadata (dependencies, paths, schema-model names) or your one-line
-description — never your code — to pick the archetype. **Real grading needs the reasoning
-verifier:** set `ANTHROPIC_API_KEY` + `ANTHROPIC_MODEL` and it runs against a validated bar —
-0 false-greens on 52 critical bad cases, rule-of-three 95% upper bound ≤ 2.9%
-(see [`VALIDATION-NOTES.md`](./VALIDATION-NOTES.md)). That bar covers the ecommerce/universal
-corpus; the newer `saas` / `ai-app` / `baas` archetypes are **first-pass** validated (full
-rule-of-three pending). Without a key it falls back to a deterministic keyword `mock` baseline
-that exists only to exercise the harness — it is **not a grader to trust**. Full walkthrough:
-[`repo-verify/README.md`](./repo-verify/README.md).
+description — never your code — to pick the archetype.
+
+**Grading needs a reasoning verifier**, and there are two ways to get one:
+
+- **The plugin** (above) — your coding agent grades the repo and hands the verdicts back
+  through the same roll-up, gaps report and calibration store. No key, no cost, and it can
+  cite `file:line`. Run it as `/forespec:verify`.
+- **An API key** — set `ANTHROPIC_API_KEY` + `ANTHROPIC_MODEL` and `verify` calls the model
+  directly. This is the CI path, and it's the one that carries the measured bar: 0
+  false-greens on 52 critical bad cases, rule-of-three 95% upper bound ≤ 2.9% (see
+  [`VALIDATION-NOTES.md`](./VALIDATION-NOTES.md)). That bar covers the ecommerce/universal
+  corpus; the newer `saas` / `ai-app` / `baas` archetypes are **first-pass** validated (full
+  rule-of-three pending).
+
+With neither, `verify` falls back to a deterministic keyword `mock` baseline that exists only
+to exercise the harness — it is **not a grader to trust**, and it says so on every surface.
+Full walkthrough: [`repo-verify/README.md`](./repo-verify/README.md).
 
 ## The loop that stays live
 
@@ -116,6 +155,7 @@ Not "perfect" — honest. That's the whole point.
 
 | File | What it is |
 |---|---|
+| [`docs/claude-code-plugin.md`](./docs/claude-code-plugin.md) | **The front door.** How the plugin turns your coding agent into the verifier — no API key — and how to drive the same path from any other agent. |
 | [`FORESPEC-2.md`](./FORESPEC-2.md) | The vision: the full architecture and the moat argument. **Superseded on build *sequence*** by the build order below. |
 | [`forespec.buildorder-2.md`](./forespec.buildorder-2.md) | **The authoritative roadmap.** Phases 0–7, verifier-first, each phase shippable on its own. When any doc disagrees on *what to build in what order*, this one governs. |
 | [`forespec.calibration-1.md`](./forespec.calibration-1.md) | The calibration loop that turns invented weights into ones earned on real work, and the seam that lets solo data later join a shared pool without a rewrite. |

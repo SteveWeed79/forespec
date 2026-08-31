@@ -50,7 +50,9 @@ Options:
   --archetype <file>   Archetype manifest (default: archetype.ecommerce.json)
   --domain <d>         backbone | design | all (default: backbone)
   --checkpoint <id>    Grade a single checkpoint by id
-  --adapter <name>     mock | claude (default: claude if ANTHROPIC_API_KEY+ANTHROPIC_MODEL set, else mock)
+  --adapter <name>     agent | mock | claude (default: agent if --verdicts/FORESPEC_VERDICTS,
+                       else claude if ANTHROPIC_API_KEY+ANTHROPIC_MODEL set, else mock)
+  --verdicts <file>    Agent-written verdicts to grade from (implies --adapter agent)
   --budget <chars>     Per-checkpoint context budget (default: 60000)
   --store <dir>        Calibration store dir for the prediction log (default: ./.forespec)
   --no-store           Don't record this run to the calibration store
@@ -58,6 +60,9 @@ Options:
   --html [path]        Also write a visual HTML report (default: forespec-report.html)
   -h, --help           This help
 
+The agent adapter takes verdicts from the coding agent you're already in — no API key, no
+metered cost. Install the Claude Code plugin and run /forespec:verify, or see
+docs/claude-code-plugin.md to drive it from any agent.
 The claude adapter reads ANTHROPIC_API_KEY and ANTHROPIC_MODEL from the environment.
 Every run is logged to the calibration store (pattern + instance — the wall is physical);
 record a verdict on a flag with: node repo-verify/feedback.mjs <checkpoint-id> <outcome>`;
@@ -67,12 +72,16 @@ const SEV_ORDER = ["critical", "high", "medium", "low"];
 function pickAdapterName() {
   const explicit = arg("--adapter", null);
   if (explicit) return { name: explicit, note: null };
+  // Verdicts on hand mean an agent already did the grading — prefer them over an API call.
+  if (arg("--verdicts", null) || process.env.FORESPEC_VERDICTS) return { name: "agent", note: null };
   if (process.env.ANTHROPIC_API_KEY && process.env.ANTHROPIC_MODEL) return { name: "claude", note: null };
   return {
     name: "mock",
     note:
-      "ANTHROPIC_API_KEY/ANTHROPIC_MODEL not set — using the mock keyword baseline, " +
-      "not the reasoning verifier. Set both for real grading (or pass --adapter claude).",
+      "no verifier configured — using the mock keyword baseline, which is NOT a grader to " +
+      "trust. For real grading at no cost, run this from your coding agent: install the " +
+      "Claude Code plugin and use /forespec:verify (see docs/claude-code-plugin.md). " +
+      "Or set ANTHROPIC_API_KEY + ANTHROPIC_MODEL to call the API verifier directly.",
   };
 }
 
@@ -85,7 +94,7 @@ async function main() {
   const positionals = process.argv.slice(2).filter((a, i, arr) => {
     if (a.startsWith("-")) return false;
     const prev = arr[i - 1];
-    return !["--archetype", "--domain", "--checkpoint", "--adapter", "--budget", "--store", "--html"].includes(prev);
+    return !["--archetype", "--domain", "--checkpoint", "--adapter", "--budget", "--store", "--html", "--verdicts"].includes(prev);
   });
   // Default to the current directory, matching `forespec init`/`start`: a bare
   // `forespec verify` grades the repo you're standing in. (First-run friction —
@@ -207,7 +216,11 @@ async function main() {
     // Selection pre-check: nothing in the repo scored on this checkpoint's keywords, so its
     // subject almost certainly isn't here. Mark N/A without spending an API call (this is the
     // cheap half of the flag-by-absence fix — a repo with no payments never even asks about them).
-    if (!matched) {
+    //
+    // Exception: an adapter that did its OWN repo search (the agent adapter greps and reads
+    // rather than consuming `select.mjs`'s output) may have found the subject in a file the
+    // keyword ranker missed. Its verdict is better evidence than this heuristic, so it wins.
+    if (!matched && !adapter.hasVerdict?.(cp.id)) {
       results.push({
         id: cp.id, domain: cp.domain, severity: cp.severity,
         applicable: false, level: null, confidence: null, gap: null,
@@ -223,8 +236,12 @@ async function main() {
       // it to prove the matched code is unrelated or grade it — only an N/A that SURVIVES the
       // adversarial re-pass is accepted. (Structural N/A, matched === false, was handled above
       // without an API call and needs no challenge.)
+      //
+      // An adapter serving verdicts it already committed to (agent) is exempt: re-asking
+      // returns the identical record, so the flag would claim an adversarial re-pass that
+      // never happened. Those adapters carry the challenge in their own grading contract.
       let challenged = false;
-      if (v.applicable === false) {
+      if (v.applicable === false && !adapter.selfChallenged) {
         challenged = true;
         v = await adapter.verify({ checkpoint: cp, code, challenge: true });
       }
@@ -233,7 +250,10 @@ async function main() {
         id: cp.id, domain: cp.domain, severity: cp.severity,
         applicable, level: applicable ? v.level : null, challenged,
         confidence: v.confidence, gap: v.gap, rationale: v.rationale,
-        evidence: files.map((f) => f.path), adapter: adapter.name ?? adapterName, fingerprint: fp, error: null,
+        // An adapter that navigated the repo itself can cite the exact `file:line`; the
+        // selection's file list is the fallback for one that only ever saw a packed blob.
+        evidence: v.evidence?.length ? v.evidence : files.map((f) => f.path),
+        adapter: adapter.name ?? adapterName, fingerprint: fp, error: null,
       });
     } catch (e) {
       results.push({
