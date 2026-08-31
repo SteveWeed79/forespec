@@ -535,16 +535,35 @@ check("headerless code numbers from 1", withLineNumbers("a();\nb();").startsWith
 const packSample = selectForCheckpoint(loadRepo(fixture), resolveArchetype(archetypePath).checkpoints[0], 60_000).code;
 check("packing is unchanged by numbering (fingerprint joins survive)", !packSample.includes(" | ") || !/^\s+\d+ \| /m.test(packSample));
 
+const rootDir = join(here, "..");
+
+// ── the grading contract is ONE artifact ────────────────────────────────────────────
+// The agent path's published number (0 false-greens / 152 critical-bad trials) scores
+// library/grading-contract.md as its system prompt. That number only describes the shipped
+// product while the shipped product reads the same file — a paraphrased copy in a caller is a
+// second, unmeasured bar wearing the measured one's number.
+const contractPath = join(rootDir, "library", "grading-contract.md");
+check("the grading contract ships", existsSync(contractPath));
+const contract = existsSync(contractPath) ? readFileSync(contractPath, "utf8") : "";
+for (const rule of ["applicable: false", "Grade only this checkpoint's property", "must state its basis"]) {
+  check(`grading contract still carries: "${rule}"`, contract.includes(rule));
+}
+const verifierAgent = readFileSync(join(rootDir, "agents", "forespec-verifier.md"), "utf8");
+check("the verifier subagent reads the contract rather than restating it", verifierAgent.includes("library/grading-contract.md"));
+// The subagent must not carry its own rubric — that is the fork this guard exists to catch.
+check("the verifier subagent does not fork the rubric", !/^\s*-\s+\*\*3\*\*\s+—/m.test(verifierAgent));
+const agentCli = readFileSync(join(rootDir, "verifier-eval", "adapters", "agent-cli.mjs"), "utf8");
+check("the eval adapter loads the contract from disk (measures what ships)", agentCli.includes("grading-contract.md") && agentCli.includes("readFileSync"));
+
 // The plugin manifest carries its own version, and the marketplace uses it to decide whether
 // an install is stale. Two versions of one artifact drift silently; this makes them one.
-const rootDir = join(here, "..");
 const pkgVersion = JSON.parse(readFileSync(join(rootDir, "package.json"), "utf8")).version;
 const pluginManifest = JSON.parse(readFileSync(join(rootDir, ".claude-plugin", "plugin.json"), "utf8"));
 check("plugin manifest version matches package.json", pluginManifest.version === pkgVersion,
   `plugin.json ${pluginManifest.version} vs package.json ${pkgVersion}`);
 // Every component the plugin advertises must actually be on disk — a marketplace install
 // silently missing its verifier would fail at the moment someone first tries it.
-for (const rel of ["agents/forespec-verifier.md", "commands/verify.md", "commands/plan.md", "skills/forespec-foresight/SKILL.md", ".claude-plugin/marketplace.json"]) {
+for (const rel of ["agents/forespec-verifier.md", "commands/verify.md", "commands/plan.md", "skills/forespec-foresight/SKILL.md", "library/grading-contract.md", ".claude-plugin/marketplace.json"]) {
   check(`plugin ships ${rel}`, existsSync(join(rootDir, rel)));
 }
 

@@ -46,7 +46,8 @@ is for.
 | `skills/forespec-foresight/` | Loads on its own when you are about to write payment, auth, tenancy, upload, LLM, or BaaS code, and builds the requirements in — the checkpoint arrives at write time, not review time. |
 | `commands/plan.md` | `/forespec:plan <feature>` — the decide-first questions for what you are about to build, filtered against what the repo already satisfies. |
 | `commands/verify.md` | `/forespec:verify` — grade the backbone, roll up shippable/not, name the gaps. |
-| `agents/forespec-verifier.md` | The grading subagent. Carries the calibrated 3/6/9 contract, so grading a large repo does not crowd out your conversation. |
+| `agents/forespec-verifier.md` | The grading subagent. Reads the contract below, so grading a large repo does not crowd out your conversation. |
+| `library/grading-contract.md` | **The calibrated bar itself** — the 3/6/9 rubric, the rules for the hard cases, the applicability rule. One copy, read by the subagent and scored by the eval harness. |
 
 ## How the grade gets back into the pipeline
 
@@ -72,8 +73,8 @@ the verdict.
 
 Nothing above is Claude Code-specific past the plugin packaging. Any agent that can run a shell
 command and write a file can drive the same three steps — point it at
-`agents/forespec-verifier.md` for the grading contract, which is the calibrated one and should
-not be improvised around.
+`library/grading-contract.md`, which is the measured bar and should not be improvised around,
+and at `agents/forespec-verifier.md` for how to run it against a repo.
 
 ### Verdict file format
 
@@ -110,12 +111,15 @@ as a number. Covered by `repo-verify/self-test.mjs`.
 
 ## Limits worth knowing
 
-- The verdict comes from whichever model your Claude Code session is running, so it is not the
-  same measured artifact as the API path's validated bar (0 false-greens on 52 critical bad
-  cases, rule-of-three 95% upper bound ≤ 2.9% — see [`VALIDATION-NOTES.md`](../VALIDATION-NOTES.md)).
-  Those numbers describe the API verifier on the ecommerce/universal corpus. The agent path
-  runs the same rubric and the same checkpoints, and can see more of the repo, but it has not
-  been put through the same measurement yet.
+- **The agent path is measured**: 0 false-greens across 152 critical-bad trials on corpus-v3
+  (two independent runs, 100% outcome agreement, 0 errors) → rule-of-three 95% upper bound
+  **≤2.0%**, under the ≤6% bar. See [`VALIDATION-NOTES.md`](../VALIDATION-NOTES.md).
+  Two caveats that matter: the corpus is snippets, so this measures the *grading contract* and
+  not the repo-navigation advantage — a floor, not a ceiling; and the model is chosen by your
+  session, so a different model is a different grader (those runs served on `claude-sonnet-5`).
+- The grading contract lives in [`library/grading-contract.md`](../library/grading-contract.md)
+  and is loaded verbatim by both the plugin's subagent and the eval harness — so the number
+  above scores the artifact that ships, not a paraphrase of it. Don't fork it into a caller.
 - Design checkpoints are still excluded from `verify` by default — design is not reliably
   gradable from source. `forespec design <url>` grades the live page instead.
 - The calibration store stays local, behind the same pattern/instance wall. Nothing about your

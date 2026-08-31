@@ -45,6 +45,21 @@ All notable changes to this project are documented here. Format follows
 - npm listing metadata (`repository`, `homepage`, `bugs`, `author`, `keywords`) and README
   status badges.
 
+- **The agent path now has a number.** `verifier-eval/adapters/agent-cli.mjs` drives the local
+  `claude` CLI headlessly over the labelled corpus, so the plugin path is held to the same
+  fixtures and the same launch gate as the API verifier. Result on corpus-v3 (133 cases, 76
+  critical bad), two independent runs: **0 false-greens across 152 critical-bad trials →
+  rule-of-three 95% upper bound ≤2.0%**, 0 errors, and **133/133 outcome agreement** between
+  runs. Full write-up, caveats and disclosures in `VALIDATION-NOTES.md`.
+- **`library/grading-contract.md`** — the calibrated 3/6/9 rubric, hard-case rules, applicability
+  rule and verdict format, extracted into one file. The plugin's subagent reads it; the eval
+  adapter loads it verbatim as its system prompt. That is what makes the number above describe
+  the artifact that ships rather than a paraphrase of it, and the self-test guards the invariant
+  (the subagent must reference it, never fork the rubric).
+- `run-eval.mjs` takes `--concurrency` (default 6 for model-backed adapters, 1 for the
+  deterministic mock). Results are collected by index, so the report does not depend on
+  completion order. A full agent-path run is ~3.5 minutes instead of ~25.
+
 ### Changed
 - **`verify` and `gate` now REFUSE when no verifier is configured**, instead of silently
   falling back to the keyword baseline. A first run on a real repo used to print ~20

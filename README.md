@@ -105,7 +105,11 @@ description — never your code — to pick the archetype.
 
 - **The plugin** (above) — your coding agent grades the repo and hands the verdicts back
   through the same roll-up, gaps report and calibration store. No key, no cost, and it can
-  cite `file:line`. Run it as `/forespec:verify`.
+  cite `file:line`. Run it as `/forespec:verify`. Measured on the same corpus as the API
+  path: **0 false-greens across 152 critical-bad trials → 95% upper bound ≤2.0%**, with
+  100% outcome agreement across two independent runs. Caveats — that measures the grading
+  contract on snippets, not the repo-navigation advantage, and your session's model is the
+  grader — are in [`VALIDATION-NOTES.md`](./VALIDATION-NOTES.md).
 - **An API key** — set `ANTHROPIC_API_KEY` + `ANTHROPIC_MODEL` and `verify` calls the model
   directly. This is the CI path (no agent in the loop), and it's the one that carries the
   measured bar: 0 false-greens on 52 critical bad cases, rule-of-three 95% upper bound ≤ 2.9%
