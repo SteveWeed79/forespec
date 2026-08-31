@@ -1,0 +1,15 @@
+{
+  "name": "forespec",
+  "owner": {
+    "name": "Steve Weed",
+    "url": "https://github.com/SteveWeed79"
+  },
+  "description": "Forespec — the domain foresight a senior engineer brings, codified as checkpoints your coding agent can build against and grade.",
+  "plugins": [
+    {
+      "name": "forespec",
+      "source": "./",
+      "description": "Surface the non-obvious requirements your kind of app needs before you build, then grade what got built. No API key — runs on the subscription you already have."
+    }
+  ]
+}
