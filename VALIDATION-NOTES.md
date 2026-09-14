@@ -69,6 +69,70 @@ the flag-by-absence gap that drove the N/A verdict (below).
 
 ---
 
+## Agent path (the plugin): corpus measurement, August 2026
+
+The plugin made a coding agent the default verifier, which moved most users onto a grader that
+carried no number of its own. Everything above measures the **API** adapter. This section is the
+agent path held to the same corpus and the same gate.
+
+**What was measured, precisely:** the grading contract (`library/grading-contract.md`) executed by
+a real Claude Code session, driven headlessly through `verifier-eval/adapters/agent-cli.mjs`. The
+adapter loads that contract file verbatim as its system prompt — the same file the plugin's
+subagent reads — so this scores the artifact that ships, not a paraphrase of it.
+
+**What was NOT measured:** the agent's actual field advantage. Fixtures are snippets, so grep,
+read, and following an import into the middleware that supposedly verifies the signature are never
+exercised. **This number is a floor on the agent path, not a ceiling**, and must not be reported as
+"the plugin scores X on real code." That requires real repositories and is still owed.
+
+**Result — corpus-v3 (133 cases; 76 critical bad), 2 independent runs:**
+
+| | Run 1 | Run 2 | Combined |
+|---|---|---|---|
+| critical-bad trials | 76 | 76 | **152** |
+| **false-greens** | **0** | **0** | **0** |
+| rule-of-three 95% upper bound | ≤3.9% | ≤3.9% | **≤2.0%** |
+| false-alarms on good criticals | 2 | 2 | — |
+| errors | 0 | 0 | 0 |
+| overall accuracy | 98.5% | 98.5% | — |
+
+**≤2.0% at 95%, under the ≤6% launch bar → GO.** Comparable to the API path's ≤2.9%, though *not*
+a head-to-head: M1 above ran on the 95-case corpus-v2 and this ran on the 133-case corpus-v3. A
+same-corpus comparison is still owed and needs an API key.
+
+**Stability.** Outcome agreement between the two runs was **133/133 (100%)** — every case landed in
+the same bucket twice. Level agreement was 131/133; the two disagreements moved between 6 and 9 and
+never crossed the shippable boundary. For a stochastic grader this is the property that matters:
+the verdict is not a coin flip.
+
+**Two reproducible false alarms** — the same cases both runs, so bias rather than noise:
+
+- `saas.subscription.entitlement_integrity` — good fixture graded 3
+- `baas.client_trust_boundary` — good fixture graded 3
+
+Both are on the newer archetypes already flagged first-pass above, and both are the safe direction
+(over-severity, not fabrication) — but they are real "cries wolf on clean code" instances and are
+owed a rubric look, not a shrug.
+
+**Disclosure — the first run was not clean.** It produced 9 ERROR rows out of 133. All 9 graded
+correctly on sequential retry: concurrent `claude -p` invocations share session state and
+occasionally lose a race, exiting non-zero with empty stderr. They were lost runs, not dodged
+cases — but they had shrunk the critical-bad denominator from 76 to 73, which quietly flatters the
+rate. The adapter now retries the **spawn** with backoff; a reply that parses into an invalid
+verdict is still never retried, because that is the grader failing and must stay fail-closed. The
+numbers above are from clean runs with 0 errors.
+
+**Model dependence — the important caveat for this path.** These runs served on `claude-sonnet-5`
+(the CLI default here). On the agent path the model is chosen by the user's session, not by
+Forespec, so a user on a different model has a different grader and this number does not
+automatically transfer. `ANTHROPIC_MODEL` pins the model for a reproducible run.
+
+**Reproduce:**
+
+```bash
+node verifier-eval/run-eval.mjs --adapter agent-cli --concurrency 6 --out verifier-eval/report.agent.json
+```
+
 ## Archetypes 2–5: corpus + real-repo validation (corpus-v3)
 
 The newer archetypes (`saas`, `ai-app`, `baas`, `portfolio`) were brought toward the ecommerce

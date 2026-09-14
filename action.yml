@@ -20,7 +20,9 @@ branding:
 #           with: { fetch-depth: 0 }   # full history so it can diff the base branch
 #         - uses: SteveWeed79/forespec@v0.1.0
 #           with:
-#             # optional — omit both for the deterministic mock baseline at $0:
+#             # REQUIRED — in CI there is no coding agent in the loop, so the gate needs
+#             # an API key. Without one it refuses and posts nothing, rather than
+#             # decorating your PR with keyword-baseline findings.
 #             anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
 #             anthropic-model: ${{ vars.ANTHROPIC_MODEL }}
 #
@@ -38,7 +40,7 @@ inputs:
     description: "Archetype name or manifest, overriding forespec.config.json (e.g. 'ecommerce'). Optional."
     default: ""
   adapter:
-    description: "mock | claude. Default: claude when an API key + model are provided, else mock."
+    description: "claude | mock. Default: claude when an API key + model are provided. With neither, the gate refuses and posts nothing — it will not comment with a verdict it can't stand behind."
     default: ""
   fail:
     description: "Set 'true' to block the PR on a touched-tier regression or a gate-tier checkpoint below level 6."
@@ -50,7 +52,7 @@ inputs:
     description: "Calibration store directory."
     default: ${{ github.workspace }}/.forespec
   anthropic-api-key:
-    description: "Anthropic API key for the reasoning verifier. Optional — omit for the $0 mock baseline."
+    description: "Anthropic API key for the reasoning verifier. Required — the gate refuses to run without a verifier it trusts."
     default: ""
   anthropic-model:
     description: "Anthropic model id. Required (with the key) to use the reasoning verifier."

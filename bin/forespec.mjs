@@ -18,7 +18,7 @@ import { readFileSync, writeFileSync, existsSync, renameSync } from "node:fs";
 import { dirname, join, resolve as pathResolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { detectAuto, discoverManifests, inferArchetype } from "../repo-verify/detect.mjs";
-import { writeConfig, readConfig, CONFIG_FILE } from "../repo-verify/config.mjs";
+import { writeConfig, readConfig, resolveManifestPath, CONFIG_FILE } from "../repo-verify/config.mjs";
 import { resolveArchetype } from "../library/resolve.mjs";
 import { selectForFeature, renderPlan } from "../repo-verify/plan.mjs";
 
@@ -48,6 +48,7 @@ Commands:
   init [repo]        Existing repo: detect the archetype and write ${CONFIG_FILE}
   plan "<feature>"   Interrogate a feature BEFORE building it; emit a spec
   verify [repo]      Grade the repo's backbone against its archetype
+  checkpoints        Emit the standard as JSON (what an agent grades against)
   design <url>       Grade a live page's design in a headless browser (Playwright)
   gate [options]     PR/CI gate: grade the diff, post a comment, feed calibration
   detect [repo]      Show the archetype ranking (read-only, writes nothing)
@@ -210,12 +211,97 @@ async function init(args) {
   return 0;
 }
 
+/**
+ * `checkpoints` — emit the archetype's checkpoint definitions as JSON.
+ *
+ * The read half of the agent path. An agent that is going to grade this repo needs the
+ * standard first: what each checkpoint guards, its 3/6/9 rubric, the reasoning question,
+ * and the assertions a level 6 requires. It grades against those, writes a verdict file,
+ * and hands it back to `verify --verdicts` — which does the roll-up, the gaps report and
+ * the calibration write exactly as it does for the API verifier.
+ *
+ * Read-only: it never touches the repo's source, only the archetype it resolves to.
+ */
+function checkpoints(args) {
+  const argVal = (flag) => {
+    const i = args.indexOf(flag);
+    return i !== -1 && args[i + 1] && !args[i + 1].startsWith("-") ? args[i + 1] : null;
+  };
+  if (args.includes("-h") || args.includes("--help")) {
+    console.log(`forespec checkpoints — the standard this repo is graded against, as JSON.
+
+Usage: forespec checkpoints [options]
+
+Options:
+  --repo <path>        repo to read ${CONFIG_FILE} from (default: .)
+  --archetype <ref>    archetype name/manifest, overriding the config (e.g. saas)
+  --domain <d>         backbone | design | all (default: backbone)
+  -h, --help
+
+Feeds the agent path: grade each checkpoint against the repo, write the verdicts to a
+JSON file, then \`forespec verify --verdicts <file>\`. See docs/claude-code-plugin.md.`);
+    return 0;
+  }
+
+  const repoRoot = pathResolve(process.cwd(), argVal("--repo") ?? ".");
+  const override = argVal("--archetype");
+  const config = readConfig(repoRoot);
+  let manifestPath, source;
+  if (override) {
+    manifestPath = resolveManifestPath(override, { cwd: process.cwd() });
+    source = "flag";
+  } else if (config?.archetype) {
+    manifestPath = resolveManifestPath(config.archetype, { cwd: repoRoot });
+    source = "config";
+  } else {
+    // Mirrors verify.mjs's precedence exactly. Grading against a different standard than
+    // the one you were shown would make every verdict unreadable.
+    manifestPath = join(projectDir, "archetype.ecommerce.json");
+    source = "default";
+  }
+
+  let archetype;
+  try {
+    archetype = resolveArchetype(manifestPath);
+  } catch (e) {
+    console.error(`error: ${e.message}`);
+    return 2;
+  }
+
+  const domain = argVal("--domain") ?? "backbone";
+  if (!["backbone", "design", "all"].includes(domain)) {
+    console.error(`error: --domain must be backbone | design | all (got "${domain}")`);
+    return 2;
+  }
+  const selected = domain === "all" ? archetype.checkpoints : archetype.checkpoints.filter((c) => c.domain === domain);
+
+  console.log(JSON.stringify({
+    archetype: archetype.archetype,
+    version: archetype.version,
+    archetype_source: source,
+    goal_definition: archetype.goal_definition,
+    domain,
+    checkpoints: selected.map((c) => ({
+      id: c.id,
+      domain: c.domain,
+      severity: c.severity,
+      title: c.title,
+      why: c.why,
+      levels: c.levels,
+      reasoning: c.verify?.reasoning ?? null,
+      assertions: c.verify?.assertions ?? [],
+    })),
+  }, null, 2));
+  return 0;
+}
+
 async function dispatch() {
   const [cmd, ...rest] = process.argv.slice(2);
   if (!cmd || cmd === "-h" || cmd === "--help" || cmd === "help") { console.log(HELP); return 0; }
   if (cmd === "-v" || cmd === "--version" || cmd === "version") { console.log(version()); return 0; }
   if (cmd === "start") return await start(rest);
   if (cmd === "init") return await init(rest);
+  if (cmd === "checkpoints") return checkpoints(rest);
   if (PASSTHROUGH[cmd]) return run(PASSTHROUGH[cmd], rest);
   console.error(`unknown command: ${cmd}\n`);
   console.error(HELP);

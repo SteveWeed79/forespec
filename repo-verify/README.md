@@ -66,10 +66,14 @@ Archetype precedence: explicit `--archetype` > `forespec.config.json` in the rep
 ecommerce default. A bare name (`--archetype saas`) or a manifest filename both resolve
 against the bundled archetypes, so it works when run from inside another repo.
 
-Adapter selection: `claude` when `ANTHROPIC_API_KEY` and `ANTHROPIC_MODEL` are both
-set (or `--adapter claude`); otherwise the `mock` baseline, with a note. The process
-exits `0` when the repo is "shippable" by the archetype's rule (all critical
-checkpoints ≥ 6) and `1` otherwise — so it works as a CI gate.
+Adapter selection: `agent` when `--verdicts <file>` / `FORESPEC_VERDICTS` is set (the
+coding agent did the grading — see [`../docs/claude-code-plugin.md`](../docs/claude-code-plugin.md));
+`claude` when `ANTHROPIC_API_KEY` and `ANTHROPIC_MODEL` are both set. **With neither,
+`verify` refuses** and exits `2` rather than grading with something it can't stand behind
+— the `mock` keyword baseline must be asked for by name (`--adapter mock`) and is marked
+degraded on every surface. Otherwise the process exits `0` when the repo is "shippable" by
+the archetype's rule (all critical checkpoints ≥ 6) and `1` otherwise — so it works as a
+CI gate.
 
 ## Plan — interrogate before you build (`forespec plan`)
 
@@ -200,7 +204,7 @@ jobs:
         with: { fetch-depth: 0 } # full history so it can diff the base branch
       - uses: SteveWeed79/glowing-barnacle@v1
         with:
-          anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}  # optional ($0 mock without it)
+          anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}  # required — no agent in CI
           anthropic-model: ${{ vars.ANTHROPIC_MODEL }}
           # fail: "true"         # block the PR instead of just commenting
 ```
@@ -210,8 +214,10 @@ grades against the right archetype (or pass `archetype: ecommerce` to the action
 
 Advisory by default (comments, never blocks). Pass `fail: "true"` to the action (or
 `--fail` to the run step) to make it a blocking required check (exits non-zero on a
-touched-critical regression or below-6). Set `ANTHROPIC_API_KEY` + `ANTHROPIC_MODEL`
-to use the reasoning verifier; without them it runs the mock baseline at $0.
+touched-critical regression or below-6). `ANTHROPIC_API_KEY` + `ANTHROPIC_MODEL` are
+required: with no verifier the gate refuses and posts nothing, because a PR decorated with
+keyword-baseline findings teaches reviewers that Forespec comments are noise — a cost that
+outlives the misconfigured run.
 
 ## The P0 validation gate
 

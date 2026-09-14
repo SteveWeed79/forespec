@@ -14,8 +14,10 @@
 //   - a git-diff FAILURE is an error, never an empty diff (an empty diff green-lights);
 //   - a PR that edits the gate's own rules (forespec.config.json / .forespec overrides)
 //     is flagged — the head being graded must not quietly re-write its own gate;
-//   - a missing API key must never silently swap the trusted verifier for the mock
-//     keyword baseline and still gate: the downgrade is warned, marked, and fails --fail;
+//   - a missing verifier is refused outright, BEFORE anything is posted: a PR decorated
+//     with keyword-baseline findings teaches reviewers that Forespec comments are noise,
+//     which outlives the misconfigured run. `--adapter mock` still runs the baseline by
+//     name, is marked on every surface, and can never certify a merge under --fail;
 //   - changed files the scanner cannot read (too big, unsupported) are named, not dropped.
 //
 // Local dry run (no GitHub, no API key):
@@ -32,6 +34,7 @@ import { resolveArchetype } from "../library/resolve.mjs";
 import { loadRepo, selectForCheckpoint, keywordsFor, scoreFile } from "./select.mjs";
 import { fingerprint, newRunId, recordPredictions, recordOutcome, latestPrediction, readOverrides } from "./store.mjs";
 import { readConfig, resolveManifestPath } from "./config.mjs";
+import { pickAdapter, noVerifierMessage } from "./verifier-choice.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const arg = (f, fb) => { const i = process.argv.indexOf(f); return i !== -1 && process.argv[i + 1] ? process.argv[i + 1] : fb; };
@@ -49,7 +52,9 @@ Options:
   --head <ref>         head ref (default: HEAD)
   --changed a,b,c      explicit changed-file list (skips git diff; for local testing)
   --archetype <file>   archetype manifest (default: archetype.ecommerce.json)
-  --adapter <name>     mock | claude (default: claude if key+model set, else mock)
+  --adapter <name>     claude | agent | mock (default: claude if key+model set. With no
+                       verifier the gate REFUSES and posts nothing; 'mock' is the keyword
+                       baseline, must be named, and can never certify a merge.)
   --all-domains        also grade design checkpoints (default: backbone only)
   --store <dir>        calibration store (default: ./.forespec)
   --no-store           don't record predictions/outcomes
@@ -191,10 +196,17 @@ async function main() {
   // weaken its own gate (swap the archetype, lower a severity) — flag it, loudly.
   const tampered = changed.filter((p) => p === "forespec.config.json" || p.startsWith(".forespec/"));
 
-  const explicitAdapter = arg("--adapter", null);
-  const adapterName = explicitAdapter ?? (process.env.ANTHROPIC_API_KEY && process.env.ANTHROPIC_MODEL ? "claude" : "mock");
-  const degraded = !explicitAdapter && adapterName === "mock";
-  if (degraded) console.error("note: ANTHROPIC_API_KEY/ANTHROPIC_MODEL not set — using the mock keyword baseline, NOT the reasoning verifier. Its verdict must not gate a merge.");
+  // No verifier means no comment. A gate that decorates a PR with keyword-baseline findings
+  // teaches reviewers that Forespec comments are noise — a cost that outlives the misconfigured
+  // run and is worse than having no gate at all. So it refuses here, before anything is posted,
+  // instead of only failing closed under --fail (which left advisory runs commenting).
+  const { name: adapterName, trusted, reason } = pickAdapter((f) => arg(f, null));
+  if (!adapterName) {
+    console.error(noVerifierMessage({ reason, context: "ci" }));
+    return 2;
+  }
+  const degraded = !trusted;
+  if (degraded) console.error(`note: adapter "${adapterName}" is the keyword baseline, NOT a reasoning verifier. Its verdict must not gate a merge.`);
   const adapter = await import(new URL(`../verifier-eval/adapters/${adapterName}.mjs`, import.meta.url));
 
   // Touched checkpoints: a changed file is relevant to the checkpoint (keyword score > 0).
@@ -215,7 +227,10 @@ async function main() {
     try {
       const v = await adapter.verify({ checkpoint: cp, code });
       const applicable = v.applicable !== false;
-      results.push({ ...base_, applicable, level: applicable ? v.level : null, confidence: v.confidence, gap: v.gap, rationale: v.rationale, error: null });
+      // Prefer the adapter's own `path:line` refs; the selection's file list is the fallback
+      // for an adapter that can only see a packed blob.
+      const evidence = v.evidence?.length ? v.evidence : base_.evidence;
+      results.push({ ...base_, evidence, applicable, level: applicable ? v.level : null, confidence: v.confidence, gap: v.gap, rationale: v.rationale, error: null });
     } catch (e) {
       results.push({ ...base_, applicable: true, level: null, confidence: null, gap: null, rationale: null, error: String(e.message ?? e) });
     }
@@ -269,10 +284,10 @@ async function main() {
   else console.log(md);
 
   if (has("--fail")) {
-    // A degraded (fallback-mock) run cannot certify a merge, and a tampered gate needs a
-    // human: both fail closed under --fail. Explicit `--adapter mock` (local testing) is
-    // the developer's own call and is not treated as degradation.
-    if (degraded) { console.error("gate: failing closed — the fallback mock baseline cannot certify a merge (--fail)."); return 1; }
+    // The keyword baseline cannot certify a merge, and a tampered gate needs a human: both
+    // fail closed. This holds even when `--adapter mock` was asked for by name — you can opt
+    // into the baseline to exercise the harness, but not into letting it green-light a merge.
+    if (degraded) { console.error("gate: failing closed — the keyword baseline cannot certify a merge (--fail)."); return 1; }
     if (tampered.length) { console.error("gate: failing closed — this PR modifies the gate's own rules (--fail)."); return 1; }
     if (!ok) return 1;
   }

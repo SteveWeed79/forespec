@@ -6,9 +6,14 @@
 // known-bad implementation shippable), the dangerous error for a tool you trust.
 //
 // Usage:
-//   node verifier-eval/run-eval.mjs                 # mock baseline (no API key needed)
-//   node verifier-eval/run-eval.mjs --adapter claude
+//   node verifier-eval/run-eval.mjs                     # mock baseline (no API key needed)
+//   node verifier-eval/run-eval.mjs --adapter claude    # the API verifier (needs a key)
+//   node verifier-eval/run-eval.mjs --adapter agent-cli # the PLUGIN path (needs the claude CLI)
 //   node verifier-eval/run-eval.mjs --adapter claude --out verifier-eval/report.json
+//   node verifier-eval/run-eval.mjs --adapter agent-cli --concurrency 8
+//
+// --concurrency defaults to 6 for model-backed adapters and 1 for the deterministic mock.
+// Results are collected by index, so the report does not depend on completion order.
 //
 // Exit code is non-zero if any fixture errored, so CI can catch a broken run.
 
@@ -43,21 +48,38 @@ const adapter = await import(`./adapters/${adapterName}.mjs`);
 // shippable = level >= 6; bucketing a 3/6/9 prediction into the goal_definition view.
 const SHIPPABLE = 6;
 
-const cases = [];
-for (const c of corpus.cases) {
+/** Grade one corpus case. Never throws — a failure becomes an ERROR row, which the gate counts. */
+async function runCase(c) {
   const checkpoint = checkpointById.get(c.checkpoint);
-  if (!checkpoint) {
-    cases.push({ ...c, error: `checkpoint ${c.checkpoint} not found in archetype` });
-    continue;
-  }
+  if (!checkpoint) return { ...c, error: `checkpoint ${c.checkpoint} not found in archetype` };
   const code = readFileSync(join(here, c.fixture), "utf8");
   try {
     const verdict = await adapter.verify({ checkpoint, code, fixturePath: c.fixture });
-    cases.push({ ...c, applicable: verdict.applicable !== false, predicted_level: verdict.applicable === false ? null : verdict.level, confidence: verdict.confidence, rationale: verdict.rationale });
+    return { ...c, applicable: verdict.applicable !== false, predicted_level: verdict.applicable === false ? null : verdict.level, confidence: verdict.confidence, rationale: verdict.rationale };
   } catch (err) {
-    cases.push({ ...c, error: String(err.message ?? err) });
+    return { ...c, error: String(err.message ?? err) };
   }
 }
+
+// Bounded concurrency. An agent-backed adapter takes ~10s per case, so 133 cases sequentially
+// is ~25 minutes — long enough that the run stops being something anyone does before a release.
+// Results are written back BY INDEX, so the report is byte-identical whatever order they land in.
+const concurrency = Math.max(1, Number(arg("--concurrency", adapterName === "mock" ? "1" : "6")) || 1);
+const cases = new Array(corpus.cases.length);
+let cursor = 0;
+let done = 0;
+const progress = !process.env.FORESPEC_EVAL_QUIET && corpus.cases.length > 1 && concurrency > 1;
+await Promise.all(
+  Array.from({ length: Math.min(concurrency, corpus.cases.length) }, async () => {
+    for (;;) {
+      const i = cursor++;
+      if (i >= corpus.cases.length) return;
+      cases[i] = await runCase(corpus.cases[i]);
+      if (progress) process.stderr.write(`\r  graded ${++done}/${corpus.cases.length}`);
+    }
+  }),
+);
+if (progress) process.stderr.write("\n\n");
 
 // ---- classify each case ----
 function classify(c) {

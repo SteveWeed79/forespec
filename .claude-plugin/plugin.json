@@ -1,0 +1,23 @@
+{
+  "name": "forespec",
+  "displayName": "Forespec",
+  "version": "0.1.3",
+  "description": "Domain foresight for AI-built apps: surface the non-obvious requirements your kind of app needs before you build, then grade what got built against them. 42 checkpoints across ecommerce, SaaS, AI apps, BaaS and portfolio. Runs on your Claude Code subscription — no API key.",
+  "author": {
+    "name": "Steve Weed",
+    "url": "https://github.com/SteveWeed79"
+  },
+  "homepage": "https://github.com/SteveWeed79/forespec#readme",
+  "repository": "https://github.com/SteveWeed79/forespec",
+  "license": "BUSL-1.1",
+  "keywords": [
+    "code-review",
+    "security",
+    "correctness",
+    "checkpoints",
+    "verifier",
+    "ecommerce",
+    "saas",
+    "llm-safety"
+  ]
+}

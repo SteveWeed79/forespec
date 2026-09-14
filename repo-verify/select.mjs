@@ -23,6 +23,34 @@ const SKIP_DIRS = new Set([
 
 const MAX_FILE_BYTES = 64 * 1024;
 
+/** Marks where each file starts inside a packed `code` string. Line numbering resets here. */
+export const FILE_HEADER = "// FILE: ";
+
+/**
+ * Number every line of a packed `code` string, restarting at each `// FILE:` header so the
+ * numbers match the real file rather than the position in the pack.
+ *
+ * Presentation only — deliberately NOT folded into `selectForCheckpoint`. The calibration
+ * store joins a run to its prior by `fingerprint(code)`, so changing what `code` looks like
+ * would break every historical join. The pack stays canonical; the verifier gets a numbered
+ * view of it at prompt time, and can cite `path:line` back.
+ */
+export function withLineNumbers(code) {
+  let n = 0;
+  return code
+    .split("\n")
+    .map((line) => {
+      if (line.startsWith(FILE_HEADER)) {
+        n = 0;
+        return line;
+      }
+      // A fixture handed straight to an adapter has no header; number it from 1 anyway so
+      // the eval harness behaves the same as a repo run.
+      return `${String(++n).padStart(4)} | ${line}`;
+    })
+    .join("\n");
+}
+
 /** Walk a repo once and return all candidate source files (repo-relative paths). */
 export function loadRepo(root) {
   const files = [];
@@ -180,7 +208,7 @@ export function selectForCheckpoint(all, cp, budgetChars = 60_000, perFileCap = 
     if (used >= budgetChars) break;
   }
 
-  const code = chosen.map((f) => `// FILE: ${f.path}\n${f.content}`).join("\n\n");
+  const code = chosen.map((f) => `${FILE_HEADER}${f.path}\n${f.content}`).join("\n\n");
   // `matched` = at least one file scored on this checkpoint's keywords. When false,
   // the chosen files are the smallest-file fallback (nothing relevant found), so the
   // repo verifier marks the checkpoint N/A instead of grading irrelevant noise.

@@ -14,11 +14,12 @@
 
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { rmSync, mkdtempSync, readFileSync, existsSync } from "node:fs";
+import { rmSync, mkdtempSync, readFileSync, writeFileSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { resolveArchetype } from "../library/resolve.mjs";
 import * as mock from "../verifier-eval/adapters/mock.mjs";
-import { loadRepo, selectForCheckpoint, scoreFile } from "./select.mjs";
+import { loadRepo, selectForCheckpoint, scoreFile, withLineNumbers } from "./select.mjs";
+import { pickAdapter, noVerifierMessage } from "./verifier-choice.mjs";
 import { measureRecall } from "./selection-eval.mjs";
 import { fingerprint, recordPredictions, latestPrediction, recordOutcome, readOverrides, writeOverrides, FILES, OUTCOMES } from "./store.mjs";
 import { aggregate, propose } from "./calibrate.mjs";
@@ -444,6 +445,127 @@ check("inferArchetype resolves a keyword-strong description via intent ($0)", (a
 check("'a tool to store recipes' does not confidently read ecommerce", intentTop("a tool to store recipes").confidence !== "high" && intentTop("a tool to store recipes").confidence !== "medium");
 const inferBlank = await inferArchetype({ description: "software my clients pay for monthly", manifests: [{ archetype: "saas", applies_when: "x" }], useAI: true });
 check("inferArchetype abstains on a keyword-blank description without a key (asks)", process.env.ANTHROPIC_API_KEY ? true : (inferBlank.archetype === null && inferBlank.via === "none"));
+
+// ── agent adapter (the no-API-key path: the coding agent IS the verifier) ────────────
+// The plugin lets an agent grade the repo and hand verdicts back through this adapter, so
+// the roll-up, gaps report and calibration store are shared with the API path. A verdict
+// file is model-written, i.e. untrusted input on the same footing as an API response — so
+// these prove it fails CLOSED rather than letting a malformed grade into the gate.
+const agentDir = mkdtempSync(join(tmpdir(), "forespec-agent-"));
+const agentFile = join(agentDir, "verdicts.json");
+const agentMod = pathToFileURL(join(here, "..", "verifier-eval", "adapters", "agent.mjs")).href;
+
+/** Load a fresh copy of the adapter against `verdicts` (module-level memo → cache-bust). */
+async function loadAgent(verdicts, bust) {
+  writeFileSync(agentFile, typeof verdicts === "string" ? verdicts : JSON.stringify(verdicts));
+  process.env.FORESPEC_VERDICTS = agentFile;
+  return await import(`${agentMod}?agent-selftest=${bust}`);
+}
+const cpStub = { id: "payment.idempotency" };
+
+const agentOk = await loadAgent([
+  { id: "payment.idempotency", applicable: true, level: 3, confidence: 0.9, gap: "add a key", rationale: "no idempotency key on create", evidence: ["a.ts:1"] },
+  { id: "payment.webhook_authenticity", applicable: false, rationale: "no webhook route: grep for constructEvent returns nothing" },
+], 1);
+const okVerdict = await agentOk.verify({ checkpoint: cpStub });
+check("agent adapter serves a graded verdict", okVerdict.level === 3 && okVerdict.confidence === 0.9);
+check("agent adapter carries file:line evidence (the API path can only cite paths)", okVerdict.evidence?.[0] === "a.ts:1");
+check("agent adapter nulls the level on an N/A", (await agentOk.verify({ checkpoint: { id: "payment.webhook_authenticity" } })).level === null);
+check("agent adapter reports which checkpoints it graded", agentOk.hasVerdict("payment.idempotency") && !agentOk.hasVerdict("auth.access_control"));
+// Silence is not a pass: an ungraded checkpoint must error, never drop out of the roll-up.
+check("agent adapter throws on a checkpoint with no verdict",
+  await agentOk.verify({ checkpoint: { id: "auth.access_control" } }).then(() => false, () => true));
+// verify.mjs skips its adversarial N/A re-pass here — re-reading a file returns the identical
+// record, so the `challenged` flag would claim a challenge that never ran.
+check("agent adapter declares itself self-challenged", agentOk.selfChallenged === true);
+
+/** Does loading this verdict file reject? */
+async function agentRejects(verdicts, bust) {
+  return await loadAgent(verdicts, bust).then((m) => m.verify({ checkpoint: cpStub })).then(() => false, () => true);
+}
+check("agent adapter rejects a level outside 3|6|9",
+  await agentRejects([{ id: "payment.idempotency", level: 5, rationale: "x" }], 2));
+check("agent adapter rejects a passing grade with no stated basis",
+  await agentRejects([{ id: "payment.idempotency", level: 6 }], 3));
+check("agent adapter rejects an out-of-range confidence",
+  await agentRejects([{ id: "payment.idempotency", level: 3, confidence: 7, rationale: "x" }], 4));
+check("agent adapter rejects a duplicate verdict for one checkpoint",
+  await agentRejects([{ id: "payment.idempotency", level: 3, rationale: "a" }, { id: "payment.idempotency", level: 6, rationale: "b" }], 5));
+check("agent adapter rejects malformed JSON", await agentRejects("{not json", 6));
+check("agent adapter rejects a non-array verdict document", await agentRejects({ level: 3 }, 7));
+// The documented `{ "verdicts": [...] }` wrapper is accepted alongside a bare array.
+const agentWrapped = await loadAgent({ verdicts: [{ id: "payment.idempotency", level: 6, rationale: "key present" }] }, 8);
+check("agent adapter accepts the { verdicts: [...] } wrapper", (await agentWrapped.verify({ checkpoint: cpStub })).level === 6);
+delete process.env.FORESPEC_VERDICTS;
+rmSync(agentDir, { recursive: true, force: true });
+
+// ── the first-run cliff: refuse rather than fake a grade ────────────────────────────
+// A run with no verifier used to fall back to the keyword baseline and print ~20 checkpoints
+// of "defaults to risky" — a wall of red that reads as a verdict. These pin the refusal.
+const noneEnv = {};
+check("no verifier configured → refuses (no adapter chosen)", pickAdapter(() => null, noneEnv).name === null);
+check("half-configured key (no model) → still refuses", pickAdapter(() => null, { ANTHROPIC_API_KEY: "sk-x" }).name === null);
+check("the refusal names WHICH half is missing", pickAdapter(() => null, { ANTHROPIC_API_KEY: "sk-x" }).reason.includes("ANTHROPIC_MODEL"));
+check("key + model → claude", pickAdapter(() => null, { ANTHROPIC_API_KEY: "sk-x", ANTHROPIC_MODEL: "m" }).name === "claude");
+check("FORESPEC_VERDICTS → agent, no key needed", pickAdapter(() => null, { FORESPEC_VERDICTS: "/tmp/v.json" }).name === "agent");
+check("--verdicts → agent", pickAdapter((f) => (f === "--verdicts" ? "/tmp/v.json" : null), noneEnv).name === "agent");
+// The mock stays reachable — as the baseline a real verifier must beat — but only by name,
+// and it never counts as trusted, so `verify` keeps labelling it and `gate --fail` blocks on it.
+check("--adapter mock is honoured when asked for by name", pickAdapter((f) => (f === "--adapter" ? "mock" : null), noneEnv).name === "mock");
+check("mock is never trusted, even when explicit", pickAdapter((f) => (f === "--adapter" ? "mock" : null), noneEnv).trusted === false);
+check("claude and agent are trusted", pickAdapter((f) => (f === "--adapter" ? "claude" : null), noneEnv).trusted === true &&
+  pickAdapter((f) => (f === "--adapter" ? "agent" : null), noneEnv).trusted === true);
+// The message is the first thing a new user sees instead of a grade — it must hand them
+// somewhere to go, not just say no.
+const refusal = noVerifierMessage({ reason: "no verifier is configured" });
+check("refusal points at the free plugin path first", refusal.indexOf("/plugin install") < refusal.indexOf("ANTHROPIC_API_KEY"));
+check("refusal names what still works with no verifier", ["demo", "plan", "init"].every((c) => refusal.includes(`forespec ${c}`)));
+const ciRefusal = noVerifierMessage({ context: "ci" });
+check("in CI the refusal leads with the key (no agent in the loop)", ciRefusal.indexOf("anthropic-api-key") < ciRefusal.indexOf("/plugin install"));
+
+// ── file:line anchoring (the API path grades a packed blob, so it needs the numbers) ──
+const numbered = withLineNumbers("// FILE: a/b.ts\nconst x = 1;\nconst y = 2;\n\n// FILE: c.ts\nfoo();");
+check("line numbering restarts at each FILE header", numbered.includes("   1 | const x = 1;") && numbered.includes("   1 | foo();"));
+check("line numbering leaves FILE headers unnumbered", numbered.includes("// FILE: a/b.ts\n   1 |"));
+check("line numbering counts within a file", numbered.includes("   2 | const y = 2;"));
+// Headerless fixture (the eval harness path) still numbers from 1.
+check("headerless code numbers from 1", withLineNumbers("a();\nb();").startsWith("   1 | a();"));
+// Presentation only: the packed `code` the calibration store fingerprints is untouched, so
+// adding line numbers can't orphan every historical prior.
+const packSample = selectForCheckpoint(loadRepo(fixture), resolveArchetype(archetypePath).checkpoints[0], 60_000).code;
+check("packing is unchanged by numbering (fingerprint joins survive)", !packSample.includes(" | ") || !/^\s+\d+ \| /m.test(packSample));
+
+const rootDir = join(here, "..");
+
+// ── the grading contract is ONE artifact ────────────────────────────────────────────
+// The agent path's published number (0 false-greens / 152 critical-bad trials) scores
+// library/grading-contract.md as its system prompt. That number only describes the shipped
+// product while the shipped product reads the same file — a paraphrased copy in a caller is a
+// second, unmeasured bar wearing the measured one's number.
+const contractPath = join(rootDir, "library", "grading-contract.md");
+check("the grading contract ships", existsSync(contractPath));
+const contract = existsSync(contractPath) ? readFileSync(contractPath, "utf8") : "";
+for (const rule of ["applicable: false", "Grade only this checkpoint's property", "must state its basis"]) {
+  check(`grading contract still carries: "${rule}"`, contract.includes(rule));
+}
+const verifierAgent = readFileSync(join(rootDir, "agents", "forespec-verifier.md"), "utf8");
+check("the verifier subagent reads the contract rather than restating it", verifierAgent.includes("library/grading-contract.md"));
+// The subagent must not carry its own rubric — that is the fork this guard exists to catch.
+check("the verifier subagent does not fork the rubric", !/^\s*-\s+\*\*3\*\*\s+—/m.test(verifierAgent));
+const agentCli = readFileSync(join(rootDir, "verifier-eval", "adapters", "agent-cli.mjs"), "utf8");
+check("the eval adapter loads the contract from disk (measures what ships)", agentCli.includes("grading-contract.md") && agentCli.includes("readFileSync"));
+
+// The plugin manifest carries its own version, and the marketplace uses it to decide whether
+// an install is stale. Two versions of one artifact drift silently; this makes them one.
+const pkgVersion = JSON.parse(readFileSync(join(rootDir, "package.json"), "utf8")).version;
+const pluginManifest = JSON.parse(readFileSync(join(rootDir, ".claude-plugin", "plugin.json"), "utf8"));
+check("plugin manifest version matches package.json", pluginManifest.version === pkgVersion,
+  `plugin.json ${pluginManifest.version} vs package.json ${pkgVersion}`);
+// Every component the plugin advertises must actually be on disk — a marketplace install
+// silently missing its verifier would fail at the moment someone first tries it.
+for (const rel of ["agents/forespec-verifier.md", "commands/verify.md", "commands/plan.md", "skills/forespec-foresight/SKILL.md", "library/grading-contract.md", ".claude-plugin/marketplace.json"]) {
+  check(`plugin ships ${rel}`, existsSync(join(rootDir, rel)));
+}
 
 console.log("");
 if (failures > 0) {
