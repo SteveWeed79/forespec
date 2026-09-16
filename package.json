@@ -11,6 +11,8 @@
     "ci",
     "pr-gate",
     "github-action",
+    "claude-code",
+    "claude-code-plugin",
     "archetype",
     "checkpoints",
     "ai",
