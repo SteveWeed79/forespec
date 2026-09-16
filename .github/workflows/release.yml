@@ -41,3 +41,50 @@ jobs:
         run: npm publish --provenance --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      # A failed publish used to look exactly like a successful release: the tag exists, the
+      # GitHub Release is published, the changelog says shipped — and npm is a version behind.
+      # v0.1.4 failed that way (expired NPM_TOKEN) and went unnoticed for two days, because npm
+      # answers an AUTH failure with `404 Not Found - PUT .../forespec`, which reads like a
+      # missing package rather than a rejected credential. Nothing downstream looked at the
+      # registry, so nothing could tell the difference. This step is that check.
+      #
+      # It is also the project's own thesis applied to itself: a green that verified nothing is
+      # the expensive kind of failure.
+      - name: Verify it actually landed on the registry
+        run: |
+          set -uo pipefail
+          NAME=$(node -p "require('./package.json').name")
+          VERSION=$(node -p "require('./package.json').version")
+          TAG="${GITHUB_REF_NAME#v}"
+
+          # Catch the other way a release goes wrong: a tag that doesn't match what was packed.
+          # Cheap, and it fails before anyone trusts the tag as a version marker.
+          if [ "$VERSION" != "$TAG" ]; then
+            echo "::error::tag $GITHUB_REF_NAME does not match package.json version $VERSION"
+            exit 1
+          fi
+
+          # npm's read path is CDN-cached and lags a publish by up to a couple of minutes — a
+          # single immediate check reports a false failure on a publish that worked. Poll instead:
+          # a release gate that cries wolf gets ignored, which is the failure it exists to prevent.
+          for i in $(seq 1 12); do
+            LATEST=$(curl -sS -m 15 -H 'Cache-Control: no-cache' \
+              "https://registry.npmjs.org/-/package/$NAME/dist-tags" 2>/dev/null \
+              | node -pe "try{JSON.parse(require('fs').readFileSync(0,'utf8')).latest}catch(e){''}" 2>/dev/null || echo "")
+            if [ "$LATEST" = "$VERSION" ]; then
+              echo "registry dist-tags.latest = $VERSION"
+              # dist-tags can move independently of the tarball; confirm the version resolves too,
+              # so "latest points at it" and "it is installable" are both established.
+              curl -sSf -m 15 -o /dev/null -H 'Cache-Control: no-cache' \
+                "https://registry.npmjs.org/$NAME/$VERSION" \
+                || { echo "::error::dist-tags says $VERSION but $NAME@$VERSION does not resolve"; exit 1; }
+              echo "$NAME@$VERSION is published and installable."
+              exit 0
+            fi
+            echo "attempt $i/12: registry latest = ${LATEST:-<unreachable>}, want $VERSION — retrying in 15s"
+            sleep 15
+          done
+
+          echo "::error::publish reported success but $NAME@$VERSION is not the registry's latest after 3 minutes. Check NPM_TOKEN: npm answers an auth failure with a 404."
+          exit 1
