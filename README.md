@@ -70,7 +70,7 @@ re-investigate.
 
 ## Or as a CLI
 
-For CI, or when there's no agent in the loop:
+For scripting, or when there's no agent in the loop:
 
 ```bash
 # New/empty repo — DECLARE what you're building; Forespec points you and writes a build plan:
@@ -111,8 +111,7 @@ description — never your code — to pick the archetype.
   contract on snippets, not the repo-navigation advantage, and your session's model is the
   grader — are in [`VALIDATION-NOTES.md`](./VALIDATION-NOTES.md).
 - **An API key** — set `ANTHROPIC_API_KEY` + `ANTHROPIC_MODEL` and `verify` calls the model
-  directly. This is the CI path (no agent in the loop), and it's the one that carries the
-  measured bar: 0 false-greens on 52 critical bad cases, rule-of-three 95% upper bound ≤ 2.9%
+  directly. It carries the measured bar: 0 false-greens on 52 critical bad cases, rule-of-three 95% upper bound ≤ 2.9%
   (see [`VALIDATION-NOTES.md`](./VALIDATION-NOTES.md)). That bar covers the ecommerce/universal
   corpus; the newer `saas` / `ai-app` / `baas` archetypes are **first-pass** validated (full
   rule-of-three pending).
@@ -122,6 +121,12 @@ verdicts looks like a verdict no matter how it's labelled, and the point of this
 number you can act on. The `mock` keyword baseline still exists as the dumb bar a real verifier
 has to beat, but you have to ask for it by name (`--adapter mock`), and it can never certify a
 merge. Full walkthrough: [`repo-verify/README.md`](./repo-verify/README.md).
+
+**CI runs on your subscription too.** `claude setup-token` produces an OAuth token that
+authenticates with a Pro/Max/Team/Enterprise plan, so the PR gate bills against the plan you
+already have rather than a metered key —
+[`docs/ci-gate-agent.md`](./docs/ci-gate-agent.md). The merge decision stays deterministic:
+the agent produces verdicts, `forespec gate` reads them and decides.
 
 **What works with no verifier at all**, right now, no setup: `forespec demo` (a real graded run
 on a bundled example), `forespec plan "<feature>"` (what the feature actually requires, before
@@ -143,7 +148,22 @@ That last step is the point: the standard isn't a static checklist — it **comp
 work (and, opt-in later, across a shared pattern pool), while your project's specifics never
 leave your machine.
 
-## Proof — it caught a real bug on a repo that was already shipped
+## Proof — 8 public repos, every finding checked by hand
+
+Pointed at 8 public OSS repositories it had never seen — spanning all five archetypes, including a
+4,332-file Python codebase — the plugin's grader produced **147 verdicts: 18 findings, 112 passes,
+17 N/A**. Every finding was then checked against the source by hand:
+
+- **12 of 18 findings hand-verified. 0 fabrications.** Every `file:line` pointed at real code that
+  said what the verdict claimed.
+- **0 of 147 verdicts came back without evidence.** Every one cited `file:line`.
+- **It comes back clean on clean code.** Documenso, LibreChat and supabase-js produced zero
+  findings; four of Documenso's strongest passes were falsification-tested and held.
+- The full ledger — including **four defects it found in Forespec itself** — is in
+  [`docs/oss-audit-2026-09.md`](./docs/oss-audit-2026-09.md). Reproduce any run with
+  `node verifier-eval/repo-audit.mjs --repo <path>`.
+
+### Earlier: a real bug on a repo that was already shipped
 
 Pointed at a **real production ecommerce app** (a codebase it had never seen, not a fixture),
 `forespec verify` returned one blocking critical: the Stripe **checkout-session creation call
@@ -166,6 +186,8 @@ Not "perfect" — honest. That's the whole point.
 
 | File | What it is |
 |---|---|
+| [`docs/ci-gate-agent.md`](./docs/ci-gate-agent.md) | The PR gate on a Claude subscription instead of an API key — and why the merge decision stays with `pr-gate.mjs`, not the model. |
+| [`docs/oss-audit-2026-09.md`](./docs/oss-audit-2026-09.md) | **The field report.** 8 public OSS repos graded by the plugin, every finding checked by hand — including the four defects it found in Forespec itself. |
 | [`docs/claude-code-plugin.md`](./docs/claude-code-plugin.md) | **The front door.** How the plugin turns your coding agent into the verifier — no API key — and how to drive the same path from any other agent. |
 | [`FORESPEC-2.md`](./FORESPEC-2.md) | The vision: the full architecture and the moat argument. **Superseded on build *sequence*** by the build order below. |
 | [`forespec.buildorder-2.md`](./forespec.buildorder-2.md) | **The authoritative roadmap.** Phases 0–7, verifier-first, each phase shippable on its own. When any doc disagrees on *what to build in what order*, this one governs. |

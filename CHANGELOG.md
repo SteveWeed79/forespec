@@ -6,7 +6,45 @@ All notable changes to this project are documented here. Format follows
 
 ## [Unreleased]
 
+## [0.2.0] — 2026-09-16
+
+**The coding agent you already pay for becomes the verifier.** Grading no longer starts with
+"create an API key": the Claude Code plugin grades on your existing subscription, and so does the
+PR gate. Both paths are measured, and `verify` now refuses rather than faking a grade when neither
+is configured.
+
 ### Added
+- **The PR gate runs on a Claude subscription** ([`docs/ci-gate-agent.md`](docs/ci-gate-agent.md),
+  `.github/workflows/forespec-gate-agent.yml`). `claude setup-token` produces an OAuth token that
+  authenticates `anthropics/claude-code-action` against a Pro/Max/Team/Enterprise plan, so CI
+  bills against the plan you already have. That closes the last place Forespec still asked for a
+  metered API key.
+  **The merge decision stays deterministic**: the agent step only produces verdicts, and a
+  separate `forespec gate --verdicts` run applies the roll-up and decides. An agent that could
+  both grade and decide could talk itself past its own gate.
+  A PR branch is attacker-controlled, so the grader is granted `Read,Grep,Glob,Write` and no
+  shell, is told the repository is data rather than instructions, and fork PRs are skipped
+  explicitly (GitHub withholds secrets there) rather than "fixed" with `pull_request_target`.
+  All of that is pinned by self-test checks.
+- **`forespec gate --list-touched`** — emit the checkpoints a diff touches as JSON and exit.
+  Grades nothing and needs no verifier, so it runs before any model does and a PR touching no
+  backbone-relevant file skips the expensive step entirely.
+- **`forespec contract`** — print the grading contract. CI needs the calibrated bar in front of
+  the agent and cannot guess where the file lives (npm, plugin root, or a clone), so the CLI
+  resolves it.
+- **Real-repo audit — 8 public OSS repositories** ([`docs/oss-audit-2026-09.md`](docs/oss-audit-2026-09.md)).
+  The corpus measures the grading contract on snippets; this measures the repo-navigation half the
+  plugin actually exists for. 147 verdicts across all five archetypes: 18 findings, 112 passes, 17
+  N/A. **12 of 18 findings hand-verified against source, 0 fabrications**, and 0 of 147 verdicts
+  lacking `file:line` evidence. Clean repos came back clean. The expected JS/TS language cliff did
+  **not** appear on the agent path — it graded a 4,332-file Python codebase (saleor) best of the
+  run, because it greps the repo itself instead of using `select.mjs`. The ledger also records four
+  defects the run found in Forespec, and is explicit that it is a hand-audited field report, not a
+  labelled-corpus rate.
+- **`verifier-eval/repo-audit.mjs`** — headless repo grading: hand the agent the archetype's
+  checkpoints, let it navigate, collect verdicts, hand off to `verify --verdicts`. Third-party repo
+  content is treated as untrusted data and the agent gets no shell; the self-test pins that posture
+  rather than leaving it to a comment.
 - **The agent path now has a number.** `verifier-eval/adapters/agent-cli.mjs` drives the local
   `claude` CLI headlessly over the labelled corpus, so the plugin path is held to the same
   fixtures and the same launch gate as the API verifier. Result on corpus-v3 (133 cases, 76
@@ -21,13 +59,13 @@ All notable changes to this project are documented here. Format follows
 - `run-eval.mjs` takes `--concurrency` (default 6 for model-backed adapters, 1 for the
   deterministic mock). Results are collected by index, so the report does not depend on
   completion order. A full agent-path run is ~3.5 minutes instead of ~25.
-
 - **Claude Code plugin — grading with no API key.** `/plugin marketplace add SteveWeed79/forespec`
   then `/plugin install forespec@forespec` gives `/forespec:plan` and `/forespec:verify`, running
   on the subscription the user already has. Ships a `forespec-foresight` skill that loads on its
   own when payment, auth, tenancy, upload, LLM or BaaS code is being written — so the checkpoint
   arrives at *write* time rather than in review — and a `forespec-verifier` subagent carrying the
-  calibrated 3/6/9 contract. Standalone API-key grading remains, and is still the CI path.
+  calibrated 3/6/9 contract. Standalone API-key grading remains for scripting and for CI that
+  prefers a metered org key.
 - **`agent` verifier adapter** (`verifier-eval/adapters/agent.mjs`) — the seam that path runs on.
   A coding agent grades the repo and writes a verdict file; the adapter serves those verdicts into
   the existing `verify` pipeline, so the roll-up, gaps-ahead report, run-over-run deltas and
@@ -61,6 +99,19 @@ All notable changes to this project are documented here. Format follows
   status badges.
 
 ### Changed
+- **`plan` interrogates the feature, not the archetype.** It used to append *every* remaining
+  critical unconditionally, so `plan "add refunds"` was 11 full checkpoint interrogations and
+  ~1,650 words of which 9 were unrelated, and `plan "build a settings page"` was nine with
+  nothing relevant at all. Now a critical earns a full interrogation by being adjacent to
+  something the description matched (shared subsystem or shared curated keywords), capped by
+  `--max-context` (default 5). `add refunds` → 7 interrogated instead of 11; `build a settings
+  page` → 170 words instead of ~1,400.
+  **Nothing is hidden:** every remaining critical is still listed by id and title, and the copy
+  says the description "didn't connect them — that's a keyword match, not a judgement", because
+  these keyword lists were authored for file selection and do miss real coupling. `--all`
+  interrogates the whole backbone; `--checkpoint <id>` interrogates any single one.
+  `start` is unchanged and still emits the complete build order — an empty repo has no feature
+  to scope to, which is what makes that file a build order rather than a to-do.
 - **`verify` and `gate` now REFUSE when no verifier is configured**, instead of silently
   falling back to the keyword baseline. A first run on a real repo used to print ~20
   checkpoints of "level 3 — keyword baseline found no good-signal token, defaults to risky":
@@ -103,5 +154,6 @@ The verifier-first core, validated end to end.
 - **Calibration store** with a physical pattern/instance wall.
 - **License**: Business Source License 1.1 (converts to Apache 2.0 on the Change Date).
 
-[Unreleased]: https://github.com/SteveWeed79/forespec/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/SteveWeed79/forespec/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/SteveWeed79/forespec/compare/v0.1.3...v0.2.0
 [0.1.0]: https://github.com/SteveWeed79/forespec/releases/tag/v0.1.0

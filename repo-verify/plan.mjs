@@ -29,6 +29,9 @@ const here = dirname(fileURLToPath(import.meta.url));
 const arg = (f, fb) => { const i = process.argv.indexOf(f); return i !== -1 && process.argv[i + 1] ? process.argv[i + 1] : fb; };
 const has = (f) => process.argv.includes(f);
 
+/** How many criticals to carry alongside the matches before deferring the rest to `--all`. */
+export const DEFAULT_CONTEXT_CAP = 5;
+
 const HELP = `forespec plan — interrogate a feature BEFORE you build it.
 
 Usage:
@@ -39,6 +42,8 @@ Options:
   --archetype <ref>    archetype name/manifest (overrides config; e.g. saas)
   --domain <d>         backbone | design | all (default: backbone)
   --checkpoint <id>    interrogate a single checkpoint by id
+  --all                every critical in the archetype, not just this feature's subsystems
+  --max-context <n>    how many adjacent criticals to carry (default: ${DEFAULT_CONTEXT_CAP})
   --out <file>         write the spec to a file instead of stdout
   --json               machine-readable
   -h, --help
@@ -63,7 +68,13 @@ export function relevanceScore(feature, cp) {
  *     because a feature touching the backbone must respect them regardless of wording.
  * This guarantees the critical backbone is never silently skipped at plan time.
  */
-export function selectForFeature(checkpoints, feature, { domain = "backbone", onlyId = null } = {}) {
+/** The id minus its leaf, e.g. `payment.idempotency` -> `payment`, `a.b.c` -> `a.b`. */
+function subsystemOf(id) {
+  const parts = String(id).split(".");
+  return parts.length > 1 ? parts.slice(0, -1).join(".") : parts[0];
+}
+
+export function selectForFeature(checkpoints, feature, { domain = "backbone", onlyId = null, all = false, cap = DEFAULT_CONTEXT_CAP } = {}) {
   let pool = checkpoints;
   if (onlyId) pool = pool.filter((c) => c.id === onlyId);
   else if (domain !== "all") pool = pool.filter((c) => c.domain === domain);
@@ -75,8 +86,45 @@ export function selectForFeature(checkpoints, feature, { domain = "backbone", on
     ? pool
     : scored.filter((s) => s.score > 0).sort((a, b) => b.score - a.score).map((s) => s.cp);
   const relevantIds = new Set(relevant.map((c) => c.id));
-  const mustHold = onlyId ? [] : pool.filter((c) => c.severity === "critical" && !relevantIds.has(c.id));
-  return { relevant, mustHold };
+  if (onlyId) return { relevant, mustHold: [], deferred: [] };
+
+  const otherCriticals = pool.filter((c) => c.severity === "critical" && !relevantIds.has(c.id));
+  // `all` is the greenfield case: with no feature to scope to (or the user asking for the whole
+  // standard), every critical IS the answer. That was the only behaviour this function had.
+  if (all) return { relevant, mustHold: otherCriticals, deferred: [] };
+
+  // Scoped: a critical earns its place by being ADJACENT to something that matched.
+  // Unconditionally appending every critical made `plan "add refunds"` an 11-checkpoint,
+  // ~1,650-word lecture of which 9 were unrelated, and `plan "build a settings page"` nine
+  // checkpoints with nothing relevant at all. A plan nobody reads surfaces nothing.
+  //
+  // Two signals: a shared SUBSYSTEM (`payment.refund_integrity` pulls in `payment.idempotency`
+  // — a refund must be idempotent), and shared curated KEYWORDS, which recovers coupling the
+  // ids don't show (`ecommerce.checkout.*` and `payment.*` are different subsystems but the
+  // same problem; sharing "payment"/"intent" reconnects them).
+  //
+  // Kept deliberately TIGHT. These keyword lists were authored to steer file selection, not to
+  // express semantic relatedness, so they share generic vocabulary; an earlier attempt to widen
+  // this with one hop of transitive expansion pulled `atomic_stock_hold` into "let users sign
+  // up" and `card_data_handling` into "add file upload". Precision here is cheap because
+  // NOTHING IS HIDDEN — see `mustHold` vs `deferred` in the renderer: adjacency decides who gets
+  // the full interrogation, and every remaining critical is still listed by name and title.
+  const matchedSubsystems = new Set(relevant.map((c) => subsystemOf(c.id)));
+  const matchedKeywords = new Set(relevant.flatMap((c) => keywordsFor(c)));
+  const scoredAdjacent = otherCriticals
+    .map((c) => ({
+      c,
+      overlap: keywordsFor(c).filter((k) => matchedKeywords.has(k)).length,
+      sameSubsystem: matchedSubsystems.has(subsystemOf(c.id)),
+    }))
+    .filter((x) => x.overlap > 0 || x.sameSubsystem)
+    // Same-subsystem first (the strongest signal), then by shared vocabulary. Ties keep
+    // manifest order, which is already most-foundational-first.
+    .sort((a, b) => (b.sameSubsystem ? 1 : 0) - (a.sameSubsystem ? 1 : 0) || b.overlap - a.overlap);
+
+  const mustHold = scoredAdjacent.slice(0, Math.max(0, cap)).map((x) => x.c);
+  const keptIds = new Set(mustHold.map((c) => c.id));
+  return { relevant, mustHold, deferred: otherCriticals.filter((c) => !keptIds.has(c.id)) };
 }
 
 const SEV_RANK = { critical: 0, high: 1, medium: 2, low: 3 };
@@ -125,7 +173,7 @@ function renderCheckpoint(cp, { brief = false, ordinal = null, matched = false }
   return L.join("\n");
 }
 
-export function renderPlan({ archetype, feature, relevant, mustHold, verbosity }) {
+export function renderPlan({ archetype, feature, relevant, mustHold, deferred = [], verbosity }) {
   const briefFor = (cp) => (verbosity ? verbosity(cp) === "brief" : false);
   const ordered = orderForBuild(relevant, mustHold, feature, archetype.checkpoints || []);
   const total = ordered.length;
@@ -133,10 +181,24 @@ export function renderPlan({ archetype, feature, relevant, mustHold, verbosity }
   const L = [];
   L.push(`# 🔭 Forespec plan — ${feature}`);
   L.push("");
-  L.push(`Archetype: **${archetype.archetype}** v${archetype.version} · **${total}** checkpoint(s) to clear before you build.`);
+  L.push(
+    total === 0
+      ? `Archetype: **${archetype.archetype}** v${archetype.version}`
+      : `Archetype: **${archetype.archetype}** v${archetype.version} · **${total}** checkpoint(s) to clear before you build.`
+  );
   if (total === 0) {
     L.push("");
-    L.push("No backbone checkpoints matched this feature. Re-run with `--domain all` or a clearer description.");
+    L.push(`Nothing in the **${archetype.archetype}** backbone specifically covers this feature.`);
+    if (deferred.length) {
+      L.push("");
+      L.push(`That doesn't mean nothing applies — these **${deferred.length}** critical checkpoint(s) hold for any feature in this archetype:`);
+      L.push("");
+      L.push(deferred.map((c) => `- \`${c.id}\` — ${c.title}`).join("\n"));
+      L.push("");
+      L.push(`Interrogate one with \`--checkpoint <id>\`, or see them all in full with \`forespec plan "${feature}" --all\`.`);
+    } else {
+      L.push("Re-run with `--domain all`, or name a checkpoint directly with `--checkpoint <id>`.");
+    }
     return L.join("\n");
   }
   L.push(
@@ -147,6 +209,20 @@ export function renderPlan({ archetype, feature, relevant, mustHold, verbosity }
   L.push("");
   L.push(ordered.map((o, i) => renderCheckpoint(o.cp, { brief: briefFor(o.cp), ordinal: i + 1, matched: o.matched })).join("\n\n"));
   L.push("");
+  if (deferred.length) {
+    // Named, not hidden. The problem this scoping solves is ~1,650 words of full interrogation
+    // for checkpoints the feature doesn't touch — not the mention itself. One line each costs
+    // almost nothing and keeps the reader able to notice something the keywords missed.
+    L.push(`### Also critical in this archetype — not interrogated here`);
+    L.push("");
+    // Deliberately says "didn't connect", not "isn't related". The adjacency signal is keyword
+    // overlap over lists authored for file selection, so it misses real coupling — claiming
+    // these are unrelated would be asserting something this function cannot know.
+    L.push(`These ${deferred.length} are critical in this archetype; the feature description didn't connect them. That's a keyword match, not a judgement — skim the list, and \`--checkpoint <id>\` interrogates any of them in full.`);
+    L.push("");
+    L.push(deferred.map((c) => `- \`${c.id}\` — ${c.title}`).join("\n"));
+    L.push("");
+  }
   L.push("---");
   L.push("**For your AI coder:** build the feature so every acceptance box above can be checked, then run `forespec verify` (or open a PR — the gate grades these same checkpoints). Levels: 3 present-but-risky · 6 solid/shippable · 9 great. Aim for 9 on critical, 6+ elsewhere — never infinite polish.");
   return L.join("\n");
@@ -202,7 +278,10 @@ function main() {
     return 2;
   }
   const domain = arg("--domain", "backbone");
-  const { relevant, mustHold } = selectForFeature(archetype.checkpoints, feature, { domain, onlyId });
+  const cap = Number(arg("--max-context", String(DEFAULT_CONTEXT_CAP)));
+  const { relevant, mustHold, deferred } = selectForFeature(archetype.checkpoints, feature, {
+    domain, onlyId, all: has("--all"), cap: Number.isFinite(cap) ? cap : DEFAULT_CONTEXT_CAP,
+  });
   // Don't silently drop a whole dimension: `plan` defaults to the backbone, so a design-heavy
   // archetype (a portfolio) would show none of its design bar. Name what's omitted.
   const designOmitted = (!onlyId && domain === "backbone") ? archetype.checkpoints.filter((c) => c.domain === "design") : [];
@@ -216,6 +295,7 @@ function main() {
       plan: ordered.map((o) => ({ ...pick(o.cp), matched: o.matched })),
       relevant: relevant.map(pick),
       mustHold: mustHold.map(pick),
+      deferred: deferred.map((c) => c.id),
       designOmitted: designOmitted.map(pick),
     }, null, 2));
     return 0;
@@ -234,7 +314,7 @@ function main() {
     if (brief > 0) adaptNote = `\n_Adapted to your proficiency: trimmed the "why" on ${brief} checkpoint(s) in domains you're fluent in (\`forespec proficiency\` to see, \`--no-adapt\` to show all)._`;
   }
 
-  const md = renderPlan({ archetype, feature, relevant, mustHold, verbosity }) + adaptNote + designNote;
+  const md = renderPlan({ archetype, feature, relevant, mustHold, deferred, verbosity }) + adaptNote + designNote;
   const out = arg("--out", null);
   if (out) {
     const path = pathResolve(process.cwd(), out);

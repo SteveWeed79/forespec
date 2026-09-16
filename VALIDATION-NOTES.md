@@ -83,7 +83,10 @@ subagent reads — so this scores the artifact that ships, not a paraphrase of i
 **What was NOT measured:** the agent's actual field advantage. Fixtures are snippets, so grep,
 read, and following an import into the middleware that supposedly verifies the signature are never
 exercised. **This number is a floor on the agent path, not a ceiling**, and must not be reported as
-"the plugin scores X on real code." That requires real repositories and is still owed.
+"the plugin scores X on real code." That requires real repositories — now done separately in
+[`docs/oss-audit-2026-09.md`](docs/oss-audit-2026-09.md) (8 public repos, 147 verdicts, 12 of 18
+findings hand-verified, 0 fabrications), which is a hand-audited field report and not a
+labelled-corpus rate. The two measure different things and neither substitutes for the other.
 
 **Result — corpus-v3 (133 cases; 76 critical bad), 2 independent runs:**
 

@@ -18,7 +18,7 @@ branding:
 #       steps:
 #         - uses: actions/checkout@v4
 #           with: { fetch-depth: 0 }   # full history so it can diff the base branch
-#         - uses: SteveWeed79/forespec@v0.1.0
+#         - uses: SteveWeed79/forespec@v0.2.0
 #           with:
 #             # REQUIRED — in CI there is no coding agent in the loop, so the gate needs
 #             # an API key. Without one it refuses and posts nothing, rather than

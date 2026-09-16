@@ -52,6 +52,8 @@ Options:
   --head <ref>         head ref (default: HEAD)
   --changed a,b,c      explicit changed-file list (skips git diff; for local testing)
   --archetype <file>   archetype manifest (default: archetype.ecommerce.json)
+  --list-touched       print the checkpoints this diff touches as JSON and exit (grades nothing)
+  --verdicts <file>    agent-written verdicts to gate from (implies --adapter agent)
   --adapter <name>     claude | agent | mock (default: claude if key+model set. With no
                        verifier the gate REFUSES and posts nothing; 'mock' is the keyword
                        baseline, must be named, and can never certify a merge.)
@@ -196,6 +198,30 @@ async function main() {
   // weaken its own gate (swap the archetype, lower a severity) — flag it, loudly.
   const tampered = changed.filter((p) => p === "forespec.config.json" || p.startsWith(".forespec/"));
 
+  // Touched checkpoints: a changed file is relevant to the checkpoint (keyword score > 0).
+  const touched = archetype.checkpoints.filter((cp) => {
+    if (cp.domain !== "backbone" && !has("--all-domains")) return false;
+    const kws = keywordsFor(cp);
+    return changedObjs.some((f) => scoreFile(f, kws) > 0);
+  });
+
+  // `--list-touched` is the read half of the agent path in CI: emit the checkpoints this diff
+  // touches so a coding agent can grade exactly those, then hand the verdicts back to a second
+  // `gate --verdicts` run. It grades nothing itself, so it deliberately runs BEFORE the
+  // verifier check — asking which checkpoints a diff touches needs no verifier at all.
+  if (has("--list-touched")) {
+    console.log(JSON.stringify({
+      archetype: archetype.archetype,
+      version: archetype.version,
+      base, head, changed,
+      checkpoints: touched.map((c) => ({
+        id: c.id, domain: c.domain, severity: c.severity, title: c.title, why: c.why,
+        levels: c.levels, reasoning: c.verify?.reasoning ?? null, assertions: c.verify?.assertions ?? [],
+      })),
+    }, null, 2));
+    return 0;
+  }
+
   // No verifier means no comment. A gate that decorates a PR with keyword-baseline findings
   // teaches reviewers that Forespec comments are noise — a cost that outlives the misconfigured
   // run and is worse than having no gate at all. So it refuses here, before anything is posted,
@@ -208,13 +234,6 @@ async function main() {
   const degraded = !trusted;
   if (degraded) console.error(`note: adapter "${adapterName}" is the keyword baseline, NOT a reasoning verifier. Its verdict must not gate a merge.`);
   const adapter = await import(new URL(`../verifier-eval/adapters/${adapterName}.mjs`, import.meta.url));
-
-  // Touched checkpoints: a changed file is relevant to the checkpoint (keyword score > 0).
-  const touched = archetype.checkpoints.filter((cp) => {
-    if (cp.domain !== "backbone" && !has("--all-domains")) return false;
-    const kws = keywordsFor(cp);
-    return changedObjs.some((f) => scoreFile(f, kws) > 0);
-  });
 
   const results = [];
   for (const cp of touched) {
