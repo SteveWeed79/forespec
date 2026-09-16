@@ -17,7 +17,7 @@ import { spawnSync } from "node:child_process";
 import { readFileSync, writeFileSync, existsSync, renameSync } from "node:fs";
 import { dirname, join, resolve as pathResolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { detectAuto, discoverManifests, inferArchetype } from "../repo-verify/detect.mjs";
+import { detectAuto, discoverManifests, inferArchetype, isAmbiguous } from "../repo-verify/detect.mjs";
 import { writeConfig, readConfig, resolveManifestPath, CONFIG_FILE } from "../repo-verify/config.mjs";
 import { resolveArchetype } from "../library/resolve.mjs";
 import { selectForFeature, renderPlan } from "../repo-verify/plan.mjs";
@@ -46,6 +46,7 @@ Commands:
   demo               See the verifier at work on a bundled example — no API key, ~20s
   start "<what you're building>"   New/empty repo: declare it → archetype + build-order checklist
   init [repo]        Existing repo: detect the archetype and write ${CONFIG_FILE}
+                     (--archetype <name> to declare it instead of detecting)
   plan "<feature>"   Interrogate a feature BEFORE building it; emit a spec
   verify [repo]      Grade the repo's backbone against its archetype
   checkpoints        Emit the standard as JSON (what an agent grades against)
@@ -170,8 +171,32 @@ async function start(args) {
 }
 
 async function init(args) {
-  const positional = args.find((a) => !a.startsWith("-"));
+  const VAL_FLAGS = ["--archetype"];
+  const positional = args.find((a, i) => !a.startsWith("-") && !VAL_FLAGS.includes(args[i - 1]));
   const repoRoot = pathResolve(process.cwd(), positional ?? ".");
+
+  // `--archetype` skips detection entirely. It is what the near-tie refusal below tells you to
+  // run, and the answer when you simply know what you are building better than a keyword scan.
+  const override = argVal(args, "--archetype");
+  if (override) {
+    const manifests = discoverManifests(projectDir);
+    const norm = override.replace(/^archetype\./, "").replace(/\.json$/, "");
+    const m = manifests.find((x) => x.archetype === norm || x.file === override || x.file === `archetype.${norm}.json`);
+    if (!m) { console.error(`error: no archetype "${override}". Available: ${manifests.map((x) => x.archetype).join(", ")}`); return 2; }
+    const existed = readConfig(repoRoot);
+    const p = writeConfig(repoRoot, {
+      schema: "forespec/config/v1",
+      archetype: m.file,
+      detected: { archetype: m.archetype, confidence: "declared", via: "flag" },
+      created: new Date().toISOString(),
+    });
+    console.log(`\n🔭 forespec init — ${repoRoot}\n`);
+    console.log(`${existed ? "Updated" : "Wrote"} ${p} → archetype: ${m.archetype}  (declared)`);
+    console.log("Commit it so CI grades against the same archetype. Next:");
+    console.log('  forespec plan "<your next feature>"   # interrogate it before you build');
+    return 0;
+  }
+
   const { ranked, ai } = await detectAuto({ repoRoot, projectDir, useAI: !args.includes("--no-ai") });
 
   if (ranked.length === 0) {
@@ -198,6 +223,24 @@ async function init(args) {
     console.log('For a new project, DECLARE what you\'re building instead:');
     console.log('  forespec start "an online store with checkout"');
     console.log(`Or pick one explicitly:  forespec init --no-ai  then  echo '{ "archetype": "${ranked[0].manifest}" }' > ${CONFIG_FILE}`);
+    return 1;
+  }
+
+  // A near-tie is not a detection — it is a coin flip, and the archetype decides which backbone
+  // the whole project is graded against. Writing one silently is the same failure `verify`
+  // refuses on: a confident-looking answer nothing stands behind.
+  //
+  // Real case: a document-signing SaaS scored saas 22 vs ai-app 21. Either config produces a
+  // plausible-looking run; one of them grades the wrong backbone and never mentions tenant
+  // isolation or subscription lifecycle. The user is the one who knows which it is — ask.
+  if (isAmbiguous(ranked) && !ai.used && top.score > 0) {
+    const runner = ranked[1];
+    console.log(`Too close to call: ${top.archetype} (${top.score}) vs ${runner.archetype} (${runner.score}).`);
+    console.log("Not writing a config on a near-tie — the archetype decides which backbone everything");
+    console.log("downstream is graded against, and a wrong one mis-grades the whole project quietly.\n");
+    console.log("You know which this is. Pick one:");
+    for (const r of ranked.slice(0, 2)) console.log(`  forespec init --archetype ${r.archetype}`);
+    if (!ai.available) console.log("\nOr set ANTHROPIC_API_KEY + ANTHROPIC_MODEL to let one AI call break the tie.");
     return 1;
   }
 

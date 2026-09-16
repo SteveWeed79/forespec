@@ -7,6 +7,21 @@ All notable changes to this project are documented here. Format follows
 ## [Unreleased]
 
 ### Fixed
+- **Detection was blind to monorepos.** `collectSignals` read only the root `package.json`, but a
+  monorepo root carries tooling while the product's real dependencies live in `apps/*` and
+  `packages/*`. It now unions deps across npm/yarn `workspaces` and `pnpm-workspace.yaml` globs
+  (bounded, zero new dependencies). Caught by the OSS audit: documenso's root carries
+  `@ai-sdk/google-vertex` but not `stripe` (which sits in `packages/lib`), so a document-signing
+  SaaS scored `ai-app` 21 vs `saas` 18 and was graded against the wrong backbone — never seeing
+  tenant isolation, entitlement integrity or subscription lifecycle. It now resolves `saas`.
+- **`init` no longer writes a config on a coin flip.** `isAmbiguous` already flagged a ≤2-point
+  margin, but only to trigger the AI tie-breaker; without a key the near-tie was silently
+  resolved by score order. The archetype decides which backbone everything downstream is graded
+  against, so a wrong one mis-grades the whole project quietly — the same failure `verify`
+  refuses on, with slower consequences. `init` now shows both candidates and stops.
+- **`forespec init --archetype <name>`** — declare the archetype instead of detecting it. This is
+  what the near-tie refusal tells you to run, so it had to exist.
+
 - **A failed npm publish no longer looks like a successful release.** `release.yml` now verifies,
   after publishing, that the registry's `dist-tags.latest` equals `package.json`'s version and
   that the version actually resolves — and fails the run loudly when it doesn't. It also checks
