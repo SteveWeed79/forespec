@@ -21,7 +21,6 @@ All notable changes to this project are documented here. Format follows
   refuses on, with slower consequences. `init` now shows both candidates and stops.
 - **`forespec init --archetype <name>`** — declare the archetype instead of detecting it. This is
   what the near-tie refusal tells you to run, so it had to exist.
-
 - **A failed npm publish no longer looks like a successful release.** `release.yml` now verifies,
   after publishing, that the registry's `dist-tags.latest` equals `package.json`'s version and
   that the version actually resolves — and fails the run loudly when it doesn't. It also checks
