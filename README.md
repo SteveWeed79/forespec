@@ -143,7 +143,22 @@ That last step is the point: the standard isn't a static checklist — it **comp
 work (and, opt-in later, across a shared pattern pool), while your project's specifics never
 leave your machine.
 
-## Proof — it caught a real bug on a repo that was already shipped
+## Proof — 8 public repos, every finding checked by hand
+
+Pointed at 8 public OSS repositories it had never seen — spanning all five archetypes, including a
+4,332-file Python codebase — the plugin's grader produced **147 verdicts: 18 findings, 112 passes,
+17 N/A**. Every finding was then checked against the source by hand:
+
+- **12 of 18 findings hand-verified. 0 fabrications.** Every `file:line` pointed at real code that
+  said what the verdict claimed.
+- **0 of 147 verdicts came back without evidence.** Every one cited `file:line`.
+- **It comes back clean on clean code.** Documenso, LibreChat and supabase-js produced zero
+  findings; four of Documenso's strongest passes were falsification-tested and held.
+- The full ledger — including **four defects it found in Forespec itself** — is in
+  [`docs/oss-audit-2026-09.md`](./docs/oss-audit-2026-09.md). Reproduce any run with
+  `node verifier-eval/repo-audit.mjs --repo <path>`.
+
+### Earlier: a real bug on a repo that was already shipped
 
 Pointed at a **real production ecommerce app** (a codebase it had never seen, not a fixture),
 `forespec verify` returned one blocking critical: the Stripe **checkout-session creation call
@@ -166,6 +181,7 @@ Not "perfect" — honest. That's the whole point.
 
 | File | What it is |
 |---|---|
+| [`docs/oss-audit-2026-09.md`](./docs/oss-audit-2026-09.md) | **The field report.** 8 public OSS repos graded by the plugin, every finding checked by hand — including the four defects it found in Forespec itself. |
 | [`docs/claude-code-plugin.md`](./docs/claude-code-plugin.md) | **The front door.** How the plugin turns your coding agent into the verifier — no API key — and how to drive the same path from any other agent. |
 | [`FORESPEC-2.md`](./FORESPEC-2.md) | The vision: the full architecture and the moat argument. **Superseded on build *sequence*** by the build order below. |
 | [`forespec.buildorder-2.md`](./forespec.buildorder-2.md) | **The authoritative roadmap.** Phases 0–7, verifier-first, each phase shippable on its own. When any doc disagrees on *what to build in what order*, this one governs. |

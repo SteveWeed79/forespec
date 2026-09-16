@@ -114,9 +114,12 @@ as a number. Covered by `repo-verify/self-test.mjs`.
 - **The agent path is measured**: 0 false-greens across 152 critical-bad trials on corpus-v3
   (two independent runs, 100% outcome agreement, 0 errors) → rule-of-three 95% upper bound
   **≤2.0%**, under the ≤6% bar. See [`VALIDATION-NOTES.md`](../VALIDATION-NOTES.md).
-  Two caveats that matter: the corpus is snippets, so this measures the *grading contract* and
-  not the repo-navigation advantage — a floor, not a ceiling; and the model is chosen by your
-  session, so a different model is a different grader (those runs served on `claude-sonnet-5`).
+  That corpus is snippets, so it measures the *grading contract*, not the repo-navigation
+  advantage. The navigation half is measured separately in
+  [`docs/oss-audit-2026-09.md`](./oss-audit-2026-09.md): 8 public repos, 147 verdicts, 12 of 18
+  findings hand-verified with 0 fabrications, and 0 verdicts lacking `file:line` evidence.
+  Remaining caveat: the model is chosen by your session, so a different model is a different
+  grader (both runs served on `claude-sonnet-5`).
 - The grading contract lives in [`library/grading-contract.md`](../library/grading-contract.md)
   and is loaded verbatim by both the plugin's subagent and the eval harness — so the number
   above scores the artifact that ships, not a paraphrase of it. Don't fork it into a caller.

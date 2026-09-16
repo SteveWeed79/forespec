@@ -555,6 +555,15 @@ check("the verifier subagent does not fork the rubric", !/^\s*-\s+\*\*3\*\*\s+�
 const agentCli = readFileSync(join(rootDir, "verifier-eval", "adapters", "agent-cli.mjs"), "utf8");
 check("the eval adapter loads the contract from disk (measures what ships)", agentCli.includes("grading-contract.md") && agentCli.includes("readFileSync"));
 
+// ── repo-audit driver: the untrusted-input posture is an invariant, not a comment ────
+// It points a grading agent at third-party repositories, whose files are attacker-controlled
+// for this purpose. Granting it Bash would turn "a hostile repo corrupts its own grade" into
+// "a hostile repo runs code", so the tool grant is pinned here rather than trusted to a comment.
+const repoAudit = readFileSync(join(rootDir, "verifier-eval", "repo-audit.mjs"), "utf8");
+const grants = [...repoAudit.matchAll(/"--(?:allowed)?[Tt]ools",\s*([^\]]*?)\n/g)].map((m) => m[1]);
+check("repo-audit grants the agent no shell", grants.length > 0 && !grants.some((g) => /"Bash"|"Execute"|"NotebookEdit"/.test(g)));
+check("repo-audit tells the agent the repo is data, not instructions", /UNTRUSTED DATA/.test(repoAudit));
+
 // The plugin manifest carries its own version, and the marketplace uses it to decide whether
 // an install is stale. Two versions of one artifact drift silently; this makes them one.
 const pkgVersion = JSON.parse(readFileSync(join(rootDir, "package.json"), "utf8")).version;

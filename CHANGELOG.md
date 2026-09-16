@@ -7,6 +7,19 @@ All notable changes to this project are documented here. Format follows
 ## [Unreleased]
 
 ### Added
+- **Real-repo audit — 8 public OSS repositories** ([`docs/oss-audit-2026-09.md`](docs/oss-audit-2026-09.md)).
+  The corpus measures the grading contract on snippets; this measures the repo-navigation half the
+  plugin actually exists for. 147 verdicts across all five archetypes: 18 findings, 112 passes, 17
+  N/A. **12 of 18 findings hand-verified against source, 0 fabrications**, and 0 of 147 verdicts
+  lacking `file:line` evidence. Clean repos came back clean. The expected JS/TS language cliff did
+  **not** appear on the agent path — it graded a 4,332-file Python codebase (saleor) best of the
+  run, because it greps the repo itself instead of using `select.mjs`. The ledger also records four
+  defects the run found in Forespec, and is explicit that it is a hand-audited field report, not a
+  labelled-corpus rate.
+- **`verifier-eval/repo-audit.mjs`** — headless repo grading: hand the agent the archetype's
+  checkpoints, let it navigate, collect verdicts, hand off to `verify --verdicts`. Third-party repo
+  content is treated as untrusted data and the agent gets no shell; the self-test pins that posture
+  rather than leaving it to a comment.
 - **The agent path now has a number.** `verifier-eval/adapters/agent-cli.mjs` drives the local
   `claude` CLI headlessly over the labelled corpus, so the plugin path is held to the same
   fixtures and the same launch gate as the API verifier. Result on corpus-v3 (133 cases, 76
@@ -21,7 +34,6 @@ All notable changes to this project are documented here. Format follows
 - `run-eval.mjs` takes `--concurrency` (default 6 for model-backed adapters, 1 for the
   deterministic mock). Results are collected by index, so the report does not depend on
   completion order. A full agent-path run is ~3.5 minutes instead of ~25.
-
 - **Claude Code plugin — grading with no API key.** `/plugin marketplace add SteveWeed79/forespec`
   then `/plugin install forespec@forespec` gives `/forespec:plan` and `/forespec:verify`, running
   on the subscription the user already has. Ships a `forespec-foresight` skill that loads on its
