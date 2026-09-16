@@ -6,6 +6,20 @@ All notable changes to this project are documented here. Format follows
 
 ## [Unreleased]
 
+### Fixed
+- **A failed npm publish no longer looks like a successful release.** `release.yml` now verifies,
+  after publishing, that the registry's `dist-tags.latest` equals `package.json`'s version and
+  that the version actually resolves — and fails the run loudly when it doesn't. It also checks
+  the tag matches the packed version, catching the other way a release goes wrong.
+  This was a real miss, twice: v0.1.4 and v0.2.0 both failed to publish on an expired
+  `NPM_TOKEN`, and npm answers an auth failure with `404 Not Found - PUT .../forespec`, which
+  reads like a missing package rather than a rejected credential. The tag, the GitHub Release
+  and the changelog all said shipped while npm stayed two versions behind, and v0.1.4 went
+  unnoticed for two days because nothing downstream looked at the registry.
+  The check polls for up to 3 minutes rather than asking once: npm's read path is CDN-cached and
+  lags a publish, so a single immediate check false-fails a publish that worked — and a release
+  gate that cries wolf gets ignored, which is the failure it exists to prevent.
+
 ## [0.2.0] — 2026-09-16
 
 **The coding agent you already pay for becomes the verifier.** Grading no longer starts with
