@@ -49,6 +49,7 @@ Commands:
   plan "<feature>"   Interrogate a feature BEFORE building it; emit a spec
   verify [repo]      Grade the repo's backbone against its archetype
   checkpoints        Emit the standard as JSON (what an agent grades against)
+  contract           Print the grading contract (the calibrated 3/6/9 bar)
   design <url>       Grade a live page's design in a headless browser (Playwright)
   gate [options]     PR/CI gate: grade the diff, post a comment, feed calibration
   detect [repo]      Show the archetype ranking (read-only, writes nothing)
@@ -300,6 +301,20 @@ JSON file, then \`forespec verify --verdicts <file>\`. See docs/claude-code-plug
   return 0;
 }
 
+/**
+ * `contract` — print the grading contract (library/grading-contract.md) to stdout.
+ *
+ * The CI gate needs the calibrated 3/6/9 bar in front of the grading agent, and it cannot
+ * guess where the file lives: installed from npm it sits under node_modules, from a plugin
+ * under CLAUDE_PLUGIN_ROOT, from a clone at the repo root. Emitting it from the CLI resolves
+ * that without the caller hardcoding a layout — and keeps the single source of truth single,
+ * which is the whole reason the published agent-path number describes what actually ships.
+ */
+function contract() {
+  process.stdout.write(readFileSync(join(projectDir, "library", "grading-contract.md"), "utf8"));
+  return 0;
+}
+
 async function dispatch() {
   const [cmd, ...rest] = process.argv.slice(2);
   if (!cmd || cmd === "-h" || cmd === "--help" || cmd === "help") { console.log(HELP); return 0; }
@@ -307,6 +322,7 @@ async function dispatch() {
   if (cmd === "start") return await start(rest);
   if (cmd === "init") return await init(rest);
   if (cmd === "checkpoints") return checkpoints(rest);
+  if (cmd === "contract") return contract();
   if (PASSTHROUGH[cmd]) return run(PASSTHROUGH[cmd], rest);
   console.error(`unknown command: ${cmd}\n`);
   console.error(HELP);

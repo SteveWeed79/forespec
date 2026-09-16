@@ -7,6 +7,24 @@ All notable changes to this project are documented here. Format follows
 ## [Unreleased]
 
 ### Added
+- **The PR gate runs on a Claude subscription** ([`docs/ci-gate-agent.md`](docs/ci-gate-agent.md),
+  `.github/workflows/forespec-gate-agent.yml`). `claude setup-token` produces an OAuth token that
+  authenticates `anthropics/claude-code-action` against a Pro/Max/Team/Enterprise plan, so CI
+  bills against the plan you already have. That closes the last place Forespec still asked for a
+  metered API key.
+  **The merge decision stays deterministic**: the agent step only produces verdicts, and a
+  separate `forespec gate --verdicts` run applies the roll-up and decides. An agent that could
+  both grade and decide could talk itself past its own gate.
+  A PR branch is attacker-controlled, so the grader is granted `Read,Grep,Glob,Write` and no
+  shell, is told the repository is data rather than instructions, and fork PRs are skipped
+  explicitly (GitHub withholds secrets there) rather than "fixed" with `pull_request_target`.
+  All of that is pinned by self-test checks.
+- **`forespec gate --list-touched`** — emit the checkpoints a diff touches as JSON and exit.
+  Grades nothing and needs no verifier, so it runs before any model does and a PR touching no
+  backbone-relevant file skips the expensive step entirely.
+- **`forespec contract`** — print the grading contract. CI needs the calibrated bar in front of
+  the agent and cannot guess where the file lives (npm, plugin root, or a clone), so the CLI
+  resolves it.
 - **Real-repo audit — 8 public OSS repositories** ([`docs/oss-audit-2026-09.md`](docs/oss-audit-2026-09.md)).
   The corpus measures the grading contract on snippets; this measures the repo-navigation half the
   plugin actually exists for. 147 verdicts across all five archetypes: 18 findings, 112 passes, 17
@@ -39,7 +57,8 @@ All notable changes to this project are documented here. Format follows
   on the subscription the user already has. Ships a `forespec-foresight` skill that loads on its
   own when payment, auth, tenancy, upload, LLM or BaaS code is being written — so the checkpoint
   arrives at *write* time rather than in review — and a `forespec-verifier` subagent carrying the
-  calibrated 3/6/9 contract. Standalone API-key grading remains, and is still the CI path.
+  calibrated 3/6/9 contract. Standalone API-key grading remains for scripting and for CI that
+  prefers a metered org key.
 - **`agent` verifier adapter** (`verifier-eval/adapters/agent.mjs`) — the seam that path runs on.
   A coding agent grades the repo and writes a verdict file; the adapter serves those verdicts into
   the existing `verify` pipeline, so the roll-up, gaps-ahead report, run-over-run deltas and

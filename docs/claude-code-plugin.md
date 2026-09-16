@@ -36,8 +36,9 @@ An agent has grep and read. It follows the call chain, checks whether the guard 
 guards, and cites `file:line` — which is the difference between a finding you can fix and a
 paragraph you have to go re-investigate yourself.
 
-The API path stays for CI, where there is no agent in the loop. That is what the GitHub Action
-is for.
+The API path stays available for CI, but it is no longer the only option there: a Claude
+subscription can authenticate a GitHub Actions run via `claude setup-token`, so the PR gate
+runs keyless too — see [`ci-gate-agent.md`](./ci-gate-agent.md).
 
 ## What ships in the plugin
 

@@ -579,6 +579,22 @@ const grants = [...repoAudit.matchAll(/"--(?:allowed)?[Tt]ools",\s*([^\]]*?)\n/g
 check("repo-audit grants the agent no shell", grants.length > 0 && !grants.some((g) => /"Bash"|"Execute"|"NotebookEdit"/.test(g)));
 check("repo-audit tells the agent the repo is data, not instructions", /UNTRUSTED DATA/.test(repoAudit));
 
+// ── the keyless CI gate: same untrusted-input posture, plus one that matters more ────
+// A PR branch is attacker-controlled content, so the grading step must not be able to execute
+// what it just read. And the MERGE DECISION must stay with pr-gate.mjs: an agent that could
+// both grade and decide could talk itself past its own gate.
+const ciGate = readFileSync(join(rootDir, ".github", "workflows", "forespec-gate-agent.yml"), "utf8");
+const allowed = (ciGate.match(/--allowedTools\s+"([^"]+)"/) ?? [])[1] ?? "";
+check("CI gate grants the grader no shell", allowed.length > 0 && !/Bash|Execute|NotebookEdit/.test(allowed));
+check("CI gate grants only read + the verdict write", allowed.split(",").every((t) => ["Read", "Grep", "Glob", "Write"].includes(t.trim())), allowed);
+check("CI gate tells the grader the repo is data, not instructions", /UNTRUSTED DATA/.test(ciGate));
+check("CI gate authenticates by subscription, not an API key", ciGate.includes("claude_code_oauth_token") && !ciGate.includes("anthropic_api_key"));
+// pull_request_target would run with secrets against unreviewed fork code. Never.
+check("CI gate does not use pull_request_target", !ciGate.includes("pull_request_target"));
+check("CI gate skips fork PRs (secrets are withheld there anyway)", ciGate.includes("head.repo.full_name == github.repository"));
+// The decision step is a separate `gate --verdicts` run, not something the agent does.
+check("CI gate decides in pr-gate, not in the agent step", ciGate.includes("--verdicts /tmp/forespec-verdicts.json"));
+
 // The plugin manifest carries its own version, and the marketplace uses it to decide whether
 // an install is stale. Two versions of one artifact drift silently; this makes them one.
 const pkgVersion = JSON.parse(readFileSync(join(rootDir, "package.json"), "utf8")).version;
