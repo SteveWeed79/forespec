@@ -73,6 +73,19 @@ All notable changes to this project are documented here. Format follows
   status badges.
 
 ### Changed
+- **`plan` interrogates the feature, not the archetype.** It used to append *every* remaining
+  critical unconditionally, so `plan "add refunds"` was 11 full checkpoint interrogations and
+  ~1,650 words of which 9 were unrelated, and `plan "build a settings page"` was nine with
+  nothing relevant at all. Now a critical earns a full interrogation by being adjacent to
+  something the description matched (shared subsystem or shared curated keywords), capped by
+  `--max-context` (default 5). `add refunds` → 7 interrogated instead of 11; `build a settings
+  page` → 170 words instead of ~1,400.
+  **Nothing is hidden:** every remaining critical is still listed by id and title, and the copy
+  says the description "didn't connect them — that's a keyword match, not a judgement", because
+  these keyword lists were authored for file selection and do miss real coupling. `--all`
+  interrogates the whole backbone; `--checkpoint <id>` interrogates any single one.
+  `start` is unchanged and still emits the complete build order — an empty repo has no feature
+  to scope to, which is what makes that file a build order rather than a to-do.
 - **`verify` and `gate` now REFUSE when no verifier is configured**, instead of silently
   falling back to the keyword baseline. A first run on a real repo used to print ~20
   checkpoints of "level 3 — keyword baseline found no good-signal token, defaults to risky":

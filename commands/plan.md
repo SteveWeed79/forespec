@@ -14,9 +14,12 @@ Feature: $ARGUMENTS
    ```bash
    forespec plan "$ARGUMENTS" --json
    ```
-   (or `node "${CLAUDE_PLUGIN_ROOT}/bin/forespec.mjs" plan "$ARGUMENTS" --json`). Each entry
-   carries `matched` — true when it is directly relevant to what the user described, false
-   when it is backbone the archetype requires regardless.
+   (or `node "${CLAUDE_PLUGIN_ROOT}/bin/forespec.mjs" plan "$ARGUMENTS" --json`).
+
+   The CLI scopes this itself. `plan` holds the checkpoints worth interrogating — each with
+   `matched`, true when it matched the description directly and false when it came in as an
+   adjacent critical — and `deferred` names every remaining critical by id. `--all`
+   interrogates the whole backbone; `--checkpoint <id>` interrogates any single one.
 
    If there is no `forespec.config.json`, run `forespec init` first (metadata only, never
    source). For an empty repo, `forespec start "<what you're building>"` is the on-ramp.
@@ -34,9 +37,10 @@ Feature: $ARGUMENTS
    - the acceptance criteria, as a checklist
    - **whether the repo already satisfies it**, with `file:line` if so
 
-   Then, in a single tight section, name the unmatched backbone checkpoints that this
-   feature *touches* — and only those. Do not print the archetype's full backbone; the user
-   asked about one feature.
+   Then pass on `deferred` as one compact section — ids and titles only, no interrogation.
+   Do not expand them, and do not drop them: adjacency is keyword overlap over lists authored
+   for file selection, so it misses real coupling, and the user is the one who can spot that.
+   Say it that way rather than claiming those checkpoints are unrelated.
 
 4. **Offer the spec.** Ask whether to write it to a file the user's coding agent can build
    against (`forespec plan "<feature>" --out <file>` writes the full version), or whether to

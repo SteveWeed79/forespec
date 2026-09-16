@@ -25,7 +25,7 @@ import { fingerprint, recordPredictions, latestPrediction, recordOutcome, readOv
 import { aggregate, propose } from "./calibrate.mjs";
 import { scoreArchetypes, collectSignals, discoverManifests, isAmbiguous, classifyWithAI, archetypeFromIntent, classifyIntentWithAI, inferArchetype } from "./detect.mjs";
 import { readConfig, writeConfig, resolveManifestPath, CONFIG_FILE } from "./config.mjs";
-import { relevanceScore, selectForFeature, renderPlan } from "./plan.mjs";
+import { relevanceScore, selectForFeature, renderPlan, DEFAULT_CONTEXT_CAP } from "./plan.mjs";
 import { contrastRatio, parseColor, isLargeText, compositeToLevel, scoreContrast, scoreTypeScale, scoreResponsive, scoreSpacing } from "./design-metrics.mjs";
 import { estimateFromRecords, bandFor, verbosityFor } from "./proficiency.mjs";
 
@@ -258,10 +258,25 @@ check("unrelated feature does not score it", relevanceScore("change the footer c
 const sel = selectForFeature(archetype.checkpoints, "add checkout flow", { domain: "backbone" });
 check("a feature-matched checkpoint lands in 'relevant'", sel.relevant.some((c) => c.id === "ecommerce.checkout.atomic_stock_hold"));
 const criticals = backbone.filter((c) => c.severity === "critical").map((c) => c.id);
-const covered = new Set([...sel.relevant, ...sel.mustHold].map((c) => c.id));
-check("every critical backbone checkpoint is surfaced (relevant ∪ mustHold)", criticals.every((id) => covered.has(id)), `missing ${criticals.filter((id) => !covered.has(id))}`);
+// Scoping decides who gets the full interrogation — it must never make a critical DISAPPEAR.
+// Every one still lands somewhere: interrogated (relevant ∪ mustHold) or named (deferred).
+const covered = new Set([...sel.relevant, ...sel.mustHold, ...sel.deferred].map((c) => c.id));
+check("no critical is ever dropped (relevant ∪ mustHold ∪ deferred)", criticals.every((id) => covered.has(id)), `missing ${criticals.filter((id) => !covered.has(id))}`);
+check("scoping actually defers something (a feature is not the whole archetype)", sel.deferred.length > 0);
+check("the cap is honoured", sel.mustHold.length <= DEFAULT_CONTEXT_CAP, `${sel.mustHold.length} > ${DEFAULT_CONTEXT_CAP}`);
+// --all is the escape hatch AND what `start` uses: greenfield has no feature to scope to.
+const selAll = selectForFeature(archetype.checkpoints, "add checkout flow", { domain: "backbone", all: true });
+check("--all defers nothing and surfaces every critical", selAll.deferred.length === 0 &&
+  criticals.every((id) => new Set([...selAll.relevant, ...selAll.mustHold].map((c) => c.id)).has(id)));
+// A feature that matches nothing must not silently become "the whole backbone" again.
+const selNone = selectForFeature(archetype.checkpoints, "change the footer copyright year", { domain: "backbone" });
+check("a zero-match feature interrogates nothing", selNone.relevant.length === 0 && selNone.mustHold.length === 0);
+check("...but still names every critical", criticals.every((id) => selNone.deferred.some((c) => c.id === id)));
+const mdNone = renderPlan({ archetype, feature: "change the footer copyright year", relevant: [], mustHold: [], deferred: selNone.deferred });
+check("a zero-match plan lists the criticals by id rather than going silent", criticals.every((id) => mdNone.includes(id)));
 
-const md = renderPlan({ archetype, feature: "add checkout flow", relevant: sel.relevant, mustHold: sel.mustHold });
+const md = renderPlan({ archetype, feature: "add checkout flow", relevant: sel.relevant, mustHold: sel.mustHold, deferred: sel.deferred });
+check("deferred criticals are named in the rendered plan, not hidden", sel.deferred.every((c) => md.includes(c.id)));
 check("spec carries the 'decide first' question", md.includes("Decide first:") && md.includes("reserved atomically"));
 check("spec carries acceptance checkboxes", md.includes("**Acceptance criteria:**") && md.includes("- [ ]"));
 check("spec states the shippable (level 6) bar", md.includes("Shippable (level 6):"));

@@ -136,7 +136,12 @@ async function start(args) {
 
   // The plan IS the build order: the whole backbone, most-foundational first, as a committed
   // checklist your AI coder builds through and `verify` grades against.
-  const { relevant, mustHold } = selectForFeature(archetype.checkpoints, description, { domain: "backbone" });
+  //
+  // `all: true` deliberately. `plan` scopes to the subsystems a feature touches, because a
+  // feature request is narrow and a lecture on the rest goes unread. `start` is the opposite
+  // case: an empty repo has no feature yet and nothing built, so the whole backbone IS the
+  // answer — that is what makes this file a build order rather than a to-do.
+  const { relevant, mustHold } = selectForFeature(archetype.checkpoints, description, { domain: "backbone", all: true });
   const md = renderPlan({ archetype, feature: description, relevant, mustHold });
   // Never destroy a plan the user has been working through (checked boxes, notes). On a re-run,
   // preserve the prior copy so re-running to correct the archetype/description is non-destructive.
