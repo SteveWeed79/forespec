@@ -6,6 +6,13 @@ All notable changes to this project are documented here. Format follows
 
 ## [Unreleased]
 
+## [0.2.0] — 2026-09-16
+
+**The coding agent you already pay for becomes the verifier.** Grading no longer starts with
+"create an API key": the Claude Code plugin grades on your existing subscription, and so does the
+PR gate. Both paths are measured, and `verify` now refuses rather than faking a grade when neither
+is configured.
+
 ### Added
 - **The PR gate runs on a Claude subscription** ([`docs/ci-gate-agent.md`](docs/ci-gate-agent.md),
   `.github/workflows/forespec-gate-agent.yml`). `claude setup-token` produces an OAuth token that
@@ -147,5 +154,6 @@ The verifier-first core, validated end to end.
 - **Calibration store** with a physical pattern/instance wall.
 - **License**: Business Source License 1.1 (converts to Apache 2.0 on the Change Date).
 
-[Unreleased]: https://github.com/SteveWeed79/forespec/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/SteveWeed79/forespec/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/SteveWeed79/forespec/compare/v0.1.3...v0.2.0
 [0.1.0]: https://github.com/SteveWeed79/forespec/releases/tag/v0.1.0

@@ -1,6 +1,6 @@
 {
   "name": "forespec",
-  "version": "0.1.3",
+  "version": "0.2.0",
   "type": "module",
   "description": "Catches what your AI coder didn't know to ask — the atomic stock hold, the tenant isolation, the webhook signature. 42 checkpoints, runs in Claude Code, no API key.",
   "keywords": [
@@ -41,6 +41,7 @@
     "repo-verify/*.mjs",
     "repo-verify/fixtures/vulnerable-checkout/*",
     "verifier-eval/adapters/*.mjs",
+    "verifier-eval/repo-audit.mjs",
     "library/",
     "schemas/",
     "archetype.*.json",
