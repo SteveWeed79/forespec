@@ -81,7 +81,12 @@ earlier ecommerce audit.
 
 ## What this run found wrong with Forespec
 
-**1. A real bug in `repo-audit.mjs`, found by this run.** On `saleor` the driver reported
+*This section is the run as it happened, kept intact. Dispositions added **2026-09-17**; the
+findings themselves are not rewritten, because a field report that edits away its own findings
+is worth nothing.*
+
+
+**1. A real bug in `repo-audit.mjs`, found by this run.** · **FIXED** On `saleor` the driver reported
 `graded 1/21`. The agent had actually produced 21 complete, accurate verdicts — and omitted the
 `id` field on every one, so counting distinct ids collapsed to `{undefined}`. The reporting made a
 schema slip look like the agent giving up, and `id` is load-bearing (the `agent` adapter keys on
@@ -90,7 +95,7 @@ and recovers ids positionally, but **only** when the verdict count matches the c
 exactly — any other length is a guess about which grade belongs to which checkpoint, and a
 misattributed grade is worse than no grade.
 
-**2. Archetype detection picks the wrong primary archetype for a SaaS with an AI feature.**
+**2. Archetype detection picks the wrong primary archetype for a SaaS with an AI feature.** · **FIXED**
 `documenso` is a document-signing SaaS. It scored `ai-app` 21 vs `saas` 18, on the strength of one
 `@ai-sdk/google-vertex` dependency. The consequence is real: graded as `ai-app` it never saw tenant
 isolation, entitlement integrity, subscription lifecycle, or money precision.
@@ -99,11 +104,37 @@ isolation, entitlement integrity, subscription lifecycle, or money precision.
 Documenso is well-built enough that the wrong standard did not change the verdict here. The defect
 is real; this run does not demonstrate that it cost anything.
 
-**3. Forespec has no concept of "this is not an application."** `supabase-js` is a client library.
-It was detected as `baas` and graded against an application backbone, which is a category error —
-the grader handled it gracefully (5 N/A), but detection should have refused.
+**Disposition.** The root cause was not the one this finding assumed. It was not a weighting
+problem between `ai-app` and `saas` — **detection was reading only the root `package.json`**. A
+monorepo root carries tooling; documenso's `stripe` lives in `packages/lib` and was invisible,
+while the AI SDK happened to sit at the root. Detection now unions dependencies across npm/yarn
+`workspaces` and `pnpm-workspace.yaml` globs, which moves documenso to `saas` 22 vs `ai-app` 21 and
+changes no other repo's top archetype in this sample.
 
-**4. Two judgment calls a human would want to see.** On `commerce`, `security.injection` passed at
+A 1-point margin is still a coin flip, so a second fix followed: `init` now **refuses to write a
+config** when the top two are within 2 points, names both candidates, and points at
+`forespec init --archetype <name>`. Exactly one of these eight repos trips it — the one that
+genuinely is ambiguous. The archetype decides which backbone everything downstream is graded
+against, so guessing it silently is the same failure `verify` refuses on, with slower consequences.
+
+**3. Forespec has no concept of "this is not an application."** · **OPEN**
+`supabase-js` is a client library. It was detected as `baas` and graded against an application
+backbone, which is a category error — the grader handled it gracefully (5 N/A), but detection
+should have refused.
+
+**Disposition — attempted and not shipped.** Every candidate signal was tested across all eight
+repos and none separates a library from an application: `private`, `main`/`exports`,
+`peerDependencies` and `files` all fail, because supabase-js is itself a monorepo wrapper with
+`private: true` and no root `main`, while anythingllm *has* a root `main` and is an app. Counting
+application entry points (routes, pages, servers) fails too — supabase-js has three, LibreChat has
+one. Gating `ai-app`'s path score on its dependency count was also tested and rejected: anythingllm
+is a genuine AI app with **zero** detected AI dependencies, and formbricks is a SaaS with two.
+
+Shipping any of those would have traded today's graceful degradation for a confident wrong answer,
+which is the trade this project exists to refuse. It stays open until there is a signal that
+actually separates.
+
+**4. Two judgment calls a human would want to see.** · **RECORDED — no action** On `commerce`, `security.injection` passed at
 6 while *citing* `prose.tsx:10` — a `dangerouslySetInnerHTML` on Shopify-authored HTML. The grader
 saw the risky line and made a call rather than missing it; that call is defensible (first-party CMS
 content) but it is a call. On `formbricks`, the flagged `Access-Control-Allow-Credentials: true`
