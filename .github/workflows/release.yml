@@ -1,12 +1,18 @@
 name: Release
 
-# Publish to npm on a version tag. Cut a release with:
+# Publish to npm. There are two ways in, and both end at the same gates.
+#
+# Tag push (the normal path). Cut a release with:
 #
 #   npm version <patch|minor|major>   # bumps package.json, syncs the plugin manifest
 #                                      # version, commits + tags
 #   git push --follow-tags
 #
-# Pushing the v* tag triggers this workflow, which self-tests and publishes.
+# Manual run (workflow_dispatch), for when the tag cannot be pushed from where the
+# release is being cut — a credential scoped to feature branches, for instance. Run
+# this workflow against the branch holding the release commit and pass the version
+# (e.g. 0.2.1). The workflow verifies it matches package.json, then creates the v* tag
+# itself, so a released version still has exactly one tag marking exactly one commit.
 #
 # One-time setup: add an npm automation token as the repo secret NPM_TOKEN
 # (npmjs.com -> Access Tokens -> Generate -> "Automation"). The job also mints
@@ -16,9 +22,15 @@ name: Release
 on:
   push:
     tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to publish — must equal package.json on the selected ref (e.g. 0.2.1)"
+        required: true
+        type: string
 
 permissions:
-  contents: read
+  contents: write # create the v* tag on a manual run; read-only is enough for a tag push
   id-token: write # required for npm provenance (--provenance)
 
 jobs:
@@ -32,10 +44,65 @@ jobs:
           node-version: "20"
           registry-url: "https://registry.npmjs.org"
 
+      # One place decides what this run is allowed to publish, so the tag-push and manual
+      # paths cannot drift. The mismatch check that used to live in the final verify step
+      # runs here instead: it costs nothing and failing before the registry is touched is
+      # strictly better than failing after.
+      - name: Resolve the version this run is publishing
+        id: target
+        env:
+          # Via env, never interpolated into the script body — a workflow input is
+          # attacker-controllable in the general case, and `run:` interpolation is how
+          # that becomes shell injection.
+          REQUESTED: ${{ github.event.inputs.version }}
+        run: |
+          set -euo pipefail
+          VERSION=$(node -p "require('./package.json').version")
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            WANT="${REQUESTED#v}"
+          else
+            WANT="${GITHUB_REF_NAME#v}"
+          fi
+          if [ "$VERSION" != "$WANT" ]; then
+            echo "::error::asked to publish $WANT but package.json at $GITHUB_SHA is $VERSION"
+            exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "publishing $VERSION from $GITHUB_SHA"
+
       # Belt-and-suspenders: prepublishOnly runs this too, but a named step gives a
       # clear, early red X if the suite is broken before we ever touch the registry.
       - name: Self-test gate
         run: node repo-verify/self-test.mjs
+
+      # Manual path only — the tag-push path arrived here because the tag already exists.
+      # Deliberately after the self-test: a tag is a permanent claim that a commit was
+      # released, so it is not made until the commit has earned it.
+      #
+      # This push does not re-trigger the workflow: GitHub does not fire workflow events
+      # for refs pushed with the default GITHUB_TOKEN, which is what makes this safe.
+      - name: Create the release tag
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          VERSION: ${{ steps.target.outputs.version }}
+        run: |
+          set -euo pipefail
+          TAG="v$VERSION"
+          EXISTING=$(git ls-remote --tags origin "refs/tags/$TAG" | cut -f1)
+          if [ -n "$EXISTING" ]; then
+            # Re-running a failed publish is fine. Silently moving a released tag is not.
+            if [ "$EXISTING" != "$GITHUB_SHA" ]; then
+              echo "::error::$TAG already exists at $EXISTING, not $GITHUB_SHA — refusing to move a release tag"
+              exit 1
+            fi
+            echo "$TAG already points at $GITHUB_SHA."
+          else
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git tag -a "$TAG" -m "$TAG" "$GITHUB_SHA"
+            git push origin "refs/tags/$TAG"
+            echo "created $TAG at $GITHUB_SHA"
+          fi
 
       - name: Publish to npm (public, with provenance)
         run: npm publish --provenance --access public
@@ -52,18 +119,11 @@ jobs:
       # It is also the project's own thesis applied to itself: a green that verified nothing is
       # the expensive kind of failure.
       - name: Verify it actually landed on the registry
+        env:
+          VERSION: ${{ steps.target.outputs.version }}
         run: |
           set -uo pipefail
           NAME=$(node -p "require('./package.json').name")
-          VERSION=$(node -p "require('./package.json').version")
-          TAG="${GITHUB_REF_NAME#v}"
-
-          # Catch the other way a release goes wrong: a tag that doesn't match what was packed.
-          # Cheap, and it fails before anyone trusts the tag as a version marker.
-          if [ "$VERSION" != "$TAG" ]; then
-            echo "::error::tag $GITHUB_REF_NAME does not match package.json version $VERSION"
-            exit 1
-          fi
 
           # npm's read path is CDN-cached and lags a publish by up to a couple of minutes — a
           # single immediate check reports a false failure on a publish that worked. Poll instead:

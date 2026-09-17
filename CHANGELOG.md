@@ -10,7 +10,16 @@ All notable changes to this project are documented here. Format follows
 
 **Forespec is now Apache-2.0.** A standard people are asked to trust shouldn't be one they need
 a lawyer to adopt. Also fixes a release pipeline that could report success while npm stayed
-behind — the bug that kept the last two versions from ever reaching the registry.
+behind — the bug that quietly lost v0.1.4.
+
+### Added
+- **`forespec init --archetype <name>`** — declare the archetype instead of detecting it. This is
+  what the near-tie refusal tells you to run, so it had to exist.
+- **`release.yml` can be run manually** (`workflow_dispatch`) with the version as an input, for
+  when the release is cut from somewhere that cannot push a tag. It verifies the input against
+  `package.json`, runs the self-test, and only then creates the `v*` tag itself — so a released
+  version still has exactly one tag on exactly one commit, and every gate the tag-push path
+  enforces is enforced here. It refuses to move a tag that already points somewhere else.
 
 ### Changed
 - **Relicensed from BUSL 1.1 to Apache-2.0.** The BUSL Change Date already committed every
@@ -45,17 +54,18 @@ behind — the bug that kept the last two versions from ever reaching the regist
   resolved by score order. The archetype decides which backbone everything downstream is graded
   against, so a wrong one mis-grades the whole project quietly — the same failure `verify`
   refuses on, with slower consequences. `init` now shows both candidates and stops.
-- **`forespec init --archetype <name>`** — declare the archetype instead of detecting it. This is
-  what the near-tie refusal tells you to run, so it had to exist.
 - **A failed npm publish no longer looks like a successful release.** `release.yml` now verifies,
   after publishing, that the registry's `dist-tags.latest` equals `package.json`'s version and
   that the version actually resolves — and fails the run loudly when it doesn't. It also checks
   the tag matches the packed version, catching the other way a release goes wrong.
-  This was a real miss, twice: v0.1.4 and v0.2.0 both failed to publish on an expired
-  `NPM_TOKEN`, and npm answers an auth failure with `404 Not Found - PUT .../forespec`, which
-  reads like a missing package rather than a rejected credential. The tag, the GitHub Release
-  and the changelog all said shipped while npm stayed two versions behind, and v0.1.4 went
+  This was a real miss: v0.1.4 failed to publish on an expired `NPM_TOKEN` and never reached the
+  registry at all, because npm answers an auth failure with `404 Not Found - PUT .../forespec`,
+  which reads like a missing package rather than a rejected credential. The tag, the GitHub
+  Release and the changelog all said shipped while npm stayed a version behind, and it went
   unnoticed for two days because nothing downstream looked at the registry.
+  An earlier draft of this entry also counted v0.2.0 as lost; it is in fact on the registry, as
+  `latest`. Release notes that were themselves wrong about what shipped is the sharpest argument
+  available for this check: only the registry settles it.
   The check polls for up to 3 minutes rather than asking once: npm's read path is CDN-cached and
   lags a publish, so a single immediate check false-fails a publish that worked — and a release
   gate that cries wolf gets ignored, which is the failure it exists to prevent.
