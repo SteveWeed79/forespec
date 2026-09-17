@@ -83,7 +83,7 @@ const KEY_PATH = `With an Anthropic API key:
        export ANTHROPIC_MODEL=<a current Claude model id>`;
 
 const CI_KEY_PATH = `Give the workflow an API key — in CI there is no agent in the loop:
-       - uses: SteveWeed79/forespec@v0.2.2
+       - uses: SteveWeed79/forespec@v0.2.3
          with:
            anthropic-api-key: \${{ secrets.ANTHROPIC_API_KEY }}
            anthropic-model: \${{ vars.ANTHROPIC_MODEL }}`;
