@@ -9,7 +9,7 @@
   },
   "homepage": "https://github.com/SteveWeed79/forespec#readme",
   "repository": "https://github.com/SteveWeed79/forespec",
-  "license": "BUSL-1.1",
+  "license": "Apache-2.0",
   "keywords": [
     "code-review",
     "security",

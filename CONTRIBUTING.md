@@ -1,7 +1,11 @@
 # Contributing to Forespec
 
-Thanks for looking. Forespec is open-core (BSL 1.1) — the local engine is free and fully
-useful forever, and contributions to it are welcome.
+Thanks for looking. Forespec is **Apache-2.0** licensed — free and fully useful forever, and
+contributions are welcome.
+
+Contributions are accepted under the same terms as the project: by opening a pull request you
+agree that your contribution is licensed under Apache License 2.0 (see [`LICENSE`](./LICENSE)).
+There is no CLA to sign.
 
 ## Ground rules (the ones that are load-bearing)
 

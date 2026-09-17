@@ -20,8 +20,10 @@ bites late and expensively:
   exactly Forespec's "surface it in week one, not month three" ethos, applied to law
   instead of security.
 
-We just hand-did all of this for Forespec itself (BSL 1.1, LICENSE, SPDX id). A
-checkpoint would automate the *validation* half.
+We hand-did all of this for Forespec itself (Apache-2.0, LICENSE, SPDX id) — twice,
+counting the relicense from BUSL 1.1, which is exactly the kind of migration where a
+declaration and a LICENSE file silently drift apart. A checkpoint would automate the
+*validation* half.
 
 ## Scope — validation only, not recommendation
 
