@@ -6,6 +6,12 @@ All notable changes to this project are documented here. Format follows
 
 ## [Unreleased]
 
+## [0.2.1] — 2026-09-17
+
+**Forespec is now Apache-2.0.** A standard people are asked to trust shouldn't be one they need
+a lawyer to adopt. Also fixes a release pipeline that could report success while npm stayed
+behind — the bug that kept the last two versions from ever reaching the registry.
+
 ### Changed
 - **Relicensed from BUSL 1.1 to Apache-2.0.** The BUSL Change Date already committed every
   released version to Apache 2.0 by 2030; that conversion is now brought forward to today and
@@ -202,6 +208,7 @@ The verifier-first core, validated end to end.
 - **Calibration store** with a physical pattern/instance wall.
 - **License**: Business Source License 1.1 (converts to Apache 2.0 on the Change Date).
 
-[Unreleased]: https://github.com/SteveWeed79/forespec/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/SteveWeed79/forespec/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/SteveWeed79/forespec/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/SteveWeed79/forespec/compare/v0.1.3...v0.2.0
 [0.1.0]: https://github.com/SteveWeed79/forespec/releases/tag/v0.1.0
