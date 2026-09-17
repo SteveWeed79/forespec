@@ -6,6 +6,8 @@ All notable changes to this project are documented here. Format follows
 
 ## [Unreleased]
 
+## [0.2.3] — 2026-09-17
+
 **Walked the whole first-run surface from a clean `npm i forespec`, on real cloned repos.**
 `demo` was fixed in 0.2.2 because it told people to go buy an API key. It was not the only
 surface that had drifted from what an installed copy can actually do — it was the one that had
@@ -313,7 +315,8 @@ The verifier-first core, validated end to end.
 - **Calibration store** with a physical pattern/instance wall.
 - **License**: Business Source License 1.1 (converts to Apache 2.0 on the Change Date).
 
-[Unreleased]: https://github.com/SteveWeed79/forespec/compare/v0.2.2...HEAD
+[Unreleased]: https://github.com/SteveWeed79/forespec/compare/v0.2.3...HEAD
+[0.2.3]: https://github.com/SteveWeed79/forespec/compare/v0.2.2...v0.2.3
 [0.2.2]: https://github.com/SteveWeed79/forespec/compare/v0.2.1...v0.2.2
 [0.2.1]: https://github.com/SteveWeed79/forespec/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/SteveWeed79/forespec/compare/v0.1.3...v0.2.0
