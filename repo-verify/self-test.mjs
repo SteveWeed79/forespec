@@ -717,6 +717,70 @@ const interval = Number((releaseYml.match(/^\s*sleep (\d+)$/m) || [])[1]);
 const windowSec = attempts * interval;
 check("release gate waits out the npm CDN (>= 600s)", windowSec >= 600,
   Number.isFinite(windowSec) ? `${attempts} x ${interval}s = ${windowSec}s` : "could not read the poll loop");
+
+// ── what the installed package tells a user to do ───────────────────────────────────
+// Walking the first-run surface from a clean `npm i forespec` turned up the same failure
+// three times over: the tool telling a user to run something impossible.
+//
+//   `node repo-verify/verify.mjs <repo> --archetype archetype.saas.json`  — what `detect`
+//   printed as the recommended next command, and what `calibrate --help` printed four times.
+//   That path is relative to THIS repo; pasted anywhere else it is `Error: Cannot find
+//   module`. Verified crashing on a real cloned repo before it was fixed.
+//
+//   `docs/claude-code-plugin.md` — cited three times, including in the no-verifier refusal,
+//   which is the most-seen error the tool produces. `docs/` is not in package.json's `files`,
+//   so for anyone who installed from npm that path pointed at nothing.
+//
+// Scanned black-box, off the real output, rather than by reading the source: a comment may say
+// `node repo-verify/self-test.mjs` (that is a contributor instruction) and an explanation of
+// this very bug has to be able to name the path it is about. What matters is only what a user
+// is SHOWN. The published file list comes from npm itself, so it cannot disagree with the
+// tarball.
+const tarball = JSON.parse(execFileSync("npm", ["pack", "--dry-run", "--json"], {
+  cwd: rootDir, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"],
+}));
+const published = new Set(tarball[0].files.map((f) => f.path));
+
+const HELP_CMDS = ["init", "plan", "verify", "checkpoints", "gate", "detect", "feedback", "calibrate", "proficiency"];
+const userFacing = [];
+for (const cmd of [null, ...HELP_CMDS]) {
+  const argv = cmd === null ? [] : [cmd, "--help"];
+  let out = "";
+  try {
+    out = execFileSync(process.execPath, [join(rootDir, "bin", "forespec.mjs"), ...argv], {
+      encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], env: { ...process.env, NO_COLOR: "1" },
+    });
+  } catch (e) {
+    out = `${e.stdout || ""}${e.stderr || ""}`;
+  }
+  userFacing.push([cmd || "<no args>", out]);
+}
+// The refusal is not reachable through --help, and it is the message most users hit first.
+userFacing.push(["no-verifier refusal", noVerifierMessage({ reason: "no verifier is configured" })]);
+userFacing.push(["no-verifier refusal (ci)", noVerifierMessage({ context: "ci" })]);
+
+// (1) A command shown to a user must run from THEIR repo, not from ours.
+const cwdBound = [];
+for (const [where, out] of userFacing) {
+  for (const m of new Set(out.match(/node (?:repo-verify|bin|verifier-eval|scripts)\/[\w.-]+\.mjs/g) || [])) {
+    cwdBound.push(`${where}: ${m}`);
+  }
+}
+check("commands shown to users run from their repo, not ours", cwdBound.length === 0, cwdBound.join("; "));
+
+// (2) A repo path shown to a user must be one the tarball actually carries.
+//
+// The lookbehind is the point: the FIX for this bug is a URL ending in the same path
+// (`.../blob/main/docs/claude-code-plugin.md`), so a naive match flags the corrected message
+// as loudly as the broken one. Only a bare relative path — nothing path-like before it — is
+// a promise the installed package has to keep.
+const dangling = [];
+for (const [where, out] of userFacing) {
+  for (const ref of new Set(out.match(/(?<![\w./-])(?:docs|scripts|commands|agents|skills)\/[\w./-]+\.\w+/g) || [])) {
+    if (existsSync(join(rootDir, ref)) && !published.has(ref)) dangling.push(`${where}: ${ref}`);
+  }
+}
+check("paths shown to users are paths the package ships", dangling.length === 0, dangling.join("; "));
 // Every component the plugin advertises must actually be on disk — a marketplace install
 // silently missing its verifier would fail at the moment someone first tries it.
 for (const rel of ["agents/forespec-verifier.md", "commands/verify.md", "commands/plan.md", "skills/forespec-foresight/SKILL.md", "library/grading-contract.md", ".claude-plugin/marketplace.json"]) {

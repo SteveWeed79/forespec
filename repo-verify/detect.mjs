@@ -626,9 +626,9 @@ async function main() {
     console.log(`forespec detect — propose which archetype fits a repo.
 
 Usage:
-  node repo-verify/detect.mjs [repo]   (default: .)
-  node repo-verify/detect.mjs [repo] --json
-  node repo-verify/detect.mjs [repo] --no-ai
+  forespec detect [repo]   (default: .)
+  forespec detect [repo] --json
+  forespec detect [repo] --no-ai
 
 It reads declared dependencies, file paths, and schema model names — never your code's
 content — and ranks the archetypes it can see, with the evidence behind each. When the
@@ -669,11 +669,15 @@ are set, it spends one model call to break the tie; --no-ai disables that.`);
     if (ai.decided_none) console.log(`AI also saw no clear fit: ${ai.rationale}`);
     else if (!ai.available) console.log("Ambiguous — set ANTHROPIC_API_KEY + ANTHROPIC_MODEL to let one AI call break the tie.");
     console.log("Couldn't detect a clear fit. Pick one explicitly:");
-    for (const r of ranked) console.log(`  --archetype ${r.manifest}   (${r.applies_when})`);
+    for (const r of ranked) console.log(`  forespec init --archetype ${r.archetype}`.padEnd(42) + `(${r.applies_when})`);
   } else {
     if (top.confidence === "low" && !ai.used) console.log("Low confidence — sanity-check before trusting it.");
     console.log(`Recommended: ${top.archetype}  (${top.applies_when})`);
-    console.log(`  node repo-verify/verify.mjs ${repoRoot} --archetype ${top.manifest}`);
+    // A command anyone can paste. This used to print `node repo-verify/verify.mjs <repo>
+    // --archetype archetype.saas.json`, which is a path inside THIS repo: anyone who installed
+    // from npm — everyone not developing Forespec — got `Cannot find module`. `detect` writes
+    // nothing, so the next step is persisting the choice, which is what `init` is for.
+    console.log(`  forespec init --archetype ${top.archetype}   # persist it so plan/verify/gate all agree`);
   }
   return 0;
 }

@@ -89,10 +89,10 @@ export function propose(byCp, minEvidence = 3) {
 const HELP = `forespec calibrate — propose severity deltas from recorded outcomes.
 
 Usage:
-  node repo-verify/calibrate.mjs                    show proposals
-  node repo-verify/calibrate.mjs --json             machine-readable
-  node repo-verify/calibrate.mjs accept <cp> [sev]  accept a delta (sev optional → use proposed)
-  node repo-verify/calibrate.mjs reset  <cp>        drop an override
+  forespec calibrate                    show proposals
+  forespec calibrate --json             machine-readable
+  forespec calibrate accept <cp> [sev]  accept a delta (sev optional → use proposed)
+  forespec calibrate reset  <cp>        drop an override
 
 Options:
   --store <dir>   calibration store (default: ./.forespec)
@@ -154,7 +154,7 @@ function main() {
     if (p.to) console.log(`    propose severity ${p.from} → ${p.to}  [${p.strength} confidence]`);
     console.log(`    ${p.reason}`);
     console.log(`    evidence: ${e.hit} hit / ${e.false_positive} false-pos / ${e.over_severe} over-severe / ${e.missed_evidence} missed-evidence / ${e.ignored} ignored (n=${e.total}); sources ${JSON.stringify(e.sources)}`);
-    if (p.to) console.log(`    accept: node repo-verify/calibrate.mjs accept ${p.checkpoint}`);
+    if (p.to) console.log(`    accept: forespec calibrate accept ${p.checkpoint}`);
     console.log("");
   }
   console.log("Nothing changes until you accept. Accepted deltas tune this project locally (overrides.json), reversible with `reset`.");

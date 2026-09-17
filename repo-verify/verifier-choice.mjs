@@ -60,10 +60,23 @@ export const AGENT_COMMANDS = [
   "/forespec:verify",
 ];
 
+/**
+ * Where the plugin is documented.
+ *
+ * A URL, not `docs/claude-code-plugin.md`, because `docs/` is not in package.json's `files`:
+ * every message that pointed at that path was pointing at nothing for anyone who installed
+ * from npm — which is everyone who is not developing Forespec. It was cited three times,
+ * including in this refusal, which is the single most-seen error the tool produces.
+ *
+ * `self-test.mjs` derives the published file list from `files` and fails on any shipped source
+ * that references a path outside it, so this cannot come back by a different route.
+ */
+export const PLUGIN_DOCS_URL = "https://github.com/SteveWeed79/forespec/blob/main/docs/claude-code-plugin.md";
+
 const AGENT_PATH = `From the coding agent you're already in — free, no API key:
 ${AGENT_COMMANDS.map((c) => `       ${c}`).join("\n")}
      It grades on your existing subscription and cites file:line.
-     Details: docs/claude-code-plugin.md`;
+     Details: ${PLUGIN_DOCS_URL}`;
 
 const KEY_PATH = `With an Anthropic API key:
        export ANTHROPIC_API_KEY=sk-...     # https://console.anthropic.com

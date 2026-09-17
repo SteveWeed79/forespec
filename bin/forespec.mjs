@@ -21,6 +21,7 @@ import { detectAuto, discoverManifests, inferArchetype, isAmbiguous } from "../r
 import { writeConfig, readConfig, resolveManifestPath, CONFIG_FILE } from "../repo-verify/config.mjs";
 import { resolveArchetype } from "../library/resolve.mjs";
 import { selectForFeature, renderPlan } from "../repo-verify/plan.mjs";
+import { PLUGIN_DOCS_URL } from "../repo-verify/verifier-choice.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const projectDir = pathResolve(here, "..");
@@ -165,7 +166,11 @@ async function start(args) {
   console.log("");
   console.log("Next — the foresight rides along, it doesn't stop here:");
   console.log("  1. Hand forespec-plan.md to your AI coder. Build item #1 first (the dangerous/foundational one).");
-  console.log("  2. As you build, run `forespec verify` — it grades these same checkpoints and shows what's still open.");
+  // Name the path that works. `forespec verify` needs a verifier and refuses without one; the
+  // refusal recovers by offering both paths, but sending someone into an error they could have
+  // been steered around is the same papercut `demo` had, one surface further along.
+  console.log("  2. As you build, grade it: `/forespec:verify` in Claude Code (free, no key),");
+  console.log("     or `forespec verify` with ANTHROPIC_API_KEY set. Same checkpoints, shows what's still open.");
   console.log("  3. Open a PR — `forespec gate` tracks how each item moved vs your last run (catches regressions).");
   return 0;
 }
@@ -222,7 +227,12 @@ async function init(args) {
     console.log("Couldn't detect a clear fit — a new/empty repo often has no code to read yet.");
     console.log('For a new project, DECLARE what you\'re building instead:');
     console.log('  forespec start "an online store with checkout"');
-    console.log(`Or pick one explicitly:  forespec init --no-ai  then  echo '{ "archetype": "${ranked[0].manifest}" }' > ${CONFIG_FILE}`);
+    // `--archetype` was added because a refusal needed somewhere to send people. Its sibling
+    // below (the near-tie) was updated to use it; this branch was not, and kept telling people
+    // to hand-write the config with `echo` — and to pick whichever archetype happened to sort
+    // first among a row of zeroes, presented as if it were a recommendation.
+    console.log("\nOr declare it on an existing repo — these are the archetypes:");
+    for (const r of ranked) console.log(`  forespec init --archetype ${r.archetype}`);
     return 1;
   }
 
@@ -255,7 +265,8 @@ async function init(args) {
   console.log(`${existing ? "Updated" : "Wrote"} ${path} → archetype: ${top.archetype}` + (top.confidence === "low" ? "  (low confidence — sanity-check it)" : ""));
   console.log("Commit it so CI grades against the same archetype. Next:");
   console.log("  forespec plan \"<your next feature>\"   # interrogate it before you build");
-  console.log("  forespec verify                        # grade your backbone now");
+  console.log("  /forespec:verify                       # grade your backbone — free, in Claude Code");
+  console.log("  forespec verify                        # same grade, with ANTHROPIC_API_KEY set");
   console.log("  forespec gate --help                   # wire the PR gate into CI");
   return 0;
 }
@@ -288,7 +299,7 @@ Options:
   -h, --help
 
 Feeds the agent path: grade each checkpoint against the repo, write the verdicts to a
-JSON file, then \`forespec verify --verdicts <file>\`. See docs/claude-code-plugin.md.`);
+JSON file, then \`forespec verify --verdicts <file>\`. See ${PLUGIN_DOCS_URL}.`);
     return 0;
   }
 

@@ -10,7 +10,7 @@
 // adapters (mock | claude).
 //
 // Usage:
-//   node repo-verify/verify.mjs <repo-path> [options]
+//   forespec verify [repo-path] [options]
 //
 // Options:
 //   --archetype <file>   Archetype manifest (default: archetype.ecommerce.json at repo root)
@@ -32,7 +32,7 @@ import { readConfig, resolveManifestPath } from "./config.mjs";
 import { selectGaps, adviseGaps } from "./gaps.mjs";
 import { renderReport } from "./report-html.mjs";
 import { renderVerifyText } from "./render-cli.mjs";
-import { pickAdapter, noVerifierMessage } from "./verifier-choice.mjs";
+import { pickAdapter, noVerifierMessage, PLUGIN_DOCS_URL } from "./verifier-choice.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -45,7 +45,7 @@ const has = (flag) => process.argv.includes(flag);
 const HELP = `Forespec repo verifier — grade a whole repo against an archetype.
 
 Usage:
-  node repo-verify/verify.mjs <repo-path> [options]
+  forespec verify [repo-path] [options]
 
 Options:
   --archetype <file>   Archetype manifest (default: archetype.ecommerce.json)
@@ -65,10 +65,10 @@ Options:
 
 The agent adapter takes verdicts from the coding agent you're already in — no API key, no
 metered cost. Install the Claude Code plugin and run /forespec:verify, or see
-docs/claude-code-plugin.md to drive it from any agent.
+${PLUGIN_DOCS_URL} to drive it from any agent.
 The claude adapter reads ANTHROPIC_API_KEY and ANTHROPIC_MODEL from the environment.
 Every run is logged to the calibration store (pattern + instance — the wall is physical);
-record a verdict on a flag with: node repo-verify/feedback.mjs <checkpoint-id> <outcome>`;
+record a verdict on a flag with: forespec feedback <checkpoint-id> <outcome>`;
 
 const SEV_ORDER = ["critical", "high", "medium", "low"];
 
@@ -385,7 +385,7 @@ async function main() {
   console.log(renderVerifyText({ archetype, results, rollup, gaps: gapReport, useColor }));
   if (storeInfo) {
     console.error(`\nrecorded ${storeInfo.recorded} prediction(s) → ${storeInfo.dir} (run ${storeInfo.run_id})`);
-    console.error(`  give a flag a verdict: node repo-verify/feedback.mjs <checkpoint-id> hit|false-positive|over-severe|ignored`);
+    console.error(`  give a flag a verdict: forespec feedback <checkpoint-id> hit|false-positive|over-severe|ignored`);
   }
 
   return shippable ? 0 : 1;

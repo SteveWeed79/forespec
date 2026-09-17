@@ -7,7 +7,7 @@
 // outcomes are what later let weights/severities be *earned* instead of invented.
 //
 // Usage:
-//   node repo-verify/feedback.mjs <checkpoint-id> <outcome> [options]
+//   forespec feedback <checkpoint-id> <outcome> [options]
 //
 //   <outcome>  hit | false-positive | over-severe | ignored | missed-evidence
 //                hit           = flag was real and acting on it made sense
@@ -38,7 +38,7 @@ const has = (f) => process.argv.includes(f);
 const HELP = `forespec feedback — record a human verdict on a prediction.
 
 Usage:
-  node repo-verify/feedback.mjs <checkpoint-id> <outcome> [options]
+  forespec feedback <checkpoint-id> <outcome> [options]
 
 Outcome:  ${OUTCOMES.join(" | ")}
   hit            flag was real and acting on it made sense
@@ -89,7 +89,7 @@ function main() {
   if (!prediction) {
     console.error(
       `error: no prediction found for "${checkpointId}"${runId ? ` in run ${runId}` : ""} under ${storeDir}.\n` +
-        `Run \`node repo-verify/verify.mjs <repo>\` first so there's a prediction to grade.`,
+        `Run \`forespec verify <repo>\` first so there's a prediction to grade.`,
     );
     return 2;
   }
