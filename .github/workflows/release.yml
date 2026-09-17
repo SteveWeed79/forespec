@@ -2,8 +2,8 @@ name: Release
 
 # Publish to npm on a version tag. Cut a release with:
 #
-#   npm version <patch|minor|major>   # bumps package.json, refreshes the BSL Change
-#                                      # Date, commits + tags (see scripts/bump-change-date.mjs)
+#   npm version <patch|minor|major>   # bumps package.json, syncs the plugin manifest
+#                                      # version, commits + tags
 #   git push --follow-tags
 #
 # Pushing the v* tag triggers this workflow, which self-tests and publishes.

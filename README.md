@@ -3,7 +3,7 @@
 [![CI](https://github.com/SteveWeed79/forespec/actions/workflows/ci.yml/badge.svg)](https://github.com/SteveWeed79/forespec/actions/workflows/ci.yml)
 [![npm](https://img.shields.io/npm/v/forespec)](https://www.npmjs.com/package/forespec)
 [![node](https://img.shields.io/node/v/forespec)](https://nodejs.org)
-[![license](https://img.shields.io/badge/license-BUSL--1.1-blue)](./LICENSE)
+[![license](https://img.shields.io/badge/license-Apache--2.0-blue)](./LICENSE)
 
 *Forespec keeps you pointed in the right direction — **at the start** of a feature, **along
 the way** as it grows, and **over time** by remembering your past results to catch code
@@ -250,9 +250,12 @@ time) → [`library/`](./library) + `archetype.ecommerce.json` (the standard its
 
 ## License
 
-**Business Source License 1.1** — see [`LICENSE`](./LICENSE). Free to use and self-host for any
-purpose, including commercially; the one reserved right is offering **Forespec itself as a
-competing hosted service**. Each released version converts to **Apache 2.0** four years after it
-ships. The commitment it encodes: the local core is **free and fully useful forever** — never
-crippled to force an upgrade, no dark patterns — while paid, hosted plans fund the ongoing work
-that keeps the standard trustworthy; priced fairly, no lock-in.
+**Apache License 2.0** — see [`LICENSE`](./LICENSE). Use it, fork it, embed it, ship it inside
+your own products, run it in your own CI — commercially or otherwise, with an explicit patent
+grant and no strings. Forespec was previously under BUSL 1.1, which was scheduled to convert to
+Apache 2.0 in 2030; that conversion was brought forward, because a standard people are asked to
+*trust* shouldn't be one they need a lawyer to adopt.
+
+The commitment it encodes is unchanged: the local core is **free and fully useful forever** —
+never crippled to force an upgrade, no dark patterns. The name "Forespec" and the project's
+marks stay with the author (Apache 2.0 §6); the code is yours.

@@ -6,6 +6,26 @@ All notable changes to this project are documented here. Format follows
 
 ## [Unreleased]
 
+### Changed
+- **Relicensed from BUSL 1.1 to Apache-2.0.** The BUSL Change Date already committed every
+  released version to Apache 2.0 by 2030; that conversion is now brought forward to today and
+  applies to the whole project. Nothing about the terms tightens — the reserved right BUSL held
+  back (offering Forespec itself as a competing hosted service) is simply released, and Apache
+  adds an explicit patent grant on top.
+  The reason is adoption, not sentiment: BUSL is not OSI-approved, so it is auto-blocked by
+  corporate open-source policies, filtered out of the plugin registries and `awesome-*` lists
+  that are this project's cheapest distribution, and it makes every discussion of Forespec a
+  discussion of its license instead of its checkpoints. A tool whose entire pitch is *trust* was
+  paying that tax to defend a hosted business that does not exist. The name "Forespec" and the
+  project's marks stay with the author under Apache-2.0 §6.
+- **Contributions no longer need a CLA.** `CONTRIBUTING.md` now states inbound-equals-outbound:
+  opening a pull request licenses the contribution under Apache-2.0, same as the project.
+
+### Removed
+- `scripts/bump-change-date.mjs` and the `license:bump` npm script. They existed only to roll the
+  BUSL Change Date forward on each release; Apache-2.0 has no such parameter. The `version`
+  lifecycle script still syncs the plugin manifest version.
+
 ### Fixed
 - **A failed npm publish no longer looks like a successful release.** `release.yml` now verifies,
   after publishing, that the registry's `dist-tags.latest` equals `package.json`'s version and
