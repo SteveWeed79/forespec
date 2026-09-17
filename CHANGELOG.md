@@ -6,7 +6,48 @@ All notable changes to this project are documented here. Format follows
 
 ## [Unreleased]
 
+**Walked the whole first-run surface from a clean `npm i forespec`, on real cloned repos.**
+`demo` was fixed in 0.2.2 because it told people to go buy an API key. It was not the only
+surface that had drifted from what an installed copy can actually do — it was the one that had
+been looked at. Seven more, found the same way: by running the thing and reading what it said.
+
 ### Fixed
+- **Every `--help` usage line told you to run a file inside this repo.** `forespec verify
+  --help` opened with `Usage: node repo-verify/verify.mjs <repo-path>`; so did `gate`, `detect`,
+  `feedback` and `calibrate`. Pasted anywhere but a Forespec checkout that is
+  `Error: Cannot find module` — verified crashing on a real cloned repo. These were dev-script
+  usage strings that never got rewritten when the `forespec` CLI wrapped them.
+- **`detect`'s recommended next command crashed.** It printed
+  `node repo-verify/verify.mjs <repo> --archetype archetype.saas.json` — the single command the
+  whole command exists to hand you. It now prints `forespec init --archetype saas`, which
+  persists the choice so `plan`/`verify`/`gate` all agree. Its abstain branch printed bare
+  `--archetype <manifest>` fragments with no command in front; those are full commands now.
+- **The runtime hints had it too** — `verify`'s "give a flag a verdict:" and `calibrate`'s
+  "accept:" both handed over a `node repo-verify/...` path.
+- **`init`'s no-signal refusal predated `--archetype`.** It told you to run `forespec init
+  --no-ai` and then hand-write the config with `echo '{ "archetype": ... }' > forespec.config.json`
+  — suggesting whichever archetype sorted first among a row of zeroes, presented as a
+  recommendation. `--archetype` was added *because a refusal needed somewhere to send people*;
+  its sibling near-tie branch thirteen lines below was updated to use it and this one was not.
+  It now lists every archetype as a runnable `forespec init --archetype <name>`.
+- **`docs/claude-code-plugin.md` was cited three times and ships in nothing.** `docs/` is not in
+  package.json's `files`, so for everyone who installed from npm — everyone not developing
+  Forespec — that path pointed at nothing. One of the three is the no-verifier refusal, the
+  most-seen message the tool produces. All three are now a URL, verified 200.
+- **`init` and `start` pointed at `forespec verify`** without mentioning that
+  `/forespec:verify` needs no key. The refusal recovers by offering both paths, so this was a
+  wasted round-trip into an error rather than a wall — but it is the same papercut `demo` had,
+  one surface further along. Both now name the free path first.
+
+### Added
+- **Two self-test checks that read the real output, not the source.** One asserts no command
+  shown to a user is rooted in this repo; the other asserts no path shown to a user is absent
+  from the tarball, with the published file list coming from `npm pack --dry-run` so it cannot
+  disagree with what actually ships. Black-box on purpose: a comment may legitimately say
+  `node repo-verify/self-test.mjs`, and the fix for the second bug is a URL *ending in the path
+  it is about* — a source scan flags the correction as loudly as the defect. Both verified
+  failing on the pre-fix state.
+
 - **The release gate failed a release that had published fine.** Its npm poll waited 3 minutes
   for `dist-tags.latest` to move; on v0.2.2 the publish step exited clean at 14:43:40 and the
   registry did not catch up until 14:48:50 — **310 seconds**, on a gate that gave up at 183. So

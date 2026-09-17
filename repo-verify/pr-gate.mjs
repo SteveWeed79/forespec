@@ -44,7 +44,7 @@ const SEV_ORDER = ["critical", "high", "medium", "low"];
 const HELP = `forespec gate — grade a PR's diff, comment, and feed calibration.
 
 Usage:
-  node repo-verify/pr-gate.mjs [options]
+  forespec gate [options]
 
 Options:
   --repo <path>        repo to grade (default: .)
