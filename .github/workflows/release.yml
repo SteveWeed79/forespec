@@ -125,10 +125,21 @@ jobs:
           set -uo pipefail
           NAME=$(node -p "require('./package.json').name")
 
-          # npm's read path is CDN-cached and lags a publish by up to a couple of minutes — a
-          # single immediate check reports a false failure on a publish that worked. Poll instead:
-          # a release gate that cries wolf gets ignored, which is the failure it exists to prevent.
-          for i in $(seq 1 12); do
+          # npm's read path is CDN-cached and lags a publish — a single immediate check reports a
+          # false failure on a publish that worked. Poll instead: a release gate that cries wolf
+          # gets ignored, which is the failure it exists to prevent.
+          #
+          # The window is 10 minutes because 3 was not enough. On v0.2.2 the publish step exited
+          # clean at 14:43:40 and `dist-tags.latest` did not move until 14:48:50 — 310 seconds, on
+          # a gate that gave up at 183. It failed the release of a package that was published and
+          # installable, which is exactly the wolf-crying the comment above warns about, and it
+          # cannot be undone by re-running: npm answers a second publish of an existing version
+          # with a 403, so the rerun goes red at an earlier step and the run stays red forever.
+          #
+          # 40 attempts is deliberately more headroom than the 310s observed. The cost of waiting
+          # is wall-clock on a job that is otherwise seconds; the cost of being too short is a red
+          # release that shipped fine, and a gate nobody believes the next time it is right.
+          for i in $(seq 1 40); do
             LATEST=$(curl -sS -m 15 -H 'Cache-Control: no-cache' \
               "https://registry.npmjs.org/-/package/$NAME/dist-tags" 2>/dev/null \
               | node -pe "try{JSON.parse(require('fs').readFileSync(0,'utf8')).latest}catch(e){''}" 2>/dev/null || echo "")
@@ -142,9 +153,11 @@ jobs:
               echo "$NAME@$VERSION is published and installable."
               exit 0
             fi
-            echo "attempt $i/12: registry latest = ${LATEST:-<unreachable>}, want $VERSION — retrying in 15s"
+            echo "attempt $i/40: registry latest = ${LATEST:-<unreachable>}, want $VERSION — retrying in 15s"
             sleep 15
           done
 
-          echo "::error::publish reported success but $NAME@$VERSION is not the registry's latest after 3 minutes. Check NPM_TOKEN: npm answers an auth failure with a 404."
+          echo "::error::publish reported success but $NAME@$VERSION is not the registry's latest after 10 minutes."
+          echo "::error::Check NPM_TOKEN first — npm answers an auth failure with a 404, which reads like a missing package rather than a rejected credential."
+          echo "::error::Then check the registry by hand before assuming this is real: curl https://registry.npmjs.org/-/package/$NAME/dist-tags"
           exit 1

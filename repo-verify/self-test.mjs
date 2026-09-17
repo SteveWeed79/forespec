@@ -702,6 +702,21 @@ for (const rel of trackedFiles) {
 }
 check("every pasteable @vX.Y.Z pin matches package.json", stalePins.length === 0,
   stalePins.join("; ") || `all pins at v${pkgVersion}`);
+
+// The release gate polls npm because the registry read path is CDN-cached, and the window has
+// to outlast that cache. It did not: on v0.2.2 the publish exited clean and dist-tags.latest
+// took 310s to move, on a gate that gave up at 183 — so a package that was published and
+// installable got a red release. That one cannot be walked back either, because npm answers a
+// second publish of an existing version with a 403, so re-running goes red at an earlier step.
+//
+// Asserted here rather than left as a number in a YAML file, because the failure only shows up
+// on a release, and by then the wrong number has already cost one.
+const releaseYml = readFileSync(join(rootDir, ".github", "workflows", "release.yml"), "utf8");
+const attempts = Number((releaseYml.match(/for i in \$\(seq 1 (\d+)\); do/) || [])[1]);
+const interval = Number((releaseYml.match(/^\s*sleep (\d+)$/m) || [])[1]);
+const windowSec = attempts * interval;
+check("release gate waits out the npm CDN (>= 600s)", windowSec >= 600,
+  Number.isFinite(windowSec) ? `${attempts} x ${interval}s = ${windowSec}s` : "could not read the poll loop");
 // Every component the plugin advertises must actually be on disk — a marketplace install
 // silently missing its verifier would fail at the moment someone first tries it.
 for (const rel of ["agents/forespec-verifier.md", "commands/verify.md", "commands/plan.md", "skills/forespec-foresight/SKILL.md", "library/grading-contract.md", ".claude-plugin/marketplace.json"]) {
