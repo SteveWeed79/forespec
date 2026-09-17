@@ -14,7 +14,7 @@
 
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { rmSync, mkdtempSync, readFileSync, writeFileSync, existsSync } from "node:fs";
+import { rmSync, mkdtempSync, mkdirSync, readFileSync, writeFileSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { resolveArchetype } from "../library/resolve.mjs";
 import * as mock from "../verifier-eval/adapters/mock.mjs";
@@ -551,6 +551,45 @@ const packSample = selectForCheckpoint(loadRepo(fixture), resolveArchetype(arche
 check("packing is unchanged by numbering (fingerprint joins survive)", !packSample.includes(" | ") || !/^\s+\d+ \| /m.test(packSample));
 
 const rootDir = join(here, "..");
+
+// ── detection: monorepo deps, and refusing a coin flip ──────────────────────────────
+// A monorepo root package.json holds tooling; the product's real dependencies live in
+// apps/* and packages/*. Reading only the root made detection blind to the signals that
+// identify the archetype — a document-signing SaaS scored ai-app over saas because its
+// root carried an AI SDK and its `stripe` sat in packages/lib.
+const wsRoot = mkdtempSync(join(tmpdir(), "forespec-ws-"));
+try {
+  writeFileSync(join(wsRoot, "package.json"), JSON.stringify({
+    name: "mono", private: true, workspaces: ["apps/*", "packages/*"],
+    devDependencies: { turbo: "^2", "@ai-sdk/google-vertex": "^5" },
+  }));
+  mkdirSync(join(wsRoot, "packages", "lib"), { recursive: true });
+  writeFileSync(join(wsRoot, "packages", "lib", "package.json"), JSON.stringify({ name: "lib", dependencies: { stripe: "^14" } }));
+  const sig = collectSignals(wsRoot);
+  check("detection reads workspace package.json deps, not just the root", sig.deps.includes("stripe"), `deps: ${sig.deps.join(",")}`);
+  check("detection still reads the root's own deps", sig.deps.includes("@ai-sdk/google-vertex"));
+
+  // pnpm declares workspaces in YAML rather than package.json.
+  const pnpmRoot = mkdtempSync(join(tmpdir(), "forespec-pnpm-"));
+  writeFileSync(join(pnpmRoot, "package.json"), JSON.stringify({ name: "p", private: true }));
+  writeFileSync(join(pnpmRoot, "pnpm-workspace.yaml"), "packages:\n  - 'apps/*'\n");
+  mkdirSync(join(pnpmRoot, "apps", "web"), { recursive: true });
+  writeFileSync(join(pnpmRoot, "apps", "web", "package.json"), JSON.stringify({ name: "web", dependencies: { shopify: "^1" } }));
+  check("detection reads pnpm-workspace.yaml globs", collectSignals(pnpmRoot).deps.includes("shopify"));
+  rmSync(pnpmRoot, { recursive: true, force: true });
+} finally {
+  rmSync(wsRoot, { recursive: true, force: true });
+}
+
+// A near-tie is a coin flip, and the archetype decides which backbone the project is graded
+// against. `verify` refuses rather than fake a grade; detection must refuse rather than fake
+// a call — the damage is quieter and larger, because every later run inherits it.
+check("a 1-point margin is ambiguous", isAmbiguous([{ score: 22, confidence: "medium" }, { score: 21 }]) === true);
+check("a clear winner is not ambiguous", isAmbiguous([{ score: 41, confidence: "high" }, { score: 23 }]) === false);
+const initSrc = readFileSync(join(rootDir, "bin", "forespec.mjs"), "utf8");
+check("init refuses to write a config on a near-tie", /isAmbiguous\(ranked\)[\s\S]{0,120}Too close to call/.test(initSrc));
+// The refusal names a command; that command has to exist.
+check("init supports the --archetype escape hatch its refusal points at", /async function init[\s\S]{0,900}argVal\(args, "--archetype"\)/.test(initSrc));
 
 // ── the grading contract is ONE artifact ────────────────────────────────────────────
 // The agent path's published number (0 false-greens / 152 critical-bad trials) scores

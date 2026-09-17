@@ -13,7 +13,7 @@
 //   node repo-verify/detect.mjs [repo]        # human-readable ranking + recommendation
 //   node repo-verify/detect.mjs [repo] --json # machine-readable (consumed by `init`)
 
-import { existsSync, readFileSync, readdirSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { join, dirname, resolve as pathResolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { loadRepo } from "./select.mjs";
@@ -185,15 +185,82 @@ function hasTok(set, kw) {
 }
 
 /** I/O: gather cheap signals from a repo on disk. Pass `files` to reuse a prior walk. */
+/**
+ * Workspace globs a monorepo declares — npm/yarn `workspaces`, or pnpm-workspace.yaml.
+ *
+ * Only the shapes real repos use: `["apps/*"]`, `{ packages: ["apps/*"] }`, and pnpm's YAML
+ * list. Parsed with a line regex rather than a YAML dependency, because this package has zero
+ * runtime dependencies and one glob list does not justify breaking that.
+ */
+function workspaceGlobs(repoRoot, pkg) {
+  const globs = [];
+  const w = pkg?.workspaces;
+  if (Array.isArray(w)) globs.push(...w);
+  else if (Array.isArray(w?.packages)) globs.push(...w.packages);
+  const pnpm = join(repoRoot, "pnpm-workspace.yaml");
+  if (existsSync(pnpm)) {
+    try {
+      for (const line of readFileSync(pnpm, "utf8").split("\n")) {
+        const m = line.match(/^\s*-\s*['"]?([^'"#]+?)['"]?\s*$/);
+        if (m) globs.push(m[1].trim());
+      }
+    } catch { /* skip */ }
+  }
+  return globs.filter((g) => typeof g === "string" && g && !g.startsWith("!"));
+}
+
+/** Directories a workspace glob resolves to. Handles the `a/*` and `a/**` forms only. */
+function expandWorkspaceGlob(repoRoot, glob) {
+  const parts = glob.replace(/\/+$/, "").split("/");
+  let dirs = [repoRoot];
+  for (const part of parts) {
+    if (part === "**" || part === "*") {
+      const next = [];
+      for (const d of dirs) {
+        let entries;
+        try { entries = readdirSync(d, { withFileTypes: true }); } catch { continue; }
+        for (const e of entries) {
+          if (!e.isDirectory() || e.name === "node_modules" || e.name.startsWith(".")) continue;
+          next.push(join(d, e.name));
+        }
+      }
+      dirs = next;
+    } else {
+      dirs = dirs.map((d) => join(d, part)).filter((d) => { try { return statSync(d).isDirectory(); } catch { return false; } });
+    }
+    if (dirs.length > MAX_WORKSPACE_PKGS) break;
+  }
+  return dirs.slice(0, MAX_WORKSPACE_PKGS);
+}
+
+// A monorepo's root package.json holds tooling, not the product's dependencies. Bounded so a
+// pathological workspace layout can't turn detection into a filesystem crawl.
+const MAX_WORKSPACE_PKGS = 200;
+
 export function collectSignals(repoRoot, { files } = {}) {
   const deps = new Set();
   let depText = "";
+  const addDeps = (pkg) => {
+    for (const k of Object.keys({ ...pkg.dependencies, ...pkg.devDependencies, ...pkg.peerDependencies })) {
+      deps.add(k.toLowerCase());
+    }
+  };
   const pkgPath = join(repoRoot, "package.json");
   if (existsSync(pkgPath)) {
     try {
       const pkg = JSON.parse(readFileSync(pkgPath, "utf8"));
-      for (const k of Object.keys({ ...pkg.dependencies, ...pkg.devDependencies, ...pkg.peerDependencies })) {
-        deps.add(k.toLowerCase());
+      addDeps(pkg);
+      // A monorepo root declares tooling (turbo, eslint, prettier) while the product's real
+      // dependencies live in apps/* and packages/*. Reading only the root made detection blind
+      // to exactly the signals that identify the archetype: documenso's root carries
+      // @ai-sdk/google-vertex but NOT stripe (which sits in packages/lib), so a document-signing
+      // SaaS scored ai-app 21 vs saas 18 and was graded against the wrong backbone entirely.
+      for (const glob of workspaceGlobs(repoRoot, pkg)) {
+        for (const dir of expandWorkspaceGlob(repoRoot, glob)) {
+          const sub = join(dir, "package.json");
+          if (!existsSync(sub)) continue;
+          try { addDeps(JSON.parse(readFileSync(sub, "utf8"))); } catch { /* skip a malformed one */ }
+        }
       }
     } catch { /* malformed package.json — just skip it */ }
   }
