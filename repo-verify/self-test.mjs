@@ -16,10 +16,11 @@ import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { rmSync, mkdtempSync, mkdirSync, readFileSync, writeFileSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
+import { execFileSync } from "node:child_process";
 import { resolveArchetype } from "../library/resolve.mjs";
 import * as mock from "../verifier-eval/adapters/mock.mjs";
 import { loadRepo, selectForCheckpoint, scoreFile, withLineNumbers } from "./select.mjs";
-import { pickAdapter, noVerifierMessage } from "./verifier-choice.mjs";
+import { pickAdapter, noVerifierMessage, AGENT_COMMANDS } from "./verifier-choice.mjs";
 import { measureRecall } from "./selection-eval.mjs";
 import { fingerprint, recordPredictions, latestPrediction, recordOutcome, readOverrides, writeOverrides, FILES, OUTCOMES } from "./store.mjs";
 import { aggregate, propose } from "./calibrate.mjs";
@@ -30,6 +31,22 @@ import { contrastRatio, parseColor, isLargeText, compositeToLevel, scoreContrast
 import { estimateFromRecords, bandFor, verbosityFor } from "./proficiency.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
+/**
+ * Assert `first` appears before `second` — and that BOTH appear.
+ *
+ * `a.indexOf(x) < a.indexOf(y)` is the obvious way to write this and it is wrong: a missing
+ * needle is -1, which is less than every real index, so the check reports "ok" on text that
+ * never mentions `first` at all. That is the precise failure it exists to catch, and it was
+ * passing on a `demo` that had no plugin path in it.
+ */
+function checkOrder(name, hay, first, second) {
+  const a = hay.indexOf(first);
+  const b = hay.indexOf(second);
+  if (a === -1) return check(name, false, `missing: ${first}`);
+  if (b === -1) return check(name, false, `missing: ${second}`);
+  return check(name, a < b, `${first} at ${a}, ${second} at ${b}`);
+}
+
 const archetypePath = join(here, "..", "archetype.ecommerce.json");
 const fixture = join(here, "fixtures", "vulnerable-checkout");
 
@@ -533,10 +550,29 @@ check("claude and agent are trusted", pickAdapter((f) => (f === "--adapter" ? "c
 // The message is the first thing a new user sees instead of a grade — it must hand them
 // somewhere to go, not just say no.
 const refusal = noVerifierMessage({ reason: "no verifier is configured" });
-check("refusal points at the free plugin path first", refusal.indexOf("/plugin install") < refusal.indexOf("ANTHROPIC_API_KEY"));
+checkOrder("refusal points at the free plugin path first", refusal, "/plugin install", "ANTHROPIC_API_KEY");
 check("refusal names what still works with no verifier", ["demo", "plan", "init"].every((c) => refusal.includes(`forespec ${c}`)));
 const ciRefusal = noVerifierMessage({ context: "ci" });
-check("in CI the refusal leads with the key (no agent in the loop)", ciRefusal.indexOf("anthropic-api-key") < ciRefusal.indexOf("/plugin install"));
+checkOrder("in CI the refusal leads with the key (no agent in the loop)", ciRefusal, "anthropic-api-key", "/plugin install");
+
+// `demo` is the most-run command in the tool — it's what the README and every link lead
+// with — so its closing lines are where the largest number of people learn what to do
+// next. It used to close with `export ANTHROPIC_API_KEY=sk-...` and never mention the
+// plugin: the exact wall this module exists to remove, grown back on the one surface
+// that gets the most traffic. The ordering rule is the same rule as the refusal's, so
+// it's asserted the same way, and the commands come from one source so they can't drift.
+const demoOut = execFileSync(process.execPath, [join(here, "demo.mjs")], {
+  encoding: "utf8",
+  // stdout only: demo's banner goes to stderr, and inheriting it prints a stray demo
+  // header in the middle of the self-test's own output.
+  stdio: ["ignore", "pipe", "ignore"],
+  env: { ...process.env, NO_COLOR: "1", FORCE_COLOR: "0" },
+});
+check("demo offers the free plugin path at all", demoOut.includes("/plugin install"));
+checkOrder("demo leads with the free path, not the key", demoOut, "/plugin install", "ANTHROPIC_API_KEY");
+check("demo still offers the key path as the fallback", demoOut.includes("ANTHROPIC_API_KEY"));
+check("demo's install commands come from verifier-choice (no fork)",
+  AGENT_COMMANDS.every((c) => demoOut.includes(c)), AGENT_COMMANDS.find((c) => !demoOut.includes(c)) || "");
 
 // ── file:line anchoring (the API path grades a packed blob, so it needs the numbers) ──
 const numbered = withLineNumbers("// FILE: a/b.ts\nconst x = 1;\nconst y = 2;\n\n// FILE: c.ts\nfoo();");

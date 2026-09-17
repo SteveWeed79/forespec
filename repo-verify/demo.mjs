@@ -5,9 +5,10 @@
 // bundled example (repo-verify/fixtures/vulnerable-checkout — a deliberately
 // vulnerable checkout). No API key, no config, nothing past `npx forespec`.
 //
-// Why scripted and not a live grade: the trustworthy grade is the reasoning
-// verifier (needs a key). The free mock is a keyword baseline the tool itself
-// says not to trust — a bad first impression. So `demo` renders a fixed set of
+// Why scripted and not a live grade: a trustworthy grade needs a real verifier —
+// the plugin running on your subscription, or an API key — and `npx forespec demo`
+// has neither in hand. The free mock is a keyword baseline the tool itself says not
+// to trust — a bad first impression. So `demo` renders a fixed set of
 // verdicts — grounded in the example's real holes — through the SAME renderer a
 // live `verify` uses (render-cli.mjs), so what you see is exactly the shape and
 // substance of a real run. The header/footer say plainly that it's a scripted
@@ -18,6 +19,7 @@
 // call), and nothing claims to be a live grade of the user's code.
 
 import { renderVerifyText } from "./render-cli.mjs";
+import { AGENT_COMMANDS } from "./verifier-choice.mjs";
 
 const C = { reset: "\x1b[0m", bold: "\x1b[1m", dim: "\x1b[2m", cyan: "\x1b[36m", yellow: "\x1b[33m" };
 const useColor = process.stdout.isTTY === true && !process.argv.includes("--no-color");
@@ -149,7 +151,16 @@ function main() {
     "  touches your server), and a gap before it's even built — the discernment a grader",
     "  you trust with \"is this shippable?\" has to earn.",
     "",
-    paint(C.bold, "  Grade your OWN repo for real:"),
+    // Agent path first. This is the moment of most intent — the demo just showed what a
+    // grade looks like — and for the people this is built for, the free path is three
+    // commands inside the tool they're already in. Leading with "go get an API key" here
+    // is the wall `verifier-choice.mjs` exists to remove; it must not grow back in the
+    // most-run command. Same ordering rule, same commands, one source.
+    paint(C.bold, "  Grade your OWN repo for real — free, in the agent you're already in:"),
+    ...AGENT_COMMANDS.map((c) => `    ${cmd(c)}`),
+    `    ${paint(C.dim, "runs on your existing Claude Code subscription — no API key, cites file:line")}`,
+    "",
+    "  Not in a coding agent? Use an API key:",
     `    ${cmd("export ANTHROPIC_API_KEY=sk-...")}      ${paint(C.dim, "# https://console.anthropic.com")}`,
     `    ${cmd("export ANTHROPIC_MODEL=<a current Claude model id>")}`,
     `    ${cmd("forespec init")}      ${paint(C.dim, "# detect your archetype from the code")}`,

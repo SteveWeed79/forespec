@@ -44,10 +44,24 @@ function missingReason(env) {
   return "no verifier is configured";
 }
 
+/**
+ * The free path, as commands.
+ *
+ * Exported because more than one surface offers it — the refusal above, and `demo`'s closing,
+ * which is the most-run command in the tool. A forked copy of an install sequence drifts, and
+ * a wrong install command is worse than not mentioning the path at all.
+ *
+ * `/forespec:verify` runs `forespec init` itself when there's no config, so this really is the
+ * whole sequence: three commands, no key, no setup step.
+ */
+export const AGENT_COMMANDS = [
+  "/plugin marketplace add SteveWeed79/forespec",
+  "/plugin install forespec@forespec",
+  "/forespec:verify",
+];
+
 const AGENT_PATH = `From the coding agent you're already in — free, no API key:
-       /plugin marketplace add SteveWeed79/forespec
-       /plugin install forespec@forespec
-       /forespec:verify
+${AGENT_COMMANDS.map((c) => `       ${c}`).join("\n")}
      It grades on your existing subscription and cites file:line.
      Details: docs/claude-code-plugin.md`;
 
