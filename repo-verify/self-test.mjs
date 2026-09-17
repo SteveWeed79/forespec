@@ -676,6 +676,32 @@ const pkgVersion = JSON.parse(readFileSync(join(rootDir, "package.json"), "utf8"
 const pluginManifest = JSON.parse(readFileSync(join(rootDir, ".claude-plugin", "plugin.json"), "utf8"));
 check("plugin manifest version matches package.json", pluginManifest.version === pkgVersion,
   `plugin.json ${pluginManifest.version} vs package.json ${pkgVersion}`);
+// The same rule for the version we tell people to PASTE. `uses: SteveWeed79/forespec@vX.Y.Z`
+// appears in action.yml's drop-in snippet and in the CI half of the no-verifier message, and
+// both sat at v0.2.0 two releases after v0.2.0 — so anyone following the instructions pinned a
+// release that predated the fix they came for.
+//
+// This scans every tracked file rather than the list the sync script rewrites, so a NEW file
+// with a version pin fails here instead of drifting unnoticed. CHANGELOG.md is the one
+// exclusion: it cites old versions on purpose, and a release that rewrote its own history
+// would be worse than a stale snippet.
+const trackedFiles = execFileSync("git", ["ls-files"], { cwd: rootDir, encoding: "utf8" })
+  .split("\n")
+  .filter((f) => f && f !== "CHANGELOG.md");
+const stalePins = [];
+for (const rel of trackedFiles) {
+  let body;
+  try {
+    body = readFileSync(join(rootDir, rel), "utf8");
+  } catch {
+    continue; // deleted-but-tracked, or binary we can't read as utf8
+  }
+  for (const ref of body.match(/SteveWeed79\/forespec@v\d+\.\d+\.\d+/g) || []) {
+    if (ref !== `SteveWeed79/forespec@v${pkgVersion}`) stalePins.push(`${rel}: ${ref}`);
+  }
+}
+check("every pasteable @vX.Y.Z pin matches package.json", stalePins.length === 0,
+  stalePins.join("; ") || `all pins at v${pkgVersion}`);
 // Every component the plugin advertises must actually be on disk — a marketplace install
 // silently missing its verifier would fail at the moment someone first tries it.
 for (const rel of ["agents/forespec-verifier.md", "commands/verify.md", "commands/plan.md", "skills/forespec-foresight/SKILL.md", "library/grading-contract.md", ".claude-plugin/marketplace.json"]) {

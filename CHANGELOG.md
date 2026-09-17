@@ -6,12 +6,47 @@ All notable changes to this project are documented here. Format follows
 
 ## [Unreleased]
 
+## [0.2.2] — 2026-09-17
+
+**`npx forespec demo` was still sending people to buy an API key.** The command the README
+leads with, behind every link and every npm download, closed by telling you to export
+`ANTHROPIC_API_KEY` — never mentioning that the plugin grades on the Claude Code subscription
+you already have. The wall this project spent a release removing had grown back on its
+highest-traffic surface.
+
 ### Fixed
+- **`demo` now leads with the free path.** Three commands, no key, no setup step
+  (`/forespec:verify` runs `init` itself); the API key stays as the fallback for people not
+  in a coding agent. `verify` and `gate` were fixed when the wall came down —
+  `demo` had forked its own copy of that copy and never was. The install commands are now
+  exported from `verifier-choice.mjs` and rendered from that one source, so no surface can
+  drift to a wrong install sequence again.
+- **The `uses: SteveWeed79/forespec@vX.Y.Z` snippet no longer goes stale.** Both copies — the
+  drop-in example in `action.yml` and the CI half of the no-verifier message — still said
+  `v0.2.0` two releases after v0.2.0, so anyone following the instructions pinned a release
+  that predated the fix they came for. `scripts/sync-plugin-version.mjs` now owns those refs
+  alongside `plugin.json`, and the self-test scans **every** tracked file (bar `CHANGELOG.md`,
+  which cites old versions on purpose) so a new file with a version pin fails the build
+  instead of drifting unnoticed.
+- **A self-test that passed hardest where it should have failed.** Reverting `demo` to prove
+  the new ordering check had teeth showed it reporting `ok` on a demo with no plugin path in
+  it at all: `hay.indexOf(a) < hay.indexOf(b)` is `-1` for a missing needle, and `-1` is less
+  than every real index. The two pre-existing refusal-ordering checks had the same shape. All
+  three now go through `checkOrder`, which requires both strings present and names which one
+  is missing.
 - **`action.yml`'s description now fits the GitHub Marketplace limit** (149 -> 120 characters;
   the cap is 125). Marketplace validation rejected the listing outright, so the PR gate could not
   be published there at all. The clause about feeding the calibration store is what got cut: it
   is a side effect of a run rather than something a browser evaluates the action on, and the
   grading and the sticky comment are the two things that say what it does.
+
+### Documentation
+- **`docs/oss-audit-2026-09.md` records what happened to the four defects the run found in
+  Forespec itself** — two fixed, one open with the attempt and why nothing shipped, one
+  judgment call recorded with no action. Dispositions are added *beside* each finding, never
+  rewritten over it: a field report that edits away its own findings once they are fixed is
+  worth nothing, and on one of them the finding's own assumed root cause turned out to be
+  wrong, which is worth more than recording the fix.
 
 ## [0.2.1] — 2026-09-17
 
@@ -225,7 +260,8 @@ The verifier-first core, validated end to end.
 - **Calibration store** with a physical pattern/instance wall.
 - **License**: Business Source License 1.1 (converts to Apache 2.0 on the Change Date).
 
-[Unreleased]: https://github.com/SteveWeed79/forespec/compare/v0.2.1...HEAD
+[Unreleased]: https://github.com/SteveWeed79/forespec/compare/v0.2.2...HEAD
+[0.2.2]: https://github.com/SteveWeed79/forespec/compare/v0.2.1...v0.2.2
 [0.2.1]: https://github.com/SteveWeed79/forespec/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/SteveWeed79/forespec/compare/v0.1.3...v0.2.0
 [0.1.0]: https://github.com/SteveWeed79/forespec/releases/tag/v0.1.0
