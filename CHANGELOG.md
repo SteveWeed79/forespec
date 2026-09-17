@@ -6,6 +6,13 @@ All notable changes to this project are documented here. Format follows
 
 ## [Unreleased]
 
+### Fixed
+- **`action.yml`'s description now fits the GitHub Marketplace limit** (149 -> 120 characters;
+  the cap is 125). Marketplace validation rejected the listing outright, so the PR gate could not
+  be published there at all. The clause about feeding the calibration store is what got cut: it
+  is a side effect of a run rather than something a browser evaluates the action on, and the
+  grading and the sticky comment are the two things that say what it does.
+
 ## [0.2.1] — 2026-09-17
 
 **Forespec is now Apache-2.0.** A standard people are asked to trust shouldn't be one they need

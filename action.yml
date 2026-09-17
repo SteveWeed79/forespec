@@ -1,5 +1,5 @@
 name: "Forespec PR gate"
-description: "Grade the backbone checkpoints a PR's changed files touch, post a sticky comment with how each moved vs the last run, and feed the calibration store."
+description: "Grade the backbone checkpoints a PR's changed files touch, and post a sticky comment with how each moved since last run."
 author: "forespec"
 branding:
   icon: "eye"
