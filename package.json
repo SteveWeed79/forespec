@@ -1,6 +1,6 @@
 {
   "name": "forespec",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "type": "module",
   "description": "Catches what your AI coder didn't know to ask — the atomic stock hold, the tenant isolation, the webhook signature. 42 checkpoints, runs in Claude Code, no API key.",
   "keywords": [
@@ -65,7 +65,7 @@
     "calibrate": "node repo-verify/calibrate.mjs",
     "proficiency": "node repo-verify/proficiency.mjs",
     "gate": "node repo-verify/pr-gate.mjs",
-    "version": "node scripts/sync-plugin-version.mjs && git add .claude-plugin/plugin.json",
+    "version": "node scripts/sync-plugin-version.mjs && git add .claude-plugin/plugin.json action.yml repo-verify/verifier-choice.mjs",
     "prepublishOnly": "node repo-verify/self-test.mjs"
   }
 }
