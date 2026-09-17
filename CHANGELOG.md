@@ -6,6 +6,18 @@ All notable changes to this project are documented here. Format follows
 
 ## [Unreleased]
 
+### Fixed
+- **The release gate failed a release that had published fine.** Its npm poll waited 3 minutes
+  for `dist-tags.latest` to move; on v0.2.2 the publish step exited clean at 14:43:40 and the
+  registry did not catch up until 14:48:50 — **310 seconds**, on a gate that gave up at 183. So
+  v0.2.2 is published, installable, and marked with a red X.
+  The window is now 10 minutes. This is the exact wolf-crying the step's own comment warns
+  about ("a release gate that cries wolf gets ignored, which is the failure it exists to
+  prevent"), and it is not re-runnable away: npm answers a second publish of an existing version
+  with a 403, so a rerun goes red at an earlier step and the run stays red for good. The
+  self-test now asserts the window, because the wrong number only shows up during a release —
+  and by then it has already cost one.
+
 ## [0.2.2] — 2026-09-17
 
 **`npx forespec demo` was still sending people to buy an API key.** The command the README
